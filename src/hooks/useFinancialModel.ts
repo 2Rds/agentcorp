@@ -13,22 +13,30 @@ export interface FinancialModelRow {
   scenario: string;
 }
 
+export interface MonthlyAggregate {
+  month: string;
+  revenue: number;
+  cogs: number;
+  grossProfit: number;
+  opex: number;
+  ebitda: number;
+  netBurn: number;
+}
+
+export interface OpExBreakdown {
+  subcategory: string;
+  total: number;
+}
+
 export interface DerivedMetrics {
   monthlyBurn: number;
   runway: number;
   totalFunding: number;
   mrr: number;
+  grossMargin: number;
   monthlyData: MonthlyAggregate[];
   revenueBreakdown: { subcategory: string; total: number }[];
-}
-
-export interface MonthlyAggregate {
-  month: string;
-  revenue: number;
-  cogs: number;
-  opex: number;
-  headcount: number;
-  netBurn: number;
+  opexBreakdown: OpExBreakdown[];
 }
 
 export function useFinancialModel(orgId: string | null, scenario: string = "base") {
@@ -51,7 +59,10 @@ export function useFinancialModel(orgId: string | null, scenario: string = "base
   const derived = useMemo<DerivedMetrics>(() => {
     const rows = query.data ?? [];
     if (rows.length === 0) {
-      return { monthlyBurn: 0, runway: 0, totalFunding: 0, mrr: 0, monthlyData: [], revenueBreakdown: [] };
+      return {
+        monthlyBurn: 0, runway: 0, totalFunding: 0, mrr: 0, grossMargin: 0,
+        monthlyData: [], revenueBreakdown: [], opexBreakdown: [],
+      };
     }
 
     // Group by month
@@ -67,27 +78,30 @@ export function useFinancialModel(orgId: string | null, scenario: string = "base
 
     sortedMonths.forEach((month) => {
       const items = byMonth.get(month)!;
-      const sum = (cat: string) => items.filter((i) => i.category === cat).reduce((s, i) => s + Number(i.amount), 0);
+      const sum = (cat: string) =>
+        items.filter((i) => i.category === cat).reduce((s, i) => s + Number(i.amount), 0);
       const revenue = sum("revenue");
       const cogs = sum("cogs");
-      const opex = sum("opex");
-      const headcount = sum("headcount");
-      monthlyData.push({ month, revenue, cogs, opex, headcount, netBurn: revenue - cogs - opex - headcount });
+      const grossProfit = revenue - cogs;
+      const opex = sum("opex") + sum("headcount");
+      const ebitda = grossProfit - opex;
+      monthlyData.push({ month, revenue, cogs, grossProfit, opex, ebitda, netBurn: ebitda });
     });
 
     // Latest month metrics
     const latest = monthlyData[monthlyData.length - 1];
-    const monthlyBurn = latest ? Math.abs(Math.min(0, latest.netBurn)) : 0;
+    const monthlyBurn = latest ? Math.abs(Math.min(0, latest.ebitda)) : 0;
+    const mrr = latest?.revenue ?? 0;
+    const grossMargin = latest && latest.revenue > 0 ? (latest.grossProfit / latest.revenue) * 100 : 0;
 
     // Total funding
-    const totalFunding = rows.filter((r) => r.category === "funding").reduce((s, r) => s + Number(r.amount), 0);
+    const totalFunding = rows
+      .filter((r) => r.category === "funding")
+      .reduce((s, r) => s + Number(r.amount), 0);
 
-    // Runway = total cash / monthly burn
-    const totalCash = monthlyData.reduce((s, m) => s + m.netBurn, 0) + totalFunding;
+    // Runway
+    const totalCash = monthlyData.reduce((s, m) => s + m.ebitda, 0) + totalFunding;
     const runway = monthlyBurn > 0 ? Math.max(0, totalCash / monthlyBurn) : 0;
-
-    // MRR = latest month revenue
-    const mrr = latest?.revenue ?? 0;
 
     // Revenue breakdown by subcategory
     const revMap = new Map<string, number>();
@@ -96,7 +110,16 @@ export function useFinancialModel(orgId: string | null, scenario: string = "base
     });
     const revenueBreakdown = Array.from(revMap.entries()).map(([subcategory, total]) => ({ subcategory, total }));
 
-    return { monthlyBurn, runway, totalFunding, mrr, monthlyData, revenueBreakdown };
+    // OpEx breakdown by subcategory
+    const opexMap = new Map<string, number>();
+    rows.filter((r) => r.category === "opex" || r.category === "headcount").forEach((r) => {
+      opexMap.set(r.subcategory, (opexMap.get(r.subcategory) ?? 0) + Number(r.amount));
+    });
+    const opexBreakdown = Array.from(opexMap.entries())
+      .map(([subcategory, total]) => ({ subcategory, total }))
+      .sort((a, b) => b.total - a.total);
+
+    return { monthlyBurn, runway, totalFunding, mrr, grossMargin, monthlyData, revenueBreakdown, opexBreakdown };
   }, [query.data]);
 
   return { ...query, derived };
