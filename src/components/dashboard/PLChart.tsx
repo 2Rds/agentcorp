@@ -6,7 +6,8 @@ import { format, parseISO } from "date-fns";
 
 const chartConfig = {
   revenue: { label: "Revenue", color: "hsl(var(--chart-positive))" },
-  expenses: { label: "Expenses", color: "hsl(var(--chart-negative))" },
+  cogs: { label: "COGS", color: "hsl(var(--chart-4))" },
+  opex: { label: "OpEx", color: "hsl(var(--chart-negative))" },
 };
 
 interface PLChartProps {
@@ -17,7 +18,8 @@ export default function PLChart({ data }: PLChartProps) {
   const chartData = data.map((d) => ({
     month: format(parseISO(d.month), "MMM yy"),
     revenue: d.revenue,
-    expenses: d.cogs + d.opex + d.headcount,
+    cogs: d.cogs,
+    opex: d.opex,
   }));
 
   return (
@@ -27,7 +29,9 @@ export default function PLChart({ data }: PLChartProps) {
       </CardHeader>
       <CardContent>
         {chartData.length === 0 ? (
-          <p className="text-muted-foreground text-sm text-center py-8">No financial data yet. Build your model through the chat.</p>
+          <p className="text-muted-foreground text-sm text-center py-8">
+            No financial data yet. Ask the CFO agent to build your model.
+          </p>
         ) : (
           <ChartContainer config={chartConfig} className="h-[260px] w-full">
             <AreaChart data={chartData}>
@@ -35,8 +39,9 @@ export default function PLChart({ data }: PLChartProps) {
               <XAxis dataKey="month" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
               <YAxis tick={{ fontSize: 11 }} className="fill-muted-foreground" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
               <ChartTooltip content={<ChartTooltipContent />} />
-              <Area type="monotone" dataKey="revenue" stackId="1" fill="var(--color-revenue)" stroke="var(--color-revenue)" fillOpacity={0.3} />
-              <Area type="monotone" dataKey="expenses" stackId="2" fill="var(--color-expenses)" stroke="var(--color-expenses)" fillOpacity={0.3} />
+              <Area type="monotone" dataKey="revenue" fill="var(--color-revenue)" stroke="var(--color-revenue)" fillOpacity={0.3} />
+              <Area type="monotone" dataKey="cogs" fill="var(--color-cogs)" stroke="var(--color-cogs)" fillOpacity={0.3} />
+              <Area type="monotone" dataKey="opex" fill="var(--color-opex)" stroke="var(--color-opex)" fillOpacity={0.3} />
             </AreaChart>
           </ChartContainer>
         )}

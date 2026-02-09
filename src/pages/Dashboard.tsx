@@ -7,6 +7,7 @@ import SummaryCards from "@/components/dashboard/SummaryCards";
 import PLChart from "@/components/dashboard/PLChart";
 import BurnRunwayChart from "@/components/dashboard/BurnRunwayChart";
 import CapTableView from "@/components/dashboard/CapTableView";
+import OpExBreakdownView from "@/components/dashboard/OpExBreakdown";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function Dashboard() {
@@ -26,8 +27,8 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            {Array.from({ length: 5 }).map((_, i) => (
               <Skeleton key={i} className="h-24 rounded-xl" />
             ))}
           </div>
@@ -40,7 +41,10 @@ export default function Dashboard() {
             <PLChart data={derived.monthlyData} />
             <BurnRunwayChart data={derived.monthlyData} />
           </div>
-          <CapTableView summary={summary} />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <OpExBreakdownView data={derived.opexBreakdown} />
+            <CapTableView summary={summary} />
+          </div>
         </>
       )}
     </div>
