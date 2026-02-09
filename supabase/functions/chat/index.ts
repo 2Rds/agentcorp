@@ -87,28 +87,32 @@ Return ONLY the JSON array, no markdown fences.`;
 
 async function extractKnowledge(userMsg: string, assistantMsg: string, organizationId: string) {
   try {
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+    if (!ANTHROPIC_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
 
-    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const resp = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "claude-opus-4-6",
+        max_tokens: 1000,
+        system: EXTRACT_PROMPT,
         messages: [
-          { role: "system", content: EXTRACT_PROMPT },
           { role: "user", content: `User: ${userMsg}\n\nAssistant: ${assistantMsg.slice(0, 2000)}` },
         ],
         temperature: 0.2,
-        max_tokens: 1000,
       }),
     });
 
     if (!resp.ok) { await resp.text(); return; }
     const data = await resp.json();
-    const raw = data.choices?.[0]?.message?.content?.trim();
+    const raw = data.content?.[0]?.text?.trim();
     if (!raw) return;
 
     let items: { title: string; content: string }[];
