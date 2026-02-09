@@ -31,27 +31,20 @@ export function useOrganization() {
   const createOrganization = async (name: string) => {
     if (!user) throw new Error("Not authenticated");
 
-    // Create org
-    const { data: org, error: orgError } = await supabase
-      .from("organizations")
-      .insert({ name })
-      .select()
-      .single();
-    if (orgError) throw orgError;
+    const session = await supabase.auth.getSession();
+    const token = session.data.session?.access_token;
+    if (!token) throw new Error("No session");
 
-    // Link profile to org
-    await supabase
-      .from("profiles")
-      .update({ organization_id: org.id })
-      .eq("user_id", user.id);
+    const response = await supabase.functions.invoke("create-organization", {
+      body: { name },
+    });
 
-    // Assign owner role
-    await supabase
-      .from("user_roles")
-      .insert({ user_id: user.id, organization_id: org.id, role: "owner" as any });
+    if (response.error) throw new Error(response.error.message || "Failed to create organization");
+    if (response.data?.error) throw new Error(response.data.error);
 
-    setOrgId(org.id);
-    return org.id;
+    const orgId = response.data.id;
+    setOrgId(orgId);
+    return orgId;
   };
 
   return { orgId, loading, createOrganization };
