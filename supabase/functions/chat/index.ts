@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,13 +24,77 @@ When building financial models, you think in terms of Excel/spreadsheet formulas
 
 Format your responses with clear markdown: use headers, bullet points, tables, and code blocks for formulas when appropriate.`;
 
+const EXTRACT_PROMPT = `You extract structured knowledge from a conversation between a startup founder and their AI CFO.
+Given the latest user message and assistant response, extract 0-3 distinct knowledge items that are worth remembering long-term.
+Only extract concrete, reusable facts — company metrics, decisions, goals, financial figures, investor names, etc.
+Skip generic advice or questions.
+
+Return a JSON array (can be empty). Each item: {"title": "short label", "content": "detail paragraph"}
+Return ONLY the JSON array, no markdown fences.`;
+
+async function extractKnowledge(userMsg: string, assistantMsg: string, organizationId: string) {
+  try {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL");
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!LOVABLE_API_KEY || !SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+
+    const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${LOVABLE_API_KEY}` },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "system", content: EXTRACT_PROMPT },
+          { role: "user", content: `User: ${userMsg}\n\nAssistant: ${assistantMsg.slice(0, 2000)}` },
+        ],
+        temperature: 0.2,
+        max_tokens: 1000,
+      }),
+    });
+
+    if (!resp.ok) { await resp.text(); return; }
+    const data = await resp.json();
+    const raw = data.choices?.[0]?.message?.content?.trim();
+    if (!raw) return;
+
+    let items: { title: string; content: string }[];
+    try {
+      items = JSON.parse(raw);
+    } catch {
+      // Try extracting JSON from markdown fences
+      const match = raw.match(/\[[\s\S]*\]/);
+      if (!match) return;
+      items = JSON.parse(match[0]);
+    }
+
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    const rows = items.filter(i => i.title && i.content).slice(0, 3).map(i => ({
+      organization_id: organizationId,
+      title: i.title,
+      content: i.content,
+      source: "chat",
+    }));
+
+    if (rows.length > 0) {
+      const { error } = await supabase.from("knowledge_base").insert(rows);
+      if (error) console.error("KB insert error:", error);
+      else console.log(`Extracted ${rows.length} knowledge items`);
+    }
+  } catch (e) {
+    console.error("Knowledge extraction error:", e);
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { messages } = await req.json();
+    const { messages, organizationId } = await req.json();
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) {
       return new Response(
@@ -37,6 +102,8 @@ serve(async (req) => {
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const userMessage = messages[messages.length - 1]?.content || "";
 
     const anthropicMessages = messages
       .filter((m: any) => m.role !== "system")
@@ -73,7 +140,9 @@ serve(async (req) => {
       );
     }
 
-    // Transform Anthropic SSE to OpenAI-compatible SSE format for the frontend
+    // Collect full response for knowledge extraction
+    let fullAssistantResponse = "";
+
     const transformStream = new TransformStream({
       transform(chunk, controller) {
         const text = new TextDecoder().decode(chunk);
@@ -88,6 +157,7 @@ serve(async (req) => {
             const parsed = JSON.parse(data);
 
             if (parsed.type === "content_block_delta" && parsed.delta?.text) {
+              fullAssistantResponse += parsed.delta.text;
               const openaiChunk = {
                 choices: [{ delta: { content: parsed.delta.text } }],
               };
@@ -96,6 +166,10 @@ serve(async (req) => {
 
             if (parsed.type === "message_stop") {
               controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
+              // Fire-and-forget knowledge extraction
+              if (organizationId && userMessage) {
+                extractKnowledge(userMessage, fullAssistantResponse, organizationId);
+              }
             }
           } catch {
             // Skip malformed JSON
