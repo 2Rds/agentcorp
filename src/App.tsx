@@ -10,8 +10,8 @@ import Auth from "./pages/Auth";
 import Onboarding from "./pages/Onboarding";
 import Chat from "./pages/Chat";
 import Dashboard from "./pages/Dashboard";
-import Documents from "./pages/Documents";
 import Investors from "./pages/Investors";
+import Knowledge from "./pages/Knowledge";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -48,8 +48,8 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route element={<ProtectedRoutes />}>
               <Route path="/" element={<Chat />} />
+              <Route path="/knowledge" element={<Knowledge />} />
               <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/documents" element={<Documents />} />
               <Route path="/investors" element={<Investors />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
