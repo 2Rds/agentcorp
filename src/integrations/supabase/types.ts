@@ -206,6 +206,62 @@ export type Database = {
           },
         ]
       }
+      investor_links: {
+        Row: {
+          allowed_document_ids: string[] | null
+          created_at: string
+          created_by: string
+          email: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          passcode: string | null
+          require_email: boolean
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          allowed_document_ids?: string[] | null
+          created_at?: string
+          created_by: string
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          organization_id: string
+          passcode?: string | null
+          require_email?: boolean
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          allowed_document_ids?: string[] | null
+          created_at?: string
+          created_by?: string
+          email?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          organization_id?: string
+          passcode?: string | null
+          require_email?: boolean
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "investor_links_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       knowledge_base: {
         Row: {
           content: string
@@ -243,6 +299,66 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "knowledge_base_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      link_views: {
+        Row: {
+          created_at: string
+          device_info: Json | null
+          duration_seconds: number | null
+          id: string
+          last_page_viewed: number | null
+          link_id: string
+          organization_id: string
+          pages_viewed: number | null
+          started_at: string
+          total_pages: number | null
+          viewer_email: string | null
+          viewer_ip: string | null
+        }
+        Insert: {
+          created_at?: string
+          device_info?: Json | null
+          duration_seconds?: number | null
+          id?: string
+          last_page_viewed?: number | null
+          link_id: string
+          organization_id: string
+          pages_viewed?: number | null
+          started_at?: string
+          total_pages?: number | null
+          viewer_email?: string | null
+          viewer_ip?: string | null
+        }
+        Update: {
+          created_at?: string
+          device_info?: Json | null
+          duration_seconds?: number | null
+          id?: string
+          last_page_viewed?: number | null
+          link_id?: string
+          organization_id?: string
+          pages_viewed?: number | null
+          started_at?: string
+          total_pages?: number | null
+          viewer_email?: string | null
+          viewer_ip?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "link_views_link_id_fkey"
+            columns: ["link_id"]
+            isOneToOne: false
+            referencedRelation: "investor_links"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "link_views_organization_id_fkey"
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"

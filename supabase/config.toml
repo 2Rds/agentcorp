@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.create-organization]
 verify_jwt = false
+
+[functions.track-view]
+verify_jwt = false
