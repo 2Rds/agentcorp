@@ -1,4 +1,4 @@
-import { MessageSquare, BarChart3, FileText, Users, Settings, LogOut, Plus } from "lucide-react";
+import { MessageSquare, BarChart3, FileText, Users, Settings, LogOut } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +16,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+// Removed unused Plus icon and New Conversation button
 import { Separator } from "@/components/ui/separator";
 
 const navItems = [
@@ -59,15 +60,6 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
-        {!collapsed && (
-          <div className="px-4 mb-2">
-            <Button variant="outline" size="sm" className="w-full justify-start gap-2 text-xs" onClick={() => navigate("/")}>
-              <Plus className="w-3.5 h-3.5" />
-              New Conversation
-            </Button>
-          </div>
-        )}
-
         <SidebarGroup>
           <SidebarGroupLabel className="text-[10px] uppercase tracking-wider">Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
