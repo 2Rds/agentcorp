@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      cap_table_entries: {
+        Row: {
+          created_at: string
+          date: string | null
+          id: string
+          investment_amount: number | null
+          organization_id: string
+          ownership_pct: number
+          round_name: string | null
+          share_price: number | null
+          shares: number
+          stakeholder_name: string
+          stakeholder_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date?: string | null
+          id?: string
+          investment_amount?: number | null
+          organization_id: string
+          ownership_pct?: number
+          round_name?: string | null
+          share_price?: number | null
+          shares?: number
+          stakeholder_name: string
+          stakeholder_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string | null
+          id?: string
+          investment_amount?: number | null
+          organization_id?: string
+          ownership_pct?: number
+          round_name?: string | null
+          share_price?: number | null
+          shares?: number
+          stakeholder_name?: string
+          stakeholder_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cap_table_entries_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           created_at: string
@@ -102,6 +155,53 @@ export type Database = {
             columns: ["parent_document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      financial_model: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          formula: string | null
+          id: string
+          month: string
+          organization_id: string
+          scenario: string
+          subcategory: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          category: string
+          created_at?: string
+          formula?: string | null
+          id?: string
+          month: string
+          organization_id: string
+          scenario?: string
+          subcategory: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          formula?: string | null
+          id?: string
+          month?: string
+          organization_id?: string
+          scenario?: string
+          subcategory?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "financial_model_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
