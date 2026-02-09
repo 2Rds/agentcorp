@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { useConversations } from "@/hooks/useConversations";
+import { useAgentThread } from "@/hooks/useAgentThread";
 import { useOrganization } from "@/hooks/useOrganization";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { supabase } from "@/integrations/supabase/client";
 import { Bot, Sparkles } from "lucide-react";
 
 export default function Chat() {
   const { orgId } = useOrganization();
-  const { conversations, activeId, setActiveId, messages, setMessages, createConversation, addMessage } = useConversations();
+  const { threadId, messages, setMessages, loadingMessages, addMessage } = useAgentThread();
   const [isStreaming, setIsStreaming] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -18,16 +17,10 @@ export default function Chat() {
   }, [messages]);
 
   const handleSend = async (input: string) => {
-    if (!orgId) return;
-
-    let convId = activeId;
-    if (!convId) {
-      convId = await createConversation(input.slice(0, 60));
-    }
-    if (!convId) return;
+    if (!orgId || !threadId) return;
 
     // Add user message to DB and state
-    await addMessage(convId, "user", input);
+    await addMessage("user", input);
     setIsStreaming(true);
 
     // Stream from edge function
@@ -92,7 +85,7 @@ export default function Chat() {
 
       // Save assistant message to DB
       if (assistantContent) {
-        await addMessage(convId, "assistant", assistantContent);
+        await addMessage("assistant", assistantContent);
         // Remove streaming placeholder, the addMessage will add the real one
         setMessages(prev => prev.filter(m => m.id !== "streaming"));
       }
@@ -108,6 +101,14 @@ export default function Chat() {
       setIsStreaming(false);
     }
   };
+
+  if (loadingMessages) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col h-[calc(100vh-3rem)]">
