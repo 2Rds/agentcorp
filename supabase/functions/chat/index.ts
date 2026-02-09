@@ -30,85 +30,47 @@ serve(async (req) => {
 
   try {
     const { messages } = await req.json();
-    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!ANTHROPIC_API_KEY) {
+    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+    if (!LOVABLE_API_KEY) {
       return new Response(
-        JSON.stringify({ error: "ANTHROPIC_API_KEY is not configured. Please add your Anthropic API key." }),
+        JSON.stringify({ error: "AI service is not configured." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Convert messages to Anthropic format (system goes separate)
-    const anthropicMessages = messages
-      .filter((m: any) => m.role !== "system")
-      .map((m: any) => ({ role: m.role, content: m.content }));
+    // Build OpenAI-compatible messages with system prompt
+    const openaiMessages = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...messages
+        .filter((m: any) => m.role !== "system")
+        .map((m: any) => ({ role: m.role, content: m.content })),
+    ];
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
+        "Authorization": `Bearer ${LOVABLE_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
+        model: "openai/gpt-5",
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
-        messages: anthropicMessages,
+        messages: openaiMessages,
         stream: true,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error("Anthropic API error:", response.status, errorText);
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again in a moment." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      console.error("AI Gateway error:", response.status, errorText);
       return new Response(
-        JSON.stringify({ error: "AI service error. Please check your API key." }),
+        JSON.stringify({ error: "AI service error. Please try again." }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Transform Anthropic SSE to OpenAI-compatible SSE format for the frontend
-    const transformStream = new TransformStream({
-      transform(chunk, controller) {
-        const text = new TextDecoder().decode(chunk);
-        const lines = text.split("\n");
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-          const data = line.slice(6).trim();
-          if (!data) continue;
-
-          try {
-            const parsed = JSON.parse(data);
-
-            if (parsed.type === "content_block_delta" && parsed.delta?.text) {
-              // Convert to OpenAI SSE format
-              const openaiChunk = {
-                choices: [{ delta: { content: parsed.delta.text } }],
-              };
-              controller.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(openaiChunk)}\n\n`));
-            }
-
-            if (parsed.type === "message_stop") {
-              controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"));
-            }
-          } catch {
-            // Skip malformed JSON
-          }
-        }
-      },
-    });
-
-    const stream = response.body!.pipeThrough(transformStream);
-
-    return new Response(stream, {
+    // Stream is already in OpenAI SSE format, pass through directly
+    return new Response(response.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {
