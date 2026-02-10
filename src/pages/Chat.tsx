@@ -5,6 +5,7 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, Sparkles } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Chat() {
   const { orgId } = useOrganization();
@@ -23,14 +24,28 @@ export default function Chat() {
     await addMessage("user", input);
     setIsStreaming(true);
 
-    // Stream from edge function
+    // Stream from agent server (falls back to edge function)
     let assistantContent = "";
     try {
-      const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`, {
+      const agentUrl = import.meta.env.VITE_AGENT_URL;
+      const chatUrl = agentUrl
+        ? `${agentUrl}/api/chat`
+        : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+
+      // Use session JWT for agent server, anon key for edge function
+      let authHeader: string;
+      if (agentUrl) {
+        const { data: { session } } = await supabase.auth.getSession();
+        authHeader = `Bearer ${session?.access_token ?? ""}`;
+      } else {
+        authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`;
+      }
+
+      const resp = await fetch(chatUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          Authorization: authHeader,
         },
         body: JSON.stringify({
           messages: [...messages, { role: "user", content: input }].map(m => ({ role: m.role, content: m.content })),

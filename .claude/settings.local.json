@@ -10,7 +10,14 @@
       "mcp__plugin_supabase_supabase__get_project_url",
       "mcp__plugin_supabase_supabase__get_publishable_keys",
       "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate Supabase backend from Lovable Cloud to self-hosted project\n\n- Update .env and config.toml to new project \\(eisiohgjfviwxgdyfnsd\\)\n- Replace Lovable AI Gateway / Gemini Flash Lite with Anthropic API \\(Opus 4.6\\) for knowledge extraction in chat edge function\n- Add Supabase MCP tool permissions to local settings\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate Supabase backend from Lovable Cloud to self-hosted project\n\n- Update .env and config.toml to new project \\(eisiohgjfviwxgdyfnsd\\)\n- Replace Lovable AI Gateway / Gemini Flash Lite with Anthropic API \\(Opus 4.6\\) for knowledge extraction in chat edge function\n- Add Supabase MCP tool permissions to local settings\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(npm run dev:*)",
+      "Bash(npm install:*)",
+      "Bash(start:*)",
+      "WebSearch",
+      "Bash(npx tsc:*)",
+      "Bash(node -e:*)",
+      "Bash(cd:*)"
     ]
   },
   "hooks": {
