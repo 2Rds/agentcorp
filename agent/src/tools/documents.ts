@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
+import { config } from "../config.js";
 import * as XLSX from "xlsx";
 import { parse as csvParse } from "csv-parse/sync";
 import { PDFParse } from "pdf-parse";
@@ -11,6 +12,74 @@ const MAX_CONTENT_LENGTH = 50000; // Limit text sent to agent to avoid token blo
 function truncate(text: string): string {
   if (text.length <= MAX_CONTENT_LENGTH) return text;
   return text.slice(0, MAX_CONTENT_LENGTH) + `\n\n[...truncated, showing first ${MAX_CONTENT_LENGTH} characters of ${text.length} total]`;
+}
+
+const VISION_PROMPT = "Extract ALL text, numbers, data, and content from this image. Preserve structure, headings, bullet points, and tables. Return only the extracted content.";
+const PDF_VISION_PROMPT = "Extract ALL text, numbers, data, and content from this document. Preserve structure, headings, bullet points, and tables. Return only the extracted content.";
+
+async function describeImage(buffer: Buffer, mimeType: string): Promise<string> {
+  const base64 = buffer.toString("base64");
+  const mediaType = mimeType as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": config.anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5-20250929",
+      max_tokens: 4096,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+          { type: "text", text: VISION_PROMPT },
+        ],
+      }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`Vision API error (${resp.status}): ${err}`);
+  }
+
+  const data = await resp.json();
+  return data.content?.[0]?.text ?? "";
+}
+
+async function extractPdfWithVision(buffer: Buffer): Promise<string> {
+  const base64 = buffer.toString("base64");
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": config.anthropicApiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-5-20250929",
+      max_tokens: 4096,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
+          { type: "text", text: PDF_VISION_PROMPT },
+        ],
+      }],
+    }),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text();
+    throw new Error(`PDF vision API error (${resp.status}): ${err}`);
+  }
+
+  const data = await resp.json();
+  return data.content?.[0]?.text ?? "";
 }
 
 async function extractFileContent(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
@@ -40,7 +109,12 @@ async function extractFileContent(buffer: Buffer, mimeType: string, fileName: st
     const parser = new PDFParse({ data: buffer }) as any;
     await parser.load();
     const result = await parser.getText();
-    return result.text ?? "";
+    const text = result.text ?? "";
+    // If pdf-parse returned little/no text, it's likely a scanned PDF — use vision
+    if (text.trim().length < 50) {
+      return await extractPdfWithVision(buffer);
+    }
+    return text;
   }
 
   // Word documents
@@ -54,9 +128,9 @@ async function extractFileContent(buffer: Buffer, mimeType: string, fileName: st
     return buffer.toString("utf-8");
   }
 
-  // Images — return description, can't extract text
+  // Images — use vision to extract text/data
   if (mimeType?.startsWith("image/")) {
-    return `[Image file: ${fileName} (${mimeType}). Cannot extract text from images.]`;
+    return await describeImage(buffer, mimeType);
   }
 
   return `[Unsupported file type: ${fileName} (${mimeType}). Cannot extract content.]`;
@@ -88,7 +162,7 @@ export function documentsTools(orgId: string) {
 
   const read_document = tool(
     "read_document",
-    "Read and extract the text content of an uploaded document. Supports Excel (.xlsx/.xls), CSV, PDF, Word (.docx), text, markdown, and JSON files. Use list_documents first to find the document ID.",
+    "Read and extract the text content of an uploaded document. Supports Excel (.xlsx/.xls), CSV, PDF (including scanned), Word (.docx), images (PNG/JPG/GIF/WEBP), text, markdown, and JSON files. Uses AI vision for images and scanned PDFs. Use list_documents first to find the document ID.",
     {
       document_id: z.string().describe("The document ID to read (from list_documents)"),
     },
