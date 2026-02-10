@@ -28,30 +28,46 @@ export default function Chat() {
     let assistantContent = "";
     try {
       const agentUrl = import.meta.env.VITE_AGENT_URL;
-      const chatUrl = agentUrl
-        ? `${agentUrl}/api/chat`
-        : `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+      const payload = {
+        messages: [...messages, { role: "user", content: input }].map(m => ({ role: m.role, content: m.content })),
+        organizationId: orgId,
+      };
 
-      // Use session JWT for agent server, anon key for edge function
-      let authHeader: string;
+      let resp: Response | null = null;
+
+      // Try agent server first, fall back to edge function on network error
       if (agentUrl) {
-        const { data: { session } } = await supabase.auth.getSession();
-        authHeader = `Bearer ${session?.access_token ?? ""}`;
-      } else {
-        authHeader = `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`;
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          resp = await fetch(`${agentUrl}/api/chat`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${session?.access_token ?? ""}`,
+            },
+            body: JSON.stringify(payload),
+          });
+        } catch {
+          // Agent server unreachable — fall through to edge function
+          console.warn("Agent server unreachable, falling back to edge function");
+          resp = null;
+        }
       }
 
-      const resp = await fetch(chatUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: authHeader,
-        },
-        body: JSON.stringify({
-          messages: [...messages, { role: "user", content: input }].map(m => ({ role: m.role, content: m.content })),
-          organizationId: orgId,
-        }),
-      });
+      // Fallback to edge function if no agent URL or agent was unreachable
+      if (!resp) {
+        resp = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            },
+            body: JSON.stringify(payload),
+          }
+        );
+      }
 
       if (!resp.ok) {
         const errData = await resp.json().catch(() => ({}));
