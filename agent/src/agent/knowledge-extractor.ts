@@ -39,7 +39,7 @@ export async function extractKnowledge(
     const validItems = items.filter(i => i.title && i.content).slice(0, 3);
     if (validItems.length === 0) return;
 
-    const results = await Promise.all(
+    const results = await Promise.allSettled(
       validItems.map(item =>
         addOrgMemory(
           `${item.title}: ${item.content}`,
@@ -55,7 +55,9 @@ export async function extractKnowledge(
       )
     );
 
-    const stored = results.filter(r => r && r.length > 0).length;
+    const stored = results.filter(r => r.status === "fulfilled" && r.value?.length > 0).length;
+    const failed = results.filter(r => r.status === "rejected").length;
+    if (failed > 0) console.warn(`${failed}/${results.length} knowledge items failed to store`);
     if (stored > 0) console.log(`Stored ${stored} knowledge items in Mem0`);
   } catch (e) {
     console.error("Knowledge extraction error:", e);

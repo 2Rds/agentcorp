@@ -22,28 +22,32 @@ export function knowledgeBaseTools(orgId: string) {
       precise: z.boolean().default(false).describe("Enable precision filtering to eliminate noise (slower but more accurate)"),
     },
     async (args) => {
-      const results = await searchOrgMemories(args.query, orgId, {
-        limit: args.limit,
-        categories: args.categories,
-        runId: args.session_id,
-        rerank: true,
-        keywordSearch: true,
-        filterMemories: args.precise,
-      });
+      try {
+        const results = await searchOrgMemories(args.query, orgId, {
+          limit: args.limit,
+          categories: args.categories,
+          runId: args.session_id,
+          rerank: true,
+          keywordSearch: true,
+          filterMemories: args.precise,
+        });
 
-      if (results.length === 0) {
-        return { content: [{ type: "text" as const, text: "No matching knowledge found." }] };
+        if (results.length === 0) {
+          return { content: [{ type: "text" as const, text: "No matching knowledge found." }] };
+        }
+
+        const formatted = results.map(r => ({
+          id: r.id,
+          content: r.memory,
+          score: r.score,
+          categories: r.categories,
+          metadata: r.metadata,
+          updated_at: r.updated_at,
+        }));
+        return { content: [{ type: "text" as const, text: JSON.stringify(formatted, null, 2) }] };
+      } catch (e: any) {
+        return { content: [{ type: "text" as const, text: `Error searching knowledge: ${e.message}` }], isError: true };
       }
-
-      const formatted = results.map(r => ({
-        id: r.id,
-        content: r.memory,
-        score: r.score,
-        categories: r.categories,
-        metadata: r.metadata,
-        updated_at: r.updated_at,
-      }));
-      return { content: [{ type: "text" as const, text: JSON.stringify(formatted, null, 2) }] };
     }
   );
 
@@ -60,23 +64,27 @@ export function knowledgeBaseTools(orgId: string) {
       source: z.string().default("chat").describe("Where this knowledge came from"),
     },
     async (args) => {
-      const events = await addOrgMemory(
-        `${args.title}: ${args.content}`,
-        orgId,
-        {
-          agentId: "opus-brain",
-          metadata: { source: args.source, title: args.title },
-          category: args.category,
-          timestamp: Math.floor(Date.now() / 1000),
-        },
-      );
+      try {
+        const events = await addOrgMemory(
+          `${args.title}: ${args.content}`,
+          orgId,
+          {
+            agentId: "opus-brain",
+            metadata: { source: args.source, title: args.title },
+            category: args.category,
+            timestamp: Math.floor(Date.now() / 1000),
+          },
+        );
 
-      if (!events || events.length === 0) {
-        return { content: [{ type: "text" as const, text: "Error: Failed to store knowledge entry" }], isError: true };
+        if (!events || events.length === 0) {
+          return { content: [{ type: "text" as const, text: "Error: Failed to store knowledge entry" }], isError: true };
+        }
+
+        const summary = events.map(e => `${e.event}: ${e.data.memory}`).join("; ");
+        return { content: [{ type: "text" as const, text: `Knowledge stored: ${summary}` }] };
+      } catch (e: any) {
+        return { content: [{ type: "text" as const, text: `Error adding knowledge: ${e.message}` }], isError: true };
       }
-
-      const summary = events.map(e => `${e.event}: ${e.data.memory}`).join("; ");
-      return { content: [{ type: "text" as const, text: `Knowledge stored: ${summary}` }] };
     }
   );
 
@@ -89,8 +97,12 @@ export function knowledgeBaseTools(orgId: string) {
       metadata: z.record(z.unknown()).optional().describe("Updated metadata"),
     },
     async (args) => {
-      const updated = await updateMemory(args.memory_id, args.new_content, args.metadata);
-      return { content: [{ type: "text" as const, text: `Knowledge updated: "${updated.memory ?? args.new_content}" (id: ${updated.id})` }] };
+      try {
+        const updated = await updateMemory(args.memory_id, args.new_content, args.metadata);
+        return { content: [{ type: "text" as const, text: `Knowledge updated: "${updated.memory ?? args.new_content}" (id: ${updated.id})` }] };
+      } catch (e: any) {
+        return { content: [{ type: "text" as const, text: `Error updating knowledge: ${e.message}` }], isError: true };
+      }
     }
   );
 
@@ -101,8 +113,12 @@ export function knowledgeBaseTools(orgId: string) {
       memory_id: z.string().describe("ID of the memory to delete"),
     },
     async (args) => {
-      await deleteMemory(args.memory_id);
-      return { content: [{ type: "text" as const, text: `Knowledge entry ${args.memory_id} deleted.` }] };
+      try {
+        await deleteMemory(args.memory_id);
+        return { content: [{ type: "text" as const, text: `Knowledge entry ${args.memory_id} deleted.` }] };
+      } catch (e: any) {
+        return { content: [{ type: "text" as const, text: `Error deleting knowledge: ${e.message}` }], isError: true };
+      }
     }
   );
 
@@ -115,8 +131,12 @@ export function knowledgeBaseTools(orgId: string) {
       reason: z.string().optional().describe("Why this rating was given"),
     },
     async (args) => {
-      await feedbackMemory(args.memory_id, args.feedback, args.reason);
-      return { content: [{ type: "text" as const, text: `Feedback recorded: ${args.feedback} for memory ${args.memory_id}` }] };
+      try {
+        await feedbackMemory(args.memory_id, args.feedback, args.reason);
+        return { content: [{ type: "text" as const, text: `Feedback recorded: ${args.feedback} for memory ${args.memory_id}` }] };
+      } catch (e: any) {
+        return { content: [{ type: "text" as const, text: `Error submitting feedback: ${e.message}` }], isError: true };
+      }
     }
   );
 

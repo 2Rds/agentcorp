@@ -79,7 +79,7 @@ export function capTableTools(orgId: string) {
           metadata: { tool: "upsert_cap_table_entries", entry_count: data.length },
           timestamp: Math.floor(Date.now() / 1000),
         },
-      ).catch(() => {});
+      ).catch(e => console.error("Mem0 memory store failed (cap table):", e));
 
       return { content: [{ type: "text" as const, text: `Successfully upserted ${data.length} entries.\n${JSON.stringify(data, null, 2)}` }] };
     }

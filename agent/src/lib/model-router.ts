@@ -5,7 +5,7 @@ import { config } from "../config.js";
 
 let client: OpenAI | null = null;
 
-function getClient(): OpenAI {
+export function getOpenRouterClient(): OpenAI {
   if (client) return client;
   client = new OpenAI({
     apiKey: config.openRouterApiKey,
@@ -50,7 +50,7 @@ export async function chatCompletion(
 ): Promise<string> {
   const modelId = MODEL_IDS[model as ModelAlias] ?? model;
 
-  const response = await getClient().chat.completions.create({
+  const response = await getOpenRouterClient().chat.completions.create({
     model: modelId,
     messages,
     temperature: opts.temperature ?? 0.3,
@@ -71,7 +71,7 @@ export async function chatCompletion(
  * Generate embeddings via OpenRouter.
  */
 export async function embed(text: string): Promise<number[]> {
-  const response = await getClient().embeddings.create({
+  const response = await getOpenRouterClient().embeddings.create({
     model: "google/text-embedding-004",
     input: text,
   });
@@ -94,6 +94,10 @@ export async function extractStructured<T>(
     responseFormat: { type: "json_object" },
     temperature: opts.temperature ?? 0.2,
   });
+
+  if (!text.trim()) {
+    throw new Error("LLM returned empty response — model may need higher max_tokens");
+  }
 
   try {
     return JSON.parse(text) as T;

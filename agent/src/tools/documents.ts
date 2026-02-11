@@ -206,7 +206,7 @@ export function documentsTools(orgId: string) {
             metadata: { source: "document", document_id: doc.id, document_name: doc.name },
             timestamp: Math.floor(Date.now() / 1000),
           },
-        ).catch(() => {});
+        ).catch(e => console.error("Mem0 memory store failed (document):", e));
 
         return { content: [{ type: "text" as const, text: result }] };
       } catch (parseError: any) {

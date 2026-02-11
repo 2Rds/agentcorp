@@ -111,7 +111,7 @@ export function financialModelTools(orgId: string) {
           metadata: { tool: "upsert_financial_model_rows", row_count: data.length },
           timestamp: Math.floor(Date.now() / 1000),
         },
-      ).catch(() => {});
+      ).catch(e => console.error("Mem0 memory store failed (financial model):", e));
 
       return { content: [{ type: "text" as const, text: `Successfully upserted ${data.length} rows.\n${JSON.stringify(data.slice(0, 10), null, 2)}${data.length > 10 ? `\n... and ${data.length - 10} more rows` : ""}` }] };
     }

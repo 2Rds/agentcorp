@@ -21,6 +21,9 @@ export const config = {
   openRouterApiKey: required("OPENROUTER_API_KEY"),
   mem0ApiKey: required("MEM0_API_KEY"),
 
+  // Webhook secrets
+  mem0WebhookSecret: optional("MEM0_WEBHOOK_SECRET"),
+
   // Gemini vision uses OpenRouter now; Kimi uses OpenRouter. Always available.
   useGeminiVision: true,
   useKimi: true,
