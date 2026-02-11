@@ -109,8 +109,15 @@ export async function generateFinancialModelRows(
     }
 
     return parsed.data.rows;
-  } catch (e) {
+  } catch (e: any) {
     console.error("K2 financial model generation error:", e);
+    const msg = e?.message ?? String(e);
+    if (msg.includes("401") || msg.includes("403")) {
+      throw new Error("Kimi K2 API authentication failed. Check MOONSHOT_API_KEY configuration.");
+    }
+    if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
+      throw new Error("Kimi K2 rate limit exceeded. Please wait and try again.");
+    }
     return [];
   }
 }
@@ -152,15 +159,22 @@ export async function generateCapTableEntries(
     }
 
     return parsed.data.entries;
-  } catch (e) {
+  } catch (e: any) {
     console.error("K2 cap table generation error:", e);
+    const msg = e?.message ?? String(e);
+    if (msg.includes("401") || msg.includes("403")) {
+      throw new Error("Kimi K2 API authentication failed. Check MOONSHOT_API_KEY configuration.");
+    }
+    if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
+      throw new Error("Kimi K2 rate limit exceeded. Please wait and try again.");
+    }
     return [];
   }
 }
 
 /**
- * Use Kimi K2 to generate SQL from a natural language question.
- * Used in Phase 3 analytics — stubbed here for reuse.
+ * Use Kimi K2 to generate a PostgreSQL SELECT query from a natural language question.
+ * Used by the run_analytics_query analytics tool.
  */
 export async function generateSQL(
   question: string,

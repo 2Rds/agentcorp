@@ -8,13 +8,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, MessageSquare } from "lucide-react";
 
 interface DataRoomConfig {
-  linkId: string;
   linkName: string;
   organizationName: string;
-  organizationId: string;
   requireEmail: boolean;
   hasPasscode: boolean;
-  allowedDocumentIds: string[] | null;
 }
 
 export default function DataRoom() {
@@ -80,7 +77,7 @@ export default function DataRoom() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, passcode: code, sessionId, interactionType: "chart_view" }),
-    }).catch(() => {});
+    }).catch(err => console.warn("View tracking failed:", err));
   };
 
   if (loading) {

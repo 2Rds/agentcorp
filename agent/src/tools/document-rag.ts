@@ -79,8 +79,13 @@ export function documentRagTools(orgId: string) {
                 };
               }
             }
-          } catch {
-            // pgvector not set up yet — fall through to keyword search
+          } catch (err: any) {
+            const msg = err?.message ?? String(err);
+            if (msg.includes("function") && msg.includes("does not exist")) {
+              // pgvector RPC not deployed — expected, fall through
+            } else {
+              console.error("Semantic search failed (falling back to document list):", err);
+            }
           }
         }
 

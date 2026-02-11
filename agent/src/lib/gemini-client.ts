@@ -59,7 +59,10 @@ export async function uploadToGeminiFiles(
       config: { displayName },
     });
 
-    if (!file.uri || !file.name) return null;
+    if (!file.uri || !file.name) {
+      console.error("Gemini file upload returned incomplete response:", JSON.stringify(file));
+      return null;
+    }
     return { uri: file.uri, name: file.name };
   } catch (e) {
     console.error("Gemini file upload error:", e);
@@ -110,5 +113,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     contents: text,
   });
 
-  return response.embeddings?.[0]?.values ?? [];
+  const values = response.embeddings?.[0]?.values;
+  if (!values || values.length === 0) {
+    throw new Error("Gemini embedding API returned no embedding vectors");
+  }
+  return values;
 }

@@ -35,8 +35,8 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
                     try {
                       const config = JSON.parse(codeStr);
                       return <DynamicChart config={config} />;
-                    } catch {
-                      // Fall through to normal code block
+                    } catch (err) {
+                      console.warn("Failed to parse chart config:", err);
                     }
                   }
 

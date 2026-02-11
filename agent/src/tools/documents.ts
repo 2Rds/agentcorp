@@ -20,7 +20,7 @@ const VISION_PROMPT = "Extract ALL text, numbers, data, and content from this im
 const PDF_VISION_PROMPT = "Extract ALL text, numbers, data, and content from this document. Preserve structure, headings, bullet points, and tables. Return only the extracted content.";
 
 async function describeImage(buffer: Buffer, mimeType: string): Promise<string> {
-  // Use Gemini Flash for vision when available (cheaper, 1M context)
+  // Use Gemini Flash for vision when available (lower cost than Claude Sonnet)
   if (config.useGeminiVision) {
     return parseDocumentWithVision(buffer, mimeType, VISION_PROMPT);
   }
@@ -208,7 +208,9 @@ export function documentsTools(orgId: string) {
         const result = `**${doc.name}** (${doc.mime_type}, ${doc.size_bytes ? Math.round(doc.size_bytes / 1024) + "KB" : "unknown size"})\n\n${truncate(content)}`;
 
         // Fire-and-forget: index document for RAG if not already indexed
-        indexDocument(args.document_id, orgId).catch(() => {});
+        indexDocument(args.document_id, orgId).catch(err => {
+          console.error(`Background indexing failed for document ${args.document_id}:`, err);
+        });
 
         return { content: [{ type: "text" as const, text: result }] };
       } catch (parseError: any) {

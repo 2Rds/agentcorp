@@ -6,7 +6,7 @@ import { supabaseAdmin } from "../lib/supabase.js";
  * Read-only tools for the investor data room agent.
  * No writes, no knowledge base access — only financial data viewing.
  */
-export function investorReadonlyTools(orgId: string) {
+export function investorReadonlyTools(orgId: string, allowedDocumentIds?: string[]) {
   const get_company_financials = tool(
     "get_company_financials",
     "Get the company's financial model data. Returns revenue, costs, and P&L line items by month.",
@@ -118,8 +118,10 @@ export function investorReadonlyTools(orgId: string) {
         .select("id, name, mime_type, size_bytes, created_at")
         .eq("organization_id", orgId);
 
-      if (args.document_ids && args.document_ids.length > 0) {
-        query = query.in("id", args.document_ids);
+      // Enforce link-level document restrictions, then apply user filter
+      const effectiveIds = allowedDocumentIds ?? args.document_ids;
+      if (effectiveIds && effectiveIds.length > 0) {
+        query = query.in("id", effectiveIds);
       }
 
       const { data, error } = await query.order("created_at", { ascending: false }).limit(20);

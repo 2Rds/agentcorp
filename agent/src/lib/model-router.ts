@@ -60,7 +60,11 @@ export async function chatCompletion(
     ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
   });
 
-  return response.choices[0]?.message?.content ?? "";
+  const content = response.choices[0]?.message?.content;
+  if (content === null || content === undefined) {
+    throw new Error(`${provider} API returned no content (finish_reason: ${response.choices[0]?.finish_reason ?? "no choices"})`);
+  }
+  return content;
 }
 
 /**
@@ -79,7 +83,7 @@ export async function embed(text: string): Promise<number[]> {
 
 /**
  * Extract structured JSON from a conversation using Kimi K2.
- * Validates response is parseable JSON.
+ * Parses the response as JSON; throws if the response is not valid JSON.
  */
 export async function extractStructured<T>(
   messages: { role: "system" | "user" | "assistant"; content: string }[],
@@ -91,5 +95,13 @@ export async function extractStructured<T>(
     temperature: opts.temperature ?? 0.2,
   });
 
-  return JSON.parse(text) as T;
+  if (!text || text.trim() === "") {
+    throw new Error("LLM returned empty response — expected JSON");
+  }
+
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`LLM returned invalid JSON: ${text.slice(0, 200)}`);
+  }
 }

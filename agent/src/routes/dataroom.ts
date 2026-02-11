@@ -2,7 +2,6 @@ import { Router, Request, Response } from "express";
 import rateLimit from "express-rate-limit";
 import { supabaseAdmin } from "../lib/supabase.js";
 import { createInvestorQuery } from "../agent/investor-agent.js";
-import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 
 const router = Router();
 
@@ -15,11 +14,24 @@ const askLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+// Rate limit data room GET endpoints: 60 requests per 15 min per IP (prevents passcode brute-force)
+const readLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: { error: "Too many requests. Please wait before trying again." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+type ValidateLinkResult =
+  | { link: null; error: string; requireEmail?: true }
+  | { link: Record<string, any>; error: null };
+
 /**
  * Validate a data room link by slug.
- * Returns the link record or null.
+ * Returns { link, error, requireEmail? } where link is the record if valid, null otherwise.
  */
-async function validateLink(slug: string, passcode?: string, email?: string) {
+async function validateLink(slug: string, passcode?: string, email?: string): Promise<ValidateLinkResult> {
   const { data: link, error } = await supabaseAdmin
     .from("investor_links")
     .select("*")
@@ -52,10 +64,12 @@ async function validateLink(slug: string, passcode?: string, email?: string) {
   return { link, error: null };
 }
 
+const VALID_SCENARIOS = ["base", "best", "worst"];
+
 /**
  * GET /dataroom/:slug — Validate link and return data room config
  */
-router.get("/dataroom/:slug", async (req: Request, res: Response) => {
+router.get("/dataroom/:slug", readLimiter, async (req: Request, res: Response) => {
   try {
     const { slug } = req.params;
     const passcode = req.query.passcode as string | undefined;
@@ -63,8 +77,8 @@ router.get("/dataroom/:slug", async (req: Request, res: Response) => {
 
     const result = await validateLink(slug, passcode, email);
     if (!result.link) {
-      const status = (result as any).requireEmail ? 403 : 404;
-      res.status(status).json({ error: result.error, requireEmail: (result as any).requireEmail });
+      const status = result.requireEmail ? 403 : 404;
+      res.status(status).json({ error: result.error, requireEmail: result.requireEmail });
       return;
     }
 
@@ -77,14 +91,12 @@ router.get("/dataroom/:slug", async (req: Request, res: Response) => {
       .eq("id", link.organization_id)
       .single();
 
+    // Only return what the frontend needs — no internal IDs
     res.json({
-      linkId: link.id,
       linkName: link.name,
       organizationName: org?.name ?? "Company",
-      organizationId: link.organization_id,
       requireEmail: link.require_email,
       hasPasscode: !!link.passcode,
-      allowedDocumentIds: link.allowed_document_ids,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -94,13 +106,18 @@ router.get("/dataroom/:slug", async (req: Request, res: Response) => {
 /**
  * GET /dataroom/:slug/financials — Read-only financial data
  */
-router.get("/dataroom/:slug/financials", async (req: Request, res: Response) => {
+router.get("/dataroom/:slug/financials", readLimiter, async (req: Request, res: Response) => {
   try {
     const result = await validateLink(req.params.slug, req.query.passcode as string, req.query.email as string);
     if (!result.link) { res.status(404).json({ error: result.error }); return; }
 
     const orgId = result.link.organization_id;
     const scenario = (req.query.scenario as string) || "base";
+
+    if (!VALID_SCENARIOS.includes(scenario)) {
+      res.status(400).json({ error: "Invalid scenario. Must be base, best, or worst." });
+      return;
+    }
 
     // Get financial model data
     const { data: model } = await supabaseAdmin
@@ -128,7 +145,7 @@ router.get("/dataroom/:slug/financials", async (req: Request, res: Response) => 
       ebitda: monthlyData[m].revenue - monthlyData[m].cogs - monthlyData[m].opex,
     }));
 
-    res.json({ scenario, pnl, rawRows: model });
+    res.json({ scenario, pnl });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -137,7 +154,7 @@ router.get("/dataroom/:slug/financials", async (req: Request, res: Response) => 
 /**
  * GET /dataroom/:slug/cap-table — Read-only cap table
  */
-router.get("/dataroom/:slug/cap-table", async (req: Request, res: Response) => {
+router.get("/dataroom/:slug/cap-table", readLimiter, async (req: Request, res: Response) => {
   try {
     const result = await validateLink(req.params.slug, req.query.passcode as string, req.query.email as string);
     if (!result.link) { res.status(404).json({ error: result.error }); return; }
@@ -189,15 +206,19 @@ router.post("/dataroom/:slug/ask", askLimiter, async (req: Request, res: Respons
       }
     }
 
-    // Track interaction (fire-and-forget)
-    supabaseAdmin.from("dataroom_interactions").insert({
-      link_id: link.id,
-      organization_id: orgId,
-      interaction_type: "question",
-      content: question,
-      response: fullResponse.slice(0, 5000),
-      session_id: sessionId,
-    }).then(() => {});
+    // Track interaction (fire-and-forget with error logging)
+    Promise.resolve(
+      supabaseAdmin.from("dataroom_interactions").insert({
+        link_id: link.id,
+        organization_id: orgId,
+        interaction_type: "question",
+        content: question,
+        response: fullResponse.slice(0, 5000),
+        session_id: sessionId,
+      })
+    ).then(({ error: insertErr }) => {
+      if (insertErr) console.error("Failed to track dataroom interaction:", insertErr.message);
+    }).catch((err: unknown) => console.error("Dataroom interaction tracking threw:", err));
 
     res.json({ answer: fullResponse });
   } catch (err: any) {

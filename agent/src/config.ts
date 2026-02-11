@@ -22,7 +22,7 @@ export const config = {
   geminiApiKey: optional("GEMINI_API_KEY"),
   mem0ApiKey: optional("MEM0_API_KEY"),
 
-  // Feature flags
+  // Features auto-enable when their API key is set. Set USE_X=false to explicitly disable.
   useMem0: process.env.USE_MEM0 !== "false" && !!process.env.MEM0_API_KEY,
   useGeminiVision: process.env.USE_GEMINI_VISION !== "false" && !!process.env.GEMINI_API_KEY,
   useKimi: process.env.USE_KIMI !== "false" && !!process.env.MOONSHOT_API_KEY,

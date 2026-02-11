@@ -6,7 +6,7 @@ let initPromise: Promise<Mem0MemoryClient | null> | null = null;
 
 /**
  * Get the Mem0 client (lazy singleton). Returns null if not configured.
- * Uses dynamic import since mem0ai does async init in constructor.
+ * Uses dynamic import to defer loading mem0ai until first use, avoiding initialization when disabled.
  */
 async function getMem0(): Promise<Mem0MemoryClient | null> {
   if (!config.useMem0 || !config.mem0ApiKey) return null;

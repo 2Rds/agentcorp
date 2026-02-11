@@ -60,7 +60,7 @@ export function analyticsTools(orgId: string) {
           };
         }
 
-        // Step 3: Execute via Supabase RPC (with 5s timeout)
+        // Step 3: Execute via Supabase RPC
         const { data, error } = await supabaseAdmin.rpc("run_analytics_query", {
           query_text: validation.query,
           org_id: orgId,

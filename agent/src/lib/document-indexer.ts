@@ -96,8 +96,9 @@ export async function indexDocument(documentId: string, orgId: string): Promise<
 }
 
 /**
- * Index all unindexed documents for an organization.
- * Useful for backfilling after enabling Gemini.
+ * Index up to 50 unindexed documents for an organization.
+ * Useful for backfilling after enabling Gemini. Call repeatedly for larger backlogs.
+ * Returns the number of documents attempted (not necessarily succeeded).
  */
 export async function indexAllDocuments(orgId: string): Promise<number> {
   const { data: docs, error } = await supabaseAdmin

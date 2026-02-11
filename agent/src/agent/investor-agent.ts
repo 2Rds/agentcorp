@@ -27,14 +27,15 @@ export interface InvestorQueryOptions {
 /**
  * Creates a restricted agent query for investor Q&A.
  * Uses read-only tools only — no writes, no knowledge base.
+ * Document access is scoped by allowedDocumentIds from the investor link.
  */
 export function createInvestorQuery(options: InvestorQueryOptions) {
-  const { question, organizationId } = options;
+  const { question, organizationId, allowedDocumentIds } = options;
 
   const mcpServer = createSdkMcpServer({
     name: "investor-tools",
     version: "1.0.0",
-    tools: [...investorReadonlyTools(organizationId)],
+    tools: [...investorReadonlyTools(organizationId, allowedDocumentIds)],
   });
 
   return query({

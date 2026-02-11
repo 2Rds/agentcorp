@@ -67,6 +67,7 @@ export default function Knowledge() {
       const token = session?.access_token;
 
       // Try agent server knowledge graph endpoint
+      let fetchedFromAgent = false;
       if (agentUrl && token) {
         try {
           const resp = await fetch(`${agentUrl}/api/knowledge/graph?organizationId=${orgId}`, {
@@ -75,22 +76,10 @@ export default function Knowledge() {
           if (resp.ok) {
             const data = await resp.json();
             setGraphData(data);
-            // Extract documents from graph data
-            const docs = data.entities
-              .filter((e: GraphEntity) => e.type === "document")
-              .map((e: GraphEntity) => ({
-                id: e.id.replace("doc-", ""),
-                name: e.label,
-                mime_type: null,
-                size_bytes: null,
-                storage_path: "",
-                created_at: "",
-                tags: null,
-              }));
-            // Still fetch full document data from Supabase for the documents tab
+            fetchedFromAgent = true;
           }
-        } catch {
-          // Fall through to Supabase direct fetch
+        } catch (err) {
+          console.warn("Knowledge graph agent fetch failed, using Supabase fallback:", err);
         }
       }
 
@@ -103,7 +92,7 @@ export default function Knowledge() {
       setDocuments((docData as DocumentEntry[]) ?? []);
 
       // If graph data wasn't fetched from agent, build it from Supabase
-      if (!graphData) {
+      if (!fetchedFromAgent) {
         const { data: kbData } = await supabase
           .from("knowledge_base")
           .select("id, title, source, content, created_at")

@@ -43,15 +43,29 @@ export function DataRoomDashboard({ agentUrl, slug, authQuery }: DataRoomDashboa
   const [pnl, setPnl] = useState<PnLRow[]>([]);
   const [capTable, setCapTable] = useState<CapTableEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [finRes, capRes] = await Promise.all([
-        fetch(`${agentUrl}/dataroom/${slug}/financials?${authQuery}`).then(r => r.json()).catch(() => ({ pnl: [] })),
-        fetch(`${agentUrl}/dataroom/${slug}/cap-table?${authQuery}`).then(r => r.json()).catch(() => ({ entries: [] })),
-      ]);
-      setPnl(finRes.pnl ?? []);
-      setCapTable(capRes.entries ?? []);
+      try {
+        const [finResp, capResp] = await Promise.all([
+          fetch(`${agentUrl}/dataroom/${slug}/financials?${authQuery}`),
+          fetch(`${agentUrl}/dataroom/${slug}/cap-table?${authQuery}`),
+        ]);
+
+        if (!finResp.ok || !capResp.ok) {
+          setFetchError("Failed to load financial data. Please try again.");
+          setLoading(false);
+          return;
+        }
+
+        const [finRes, capRes] = await Promise.all([finResp.json(), capResp.json()]);
+        setPnl(finRes.pnl ?? []);
+        setCapTable(capRes.entries ?? []);
+      } catch (err) {
+        console.error("DataRoomDashboard fetch error:", err);
+        setFetchError("Unable to connect to data room server.");
+      }
       setLoading(false);
     };
     load();
@@ -61,6 +75,14 @@ export function DataRoomDashboard({ agentUrl, slug, authQuery }: DataRoomDashboa
     return (
       <div className="flex items-center justify-center py-20">
         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex items-center justify-center py-20 text-center">
+        <p className="text-sm text-muted-foreground">{fetchError}</p>
       </div>
     );
   }
