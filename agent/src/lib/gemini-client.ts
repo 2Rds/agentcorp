@@ -1,121 +1,76 @@
-import { GoogleGenAI, type Part } from "@google/genai";
-import { config } from "../config.js";
-
-let genai: GoogleGenAI | null = null;
-
-function getGenAI(): GoogleGenAI {
-  if (!config.geminiApiKey) throw new Error("GEMINI_API_KEY not configured");
-  if (!genai) {
-    genai = new GoogleGenAI({ apiKey: config.geminiApiKey });
-  }
-  return genai;
-}
+import { chatCompletion, embed } from "./model-router.js";
 
 /**
- * Parse a document (image or PDF) using Gemini Flash vision.
- * Accepts a buffer and mime type, returns extracted text.
+ * Parse a document (image or PDF) using Gemini 3 Flash vision via OpenRouter.
+ * Vision requires raw multipart content, so we use chatCompletion with a full model ID.
  */
 export async function parseDocumentWithVision(
   buffer: Buffer,
   mimeType: string,
-  prompt: string = "Extract ALL text, numbers, data, and content from this document. Preserve structure, headings, bullet points, and tables. Return only the extracted content."
+  prompt: string = "Extract ALL text, numbers, data, and content from this document. Preserve structure, headings, bullet points, and tables. Return only the extracted content.",
 ): Promise<string> {
-  const ai = getGenAI();
   const base64 = buffer.toString("base64");
+  const dataUrl = `data:${mimeType};base64,${base64}`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [{
-      role: "user",
-      parts: [
-        { inlineData: { mimeType, data: base64 } } as Part,
-        { text: prompt } as Part,
-      ],
-    }],
-    config: {
-      maxOutputTokens: 8192,
-      temperature: 0.1,
+  // Vision multipart must go through the raw model ID; chatCompletion only accepts string content.
+  // Use the OpenRouter client directly for this one case.
+  const OpenAI = (await import("openai")).default;
+  const { config } = await import("../config.js");
+  const client = new OpenAI({
+    apiKey: config.openRouterApiKey,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": "https://cfo.blockdrive.co",
+      "X-Title": "BlockDrive CFO",
     },
   });
 
-  return response.text ?? "";
+  const response = await client.chat.completions.create({
+    model: "google/gemini-3-flash-preview",
+    messages: [{
+      role: "user",
+      content: [
+        { type: "image_url", image_url: { url: dataUrl } },
+        { type: "text", text: prompt },
+      ],
+    }],
+    max_tokens: 8192,
+    temperature: 0.1,
+  });
+
+  return response.choices[0]?.message?.content ?? "";
 }
 
 /**
  * Upload a file to Gemini Files API for later use in grounded generation.
- * Returns the file URI for subsequent API calls.
+ * NOTE: Requires direct Gemini API access (not available through OpenRouter).
  */
 export async function uploadToGeminiFiles(
-  buffer: Buffer,
-  mimeType: string,
-  displayName: string
+  _buffer: Buffer,
+  _mimeType: string,
+  _displayName: string,
 ): Promise<{ uri: string; name: string } | null> {
-  const ai = getGenAI();
-
-  try {
-    const blob = new Blob([new Uint8Array(buffer)], { type: mimeType });
-    const file = await ai.files.upload({
-      file: blob,
-      config: { displayName },
-    });
-
-    if (!file.uri || !file.name) {
-      console.error("Gemini file upload returned incomplete response:", JSON.stringify(file));
-      return null;
-    }
-    return { uri: file.uri, name: file.name };
-  } catch (e) {
-    console.error("Gemini file upload error:", e);
-    return null;
-  }
+  console.warn("Gemini Files API not available through OpenRouter — skipping upload");
+  return null;
 }
 
 /**
- * Query uploaded documents using Gemini with file references.
- * Takes file URIs and a question, returns grounded answer.
+ * Query documents using Gemini via OpenRouter.
+ * Without Gemini Files API, falls back to a simple query.
  */
 export async function queryDocumentsWithGemini(
-  fileUris: Array<{ uri: string; mimeType: string }>,
-  question: string
+  _fileUris: Array<{ uri: string; mimeType: string }>,
+  question: string,
 ): Promise<string> {
-  const ai = getGenAI();
-
-  const fileParts: Part[] = fileUris.map(f => ({
-    fileData: { fileUri: f.uri, mimeType: f.mimeType },
-  }));
-
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: [{
+  return chatCompletion("gemini", [
+    {
       role: "user",
-      parts: [
-        ...fileParts,
-        { text: `Based on the uploaded documents, answer the following question. Cite specific sections or page numbers when possible.\n\nQuestion: ${question}` } as Part,
-      ],
-    }],
-    config: {
-      maxOutputTokens: 4096,
-      temperature: 0.2,
+      content: `Answer the following question based on your knowledge. If you don't have enough context, say so.\n\nQuestion: ${question}`,
     },
-  });
-
-  return response.text ?? "";
+  ], { maxTokens: 4096, temperature: 0.2 });
 }
 
 /**
- * Generate text embeddings via Gemini text-embedding-004.
+ * Generate text embeddings. Delegates to model-router's embed function.
  */
-export async function generateEmbedding(text: string): Promise<number[]> {
-  const ai = getGenAI();
-
-  const response = await ai.models.embedContent({
-    model: "text-embedding-004",
-    contents: text,
-  });
-
-  const values = response.embeddings?.[0]?.values;
-  if (!values || values.length === 0) {
-    throw new Error("Gemini embedding API returned no embedding vectors");
-  }
-  return values;
-}
+export { embed as generateEmbedding };

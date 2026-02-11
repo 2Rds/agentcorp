@@ -8,7 +8,7 @@ const router = Router();
 
 router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => {
   const { userId, organizationId } = req as AuthenticatedRequest;
-  const { messages } = req.body;
+  const { messages, conversationId } = req.body;
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: "messages array is required" });
@@ -26,10 +26,11 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
   const lastUserMessage = messages.filter((m: any) => m.role === "user").pop()?.content ?? "";
 
   try {
-    const agentQuery = createAgentQuery({
+    const agentQuery = await createAgentQuery({
       messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
       organizationId,
       userId,
+      conversationId,
     });
 
     for await (const message of agentQuery) {
@@ -37,32 +38,20 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
       if (sse) {
         res.write(sse);
 
-        // Accumulate assistant text from streaming events
+        // Accumulate assistant text from streaming deltas only
         if (message.type === "stream_event") {
           const event = message.event as any;
           if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
             fullAssistantResponse += event.delta.text;
           }
         }
-        if (message.type === "assistant") {
-          const content = message.message?.content;
-          if (content) {
-            for (const block of content) {
-              if ("text" in block && typeof block.text === "string") {
-                fullAssistantResponse += block.text;
-              }
-            }
-          }
-        }
       }
 
-      // End of stream
+      // End of stream — sdkMessageToSSE already sends [DONE] for result messages
       if (message.type === "result") {
-        res.write("data: [DONE]\n\n");
-
         // Fire-and-forget knowledge extraction
         if (organizationId && lastUserMessage && fullAssistantResponse) {
-          extractKnowledge(lastUserMessage, fullAssistantResponse, organizationId);
+          extractKnowledge(lastUserMessage, fullAssistantResponse, organizationId, conversationId);
         }
       }
     }

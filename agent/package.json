@@ -20,7 +20,6 @@
     "mammoth": "^1.11.0",
     "pdf-parse": "^2.4.5",
     "@google/genai": "^1.40.0",
-    "mem0ai": "^2.2.2",
     "openai": "^4.96.0",
     "playwright": "^1.58.2",
     "xlsx": "^0.18.5",

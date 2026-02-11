@@ -17,13 +17,11 @@ export const config = {
   port: parseInt(process.env.PORT || "3001", 10),
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:8080").split(",").map(s => s.trim()),
 
-  // Multi-model API keys
-  moonshotApiKey: optional("MOONSHOT_API_KEY"),
-  geminiApiKey: optional("GEMINI_API_KEY"),
-  mem0ApiKey: optional("MEM0_API_KEY"),
+  // Multi-model via OpenRouter (single key for all models)
+  openRouterApiKey: required("OPENROUTER_API_KEY"),
+  mem0ApiKey: required("MEM0_API_KEY"),
 
-  // Features auto-enable when their API key is set. Set USE_X=false to explicitly disable.
-  useMem0: process.env.USE_MEM0 !== "false" && !!process.env.MEM0_API_KEY,
-  useGeminiVision: process.env.USE_GEMINI_VISION !== "false" && !!process.env.GEMINI_API_KEY,
-  useKimi: process.env.USE_KIMI !== "false" && !!process.env.MOONSHOT_API_KEY,
+  // Gemini vision uses OpenRouter now; Kimi uses OpenRouter. Always available.
+  useGeminiVision: true,
+  useKimi: true,
 } as const;

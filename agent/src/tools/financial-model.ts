@@ -2,6 +2,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
 import { generateFinancialModelRows } from "../lib/kimi-builder.js";
+import { addOrgMemory } from "../lib/mem0-client.js";
 
 export function financialModelTools(orgId: string) {
   const get_financial_model = tool(
@@ -96,6 +97,22 @@ export function financialModelTools(orgId: string) {
         .select();
 
       if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
+
+      // Store memory of what was built (fire-and-forget)
+      const categories = [...new Set(allRows.map(r => r.category))];
+      const scenarios = [...new Set(allRows.map(r => r.scenario))];
+      const agentId = args.plan ? "k2-builder" : "opus-brain";
+      addOrgMemory(
+        `Financial model updated: ${data.length} rows across ${categories.join(", ")} (${scenarios.join(", ")} scenarios)${args.plan ? `. Plan: ${args.plan.slice(0, 200)}` : ""}`,
+        orgId,
+        {
+          agentId,
+          category: "financial_model",
+          metadata: { tool: "upsert_financial_model_rows", row_count: data.length },
+          timestamp: Math.floor(Date.now() / 1000),
+        },
+      ).catch(() => {});
+
       return { content: [{ type: "text" as const, text: `Successfully upserted ${data.length} rows.\n${JSON.stringify(data.slice(0, 10), null, 2)}${data.length > 10 ? `\n... and ${data.length - 10} more rows` : ""}` }] };
     }
   );

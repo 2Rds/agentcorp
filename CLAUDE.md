@@ -23,7 +23,7 @@ Tests use Vitest with jsdom. Test files live alongside source using `*.test.ts` 
 
 ## Architecture
 
-AI-powered CFO SaaS for seed-stage startups. Two-tier: React 18 + TypeScript + Vite frontend (Vercel) with Supabase backend, plus an Express agent server (Docker) using the Claude Agent SDK.
+AI-powered CFO SaaS for seed-stage startups (v1.0.0). Two-tier: React 18 + TypeScript + Vite frontend (Vercel) with Supabase backend, plus an Express agent server (Docker) using the Claude Agent SDK.
 
 ### Auth & Multi-tenancy
 
@@ -42,36 +42,49 @@ All derived metrics (burn rate, runway, MRR, gross margin) are computed **client
 
 ### Agent Server (`agent/src/`)
 
-Express + Claude Agent SDK. Multi-model orchestration with feature flags that auto-enable based on API keys.
+Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persistent memory via Mem0.
 
 **Models:**
-- Claude Opus 4.6 — Primary reasoning, tool orchestration, streaming chat
-- Kimi K2 (Moonshot) — Structured data generation (financial rows, cap table entries, SQL)
-- Gemini Flash — Document vision, file processing, embeddings, RAG
-- Mem0 — Org-scoped intelligent memory with Supabase dual-write fallback
+- Claude Opus 4.6 (Anthropic direct) — Primary reasoning, tool orchestration, streaming chat
+- Kimi K2.5 (OpenRouter) — Structured data generation (financial rows, cap table entries, SQL)
+- Gemini 3 Flash (OpenRouter) — Document vision, file processing, embeddings, RAG
+- Gemini 2.5 Flash Lite (OpenRouter) — Lightweight tasks at minimal cost
+- Sonar Pro (OpenRouter) — Web research and intelligence gathering
+- Grok 4 (OpenRouter) — Advanced reasoning
+
+**Mem0 (persistent memory):**
+- Sole knowledge store — no Supabase dual-write
+- Graph memory with auto-extracted entity relationships
+- 6 custom categories: `financial_metrics`, `fundraising`, `company_operations`, `strategic_decisions`, `investor_relations`, `financial_model`
+- Multi-model attribution via `agent_id` (opus-brain, k2-builder, gemini-docs)
+- Session memory via `run_id` (per conversation thread)
+- System prompt enriched with relevant org memories before each query
+- Feedback mechanism for self-healing memory quality
+- Project config auto-discovered and validated on server startup
 
 **Key directories:**
 - `agent/src/agent/` — Agent configurations (`cfo-agent.ts`, `investor-agent.ts`, `knowledge-extractor.ts`, `system-prompt.ts`)
-- `agent/src/tools/` — 20 MCP tools across 7 domains, all org-scoped via closure
-- `agent/src/lib/` — Multi-model clients (`model-router.ts`, `gemini-client.ts`, `kimi-builder.ts`, `mem0-client.ts`), utilities (`sql-validator.ts`, `chart-suggestor.ts`, `document-indexer.ts`, `stream-adapter.ts`)
-- `agent/src/routes/` — Express routes (`chat.ts`, `dataroom.ts`, `knowledge.ts`, `health.ts`)
-- `agent/src/middleware/` — CORS configuration
+- `agent/src/tools/` — 23 MCP tools across 8 domains, all org-scoped via closure
+- `agent/src/lib/` — Multi-model clients (`model-router.ts`, `gemini-client.ts`, `mem0-client.ts`, `mem0-setup.ts`), utilities (`sql-validator.ts`, `chart-suggestor.ts`, `document-indexer.ts`, `stream-adapter.ts`)
+- `agent/src/routes/` — Express routes (`chat.ts`, `dataroom.ts`, `knowledge.ts`, `health.ts`, `webhooks.ts`)
+- `agent/src/middleware/` — Auth (Supabase JWT verification + org membership) and CORS
 
-**Tools (20 total):**
-- financial-model (3): get, upsert (with K2 plan generation), delete
+**Tools (23 total):**
+- financial-model (3): get, upsert (with K2.5 plan generation + memory), delete
 - derived-metrics (1): compute burn, runway, MRR, gross margin
-- cap-table (3): get, upsert, delete entries
-- knowledge-base (2): search/store with Mem0 + Supabase fallback
+- cap-table (3): get, upsert (with graph memory for fundraising), delete
+- knowledge-base (5): search (rerank + keyword), add (with categories/graph/timestamps), update, delete, rate_quality
 - investor-links (4): CRUD with `enable_data_room` support
-- documents (2): upload with Gemini vision processing
-- document-rag (1): `query_documents` via Gemini grounded generation + pgvector
+- documents (2): upload with Gemini vision processing + memory attribution
+- document-rag (1): `query_documents` via Gemini + pgvector
 - analytics (1): `run_analytics_query` — natural language → SQL → chart suggestion
 - web-fetch (1), headless-browser (1), excel-export (1)
 
 **Routes:**
-- `POST /api/chat` — Streaming AI chat (SDK `query()` with `includePartialMessages`)
-- `GET /api/knowledge/graph` — Knowledge graph data
+- `POST /api/chat` — Streaming AI chat (SDK `query()` with `includePartialMessages`, memory-enriched system prompt)
+- `GET /api/knowledge/graph` — Knowledge graph via Mem0 graph API (native `output_format: v1.1`)
 - `GET/POST /dataroom/:slug/*` — Public investor data room (validate, financials, cap-table, ask, view)
+- `POST /api/webhooks/mem0` — Memory event webhooks (memory_add, memory_update, memory_delete)
 - `GET /health` — Health check
 
 **Security:**
@@ -81,9 +94,8 @@ Express + Claude Agent SDK. Multi-model orchestration with feature flags that au
 - Service role key bypasses RLS for agent operations
 
 **Environment:**
-- Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-- Optional: `MOONSHOT_API_KEY`, `GEMINI_API_KEY`, `MEM0_API_KEY`
-- `PORT=3001`, `CORS_ORIGINS` comma-separated
+- Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `MEM0_API_KEY`
+- Optional: `PORT` (default 3001), `CORS_ORIGINS` (comma-separated)
 
 ### Key Hooks (src/hooks/)
 
@@ -100,9 +112,10 @@ Express + Claude Agent SDK. Multi-model orchestration with feature flags that au
 |------|------|---------|
 | `/auth` | Auth | Sign in/up (unprotected) |
 | `/` | Chat | AI CFO agent streaming chat |
+| `/knowledge` | Knowledge | Document uploads + agent knowledge base with graph |
 | `/dashboard` | Dashboard | Financial model charts (P&L, burn/runway, cap table, OpEx) |
-| `/knowledge` | Knowledge | Document uploads + agent knowledge base |
 | `/investors` | Investors | Investor portal with shareable links and engagement analytics |
+| `/docs` | Docs | Comprehensive platform documentation |
 | `/settings` | SettingsPage | User and org settings |
 
 ### Edge Functions (supabase/functions/)

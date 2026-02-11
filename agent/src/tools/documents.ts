@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../lib/supabase.js";
 import { config } from "../config.js";
 import { parseDocumentWithVision } from "../lib/gemini-client.js";
 import { indexDocument } from "../lib/document-indexer.js";
+import { addOrgMemory } from "../lib/mem0-client.js";
 import * as XLSX from "xlsx";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
@@ -193,6 +194,19 @@ export function documentsTools(orgId: string) {
         indexDocument(args.document_id, orgId).catch(err => {
           console.error(`Background indexing failed for document ${args.document_id}:`, err);
         });
+
+        // Store document extraction summary in memory (Gemini attribution)
+        const agentId = config.useGeminiVision ? "gemini-docs" : "opus-brain";
+        addOrgMemory(
+          `Document processed: "${doc.name}" (${doc.mime_type}). Content: ${content.slice(0, 500)}`,
+          orgId,
+          {
+            agentId,
+            category: "financial_model",
+            metadata: { source: "document", document_id: doc.id, document_name: doc.name },
+            timestamp: Math.floor(Date.now() / 1000),
+          },
+        ).catch(() => {});
 
         return { content: [{ type: "text" as const, text: result }] };
       } catch (parseError: any) {

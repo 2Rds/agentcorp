@@ -1,38 +1,36 @@
 import OpenAI from "openai";
 import { config } from "../config.js";
 
-export type ModelProvider = "kimi" | "gemini";
+// ─── Single OpenRouter client ────────────────────────────────────────────────
 
-const clients: Partial<Record<ModelProvider, OpenAI>> = {};
+let client: OpenAI | null = null;
 
-function getClient(provider: ModelProvider): OpenAI {
-  if (clients[provider]) return clients[provider]!;
-
-  if (provider === "kimi") {
-    if (!config.moonshotApiKey) throw new Error("MOONSHOT_API_KEY not configured");
-    clients.kimi = new OpenAI({
-      apiKey: config.moonshotApiKey,
-      baseURL: "https://api.moonshot.ai/v1",
-    });
-    return clients.kimi;
-  }
-
-  if (provider === "gemini") {
-    if (!config.geminiApiKey) throw new Error("GEMINI_API_KEY not configured");
-    clients.gemini = new OpenAI({
-      apiKey: config.geminiApiKey,
-      baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-    });
-    return clients.gemini;
-  }
-
-  throw new Error(`Unknown provider: ${provider}`);
+function getClient(): OpenAI {
+  if (client) return client;
+  client = new OpenAI({
+    apiKey: config.openRouterApiKey,
+    baseURL: "https://openrouter.ai/api/v1",
+    defaultHeaders: {
+      "HTTP-Referer": "https://cfo.blockdrive.co",
+      "X-Title": "BlockDrive CFO",
+    },
+  });
+  return client;
 }
 
-const DEFAULT_MODELS: Record<ModelProvider, string> = {
-  kimi: "kimi-k2-0711-preview",
-  gemini: "gemini-2.5-flash",
+// ─── Model aliases ───────────────────────────────────────────────────────────
+
+export type ModelAlias = "kimi" | "gemini" | "gemini-lite" | "sonar" | "grok";
+
+const MODEL_IDS: Record<ModelAlias, string> = {
+  kimi: "moonshotai/kimi-k2.5",
+  gemini: "google/gemini-3-flash-preview",
+  "gemini-lite": "google/gemini-2.5-flash-lite",
+  sonar: "perplexity/sonar-pro",
+  grok: "x-ai/grok-4",
 };
+
+// ─── Chat completion ─────────────────────────────────────────────────────────
 
 export interface ChatCompletionOpts {
   model?: string;
@@ -42,62 +40,60 @@ export interface ChatCompletionOpts {
 }
 
 /**
- * Route a chat completion to Kimi K2 or Gemini via OpenAI-compatible API.
+ * Route a chat completion to any model via OpenRouter.
+ * Use aliases ("kimi", "gemini", "sonar") or full model IDs.
  */
 export async function chatCompletion(
-  provider: ModelProvider,
+  model: ModelAlias | string,
   messages: { role: "system" | "user" | "assistant"; content: string }[],
-  opts: ChatCompletionOpts = {}
+  opts: ChatCompletionOpts = {},
 ): Promise<string> {
-  const client = getClient(provider);
-  const model = opts.model ?? DEFAULT_MODELS[provider];
+  const modelId = MODEL_IDS[model as ModelAlias] ?? model;
 
-  const response = await client.chat.completions.create({
-    model,
+  const response = await getClient().chat.completions.create({
+    model: modelId,
     messages,
     temperature: opts.temperature ?? 0.3,
-    max_tokens: opts.maxTokens ?? 4096,
+    max_tokens: opts.maxTokens ?? 8192,
     ...(opts.responseFormat ? { response_format: opts.responseFormat } : {}),
   });
 
   const content = response.choices[0]?.message?.content;
   if (content == null) {
-    throw new Error(`${provider} API returned no content (finish_reason: ${response.choices[0]?.finish_reason ?? "no choices"})`);
+    throw new Error(`${modelId} returned no content (finish_reason: ${response.choices[0]?.finish_reason ?? "no choices"})`);
   }
   return content;
 }
 
+// ─── Embeddings ──────────────────────────────────────────────────────────────
+
 /**
- * Generate embeddings via Gemini text-embedding-004.
+ * Generate embeddings via OpenRouter.
  */
 export async function embed(text: string): Promise<number[]> {
-  const client = getClient("gemini");
-
-  const response = await client.embeddings.create({
-    model: "text-embedding-004",
+  const response = await getClient().embeddings.create({
+    model: "google/text-embedding-004",
     input: text,
   });
 
   return response.data[0].embedding;
 }
 
+// ─── Structured extraction ───────────────────────────────────────────────────
+
 /**
- * Extract structured JSON from a conversation using Kimi K2.
+ * Extract structured JSON from a conversation using Kimi K2.5.
  * Parses the response as JSON; throws if the response is not valid JSON.
  */
 export async function extractStructured<T>(
   messages: { role: "system" | "user" | "assistant"; content: string }[],
-  opts: ChatCompletionOpts = {}
+  opts: ChatCompletionOpts = {},
 ): Promise<T> {
   const text = await chatCompletion("kimi", messages, {
     ...opts,
     responseFormat: { type: "json_object" },
     temperature: opts.temperature ?? 0.2,
   });
-
-  if (!text || text.trim() === "") {
-    throw new Error("LLM returned empty response — expected JSON");
-  }
 
   try {
     return JSON.parse(text) as T;

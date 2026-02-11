@@ -1,30 +1,75 @@
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { createCfoMcpServer } from "../tools/index.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
+import { searchOrgMemories, getSessionMemories } from "../lib/mem0-client.js";
 
 export interface AgentCallOptions {
   messages: { role: string; content: string }[];
   organizationId: string;
   userId: string;
+  conversationId?: string;
 }
 
 /**
- * Creates the CFO agent query with org-scoped MCP tools.
+ * Pre-load relevant org memories and inject them into the system prompt.
+ * Gives the agent situational awareness of the company before it starts reasoning.
+ */
+async function enrichSystemPrompt(
+  organizationId: string,
+  lastUserMessage: string,
+  conversationId?: string,
+): Promise<string> {
+  let enriched = SYSTEM_PROMPT;
+
+  try {
+    // Search for memories relevant to the current query
+    const [relevantMemories, sessionMemories] = await Promise.all([
+      searchOrgMemories(lastUserMessage, organizationId, {
+        limit: 15,
+        rerank: true,
+        keywordSearch: true,
+      }),
+      conversationId
+        ? getSessionMemories(organizationId, conversationId, { limit: 10 })
+        : Promise.resolve([]),
+    ]);
+
+    if (relevantMemories.length > 0) {
+      const memoryLines = relevantMemories.map(m => {
+        const cat = m.categories?.length ? ` [${m.categories.join(", ")}]` : "";
+        return `- ${m.memory}${cat}`;
+      });
+      enriched += `\n\n## Organization Knowledge (from memory)\nThe following facts are known about this company from previous conversations:\n${memoryLines.join("\n")}`;
+    }
+
+    if (sessionMemories.length > 0) {
+      const sessionLines = sessionMemories.map(m => `- ${m.memory}`);
+      enriched += `\n\n## Current Session Context\nFrom earlier in this conversation:\n${sessionLines.join("\n")}`;
+    }
+  } catch (e) {
+    console.error("Failed to enrich system prompt with memories:", e);
+  }
+
+  return enriched;
+}
+
+/**
+ * Creates the CFO agent query with org-scoped MCP tools and memory-enriched context.
  * Returns an async generator of SDKMessages.
  */
-export function createAgentQuery(options: AgentCallOptions) {
-  const { messages, organizationId, userId } = options;
+export async function createAgentQuery(options: AgentCallOptions) {
+  const { messages, organizationId, userId, conversationId } = options;
 
   const mcpServer = createCfoMcpServer(organizationId, userId);
-
   const lastUserMessage = messages.filter(m => m.role === "user").pop()?.content ?? "";
+
+  const systemPrompt = await enrichSystemPrompt(organizationId, lastUserMessage, conversationId);
 
   // Build a prompt that includes conversation context
   let prompt: string;
   if (messages.length <= 1) {
     prompt = lastUserMessage;
   } else {
-    // Include prior messages as context in the prompt
     const priorMessages = messages.slice(0, -1);
     const context = priorMessages
       .map(m => `<${m.role}>${m.content}</${m.role}>`)
@@ -35,7 +80,7 @@ export function createAgentQuery(options: AgentCallOptions) {
   return query({
     prompt,
     options: {
-      systemPrompt: SYSTEM_PROMPT,
+      systemPrompt,
       mcpServers: { "cfo-tools": mcpServer },
       includePartialMessages: true,
       permissionMode: "bypassPermissions",

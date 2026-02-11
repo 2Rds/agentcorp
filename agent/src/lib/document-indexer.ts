@@ -12,7 +12,7 @@ import { uploadToGeminiFiles, generateEmbedding } from "./gemini-client.js";
  * This is fire-and-forget — errors are logged but don't affect the main flow.
  */
 export async function indexDocument(documentId: string, orgId: string): Promise<void> {
-  if (!config.useGeminiVision || !config.geminiApiKey) return;
+  if (!config.useGeminiVision) return;
 
   try {
     // Get document metadata

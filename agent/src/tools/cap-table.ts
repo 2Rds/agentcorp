@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
+import { addOrgMemory } from "../lib/mem0-client.js";
 
 export function capTableTools(orgId: string) {
   const get_cap_table = tool(
@@ -64,6 +65,22 @@ export function capTableTools(orgId: string) {
         .select();
 
       if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
+
+      // Store cap table changes in memory with graph enabled (relationships matter here)
+      const stakeholders = [...new Set(args.entries.map(e => e.stakeholder_name))];
+      const rounds = [...new Set(args.entries.filter(e => e.round_name).map(e => e.round_name))];
+      addOrgMemory(
+        `Cap table updated: ${stakeholders.join(", ")}${rounds.length ? ` in rounds ${rounds.join(", ")}` : ""}. ${data.length} entries.`,
+        orgId,
+        {
+          agentId: "opus-brain",
+          category: "fundraising",
+          enableGraph: true,
+          metadata: { tool: "upsert_cap_table_entries", entry_count: data.length },
+          timestamp: Math.floor(Date.now() / 1000),
+        },
+      ).catch(() => {});
+
       return { content: [{ type: "text" as const, text: `Successfully upserted ${data.length} entries.\n${JSON.stringify(data, null, 2)}` }] };
     }
   );

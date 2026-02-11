@@ -54,7 +54,7 @@ export function documentRagTools(orgId: string) {
         }
 
         // Strategy 2: Semantic search via pgvector embeddings
-        if (config.geminiApiKey) {
+        if (config.openRouterApiKey) {
           try {
             const queryEmbedding = await generateEmbedding(args.query);
             if (queryEmbedding.length > 0) {

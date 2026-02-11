@@ -1,4 +1,4 @@
-import { MessageSquare, BarChart3, FileText, Users, Settings, LogOut, Brain } from "lucide-react";
+import { MessageSquare, BarChart3, FileText, Users, Settings, LogOut, Brain, BookOpen } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -24,6 +24,7 @@ const navItems = [
   { title: "Knowledge", url: "/knowledge", icon: Brain },
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
   { title: "Investors", url: "/investors", icon: Users },
+  { title: "Docs", url: "/docs", icon: BookOpen },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 

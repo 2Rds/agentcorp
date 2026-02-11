@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import Investors from "./pages/Investors";
 import Knowledge from "./pages/Knowledge";
 import SettingsPage from "./pages/SettingsPage";
+import Docs from "./pages/Docs";
 import NotFound from "./pages/NotFound";
 import DataRoom from "./pages/DataRoom";
 
@@ -53,6 +54,7 @@ const App = () => (
               <Route path="/knowledge" element={<Knowledge />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/investors" element={<Investors />} />
+              <Route path="/docs" element={<Docs />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />

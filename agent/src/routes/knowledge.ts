@@ -1,18 +1,16 @@
 import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { config } from "../config.js";
-import { getAllMemories } from "../lib/mem0-client.js";
+import { getAllOrgMemories, type GraphMemoryResponse, type Memory } from "../lib/mem0-client.js";
 
 const router = Router();
 
 /**
  * GET /api/knowledge/graph?organizationId=...
- * Returns knowledge entries + Mem0 memories + graph data for the org.
- * Requires Bearer token auth (org membership verified via user_roles).
+ * Returns Mem0 memories with graph relations + documents for the org.
+ * Uses Mem0's native graph memory API for real entity/relationship extraction.
  */
 router.get("/api/knowledge/graph", async (req: Request, res: Response) => {
   try {
-    // Auth check
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
       res.status(401).json({ error: "Missing authorization header" });
@@ -32,7 +30,6 @@ router.get("/api/knowledge/graph", async (req: Request, res: Response) => {
       return;
     }
 
-    // Verify membership
     const { data: role, error: roleError } = await supabaseAdmin
       .from("user_roles")
       .select("id")
@@ -46,14 +43,9 @@ router.get("/api/knowledge/graph", async (req: Request, res: Response) => {
       return;
     }
 
-    // Fetch both Mem0 memories and Supabase knowledge_base in parallel
-    const [mem0Memories, kbResult, docsResult] = await Promise.all([
-      config.useMem0 ? getAllMemories(organizationId) : Promise.resolve([]),
-      supabaseAdmin
-        .from("knowledge_base")
-        .select("id, title, source, content, created_at")
-        .eq("organization_id", organizationId)
-        .order("created_at", { ascending: false }),
+    // Fetch Mem0 memories with graph relations + documents in parallel
+    const [mem0Result, docsResult] = await Promise.all([
+      getAllOrgMemories(organizationId, { includeGraph: true, pageSize: 200 }),
       supabaseAdmin
         .from("documents")
         .select("id, name, mime_type, size_bytes, storage_path, created_at, tags")
@@ -61,40 +53,43 @@ router.get("/api/knowledge/graph", async (req: Request, res: Response) => {
         .order("created_at", { ascending: false }),
     ]);
 
-    // Build graph data: entities + relationships from Mem0 memories
+    // Parse graph response
+    const isGraphResponse = (r: Memory[] | GraphMemoryResponse): r is GraphMemoryResponse =>
+      !Array.isArray(r) && "results" in r;
+
+    const memories = isGraphResponse(mem0Result) ? mem0Result.results : mem0Result;
+    const graphRelations = isGraphResponse(mem0Result) ? mem0Result.relations ?? [] : [];
+    const graphEntities = isGraphResponse(mem0Result) ? mem0Result.entities ?? [] : [];
+
+    // Build entities from memories
     const entities: Array<{
       id: string;
       label: string;
-      type: "memory" | "knowledge" | "document";
+      type: "memory" | "document" | "entity";
       content: string;
+      categories?: string[];
       metadata?: Record<string, unknown>;
     }> = [];
 
-    const relationships: Array<{
-      source: string;
-      target: string;
-      type: string;
-    }> = [];
-
     // Mem0 memories as entities
-    for (const mem of mem0Memories) {
+    for (const mem of memories) {
       entities.push({
         id: `mem0-${mem.id}`,
-        label: (mem.metadata?.title as string) || (mem.memory ?? "").slice(0, 50),
+        label: (mem.metadata?.title as string) || mem.memory.slice(0, 50),
         type: "memory",
-        content: mem.memory ?? "",
+        content: mem.memory,
+        categories: mem.categories,
         metadata: mem.metadata,
       });
     }
 
-    // Supabase KB entries as entities
-    const kbEntries = kbResult.data ?? [];
-    for (const entry of kbEntries) {
+    // Graph entities (people, companies, concepts extracted by Mem0)
+    for (const entity of graphEntities) {
       entities.push({
-        id: `kb-${entry.id}`,
-        label: entry.title,
-        type: "knowledge",
-        content: entry.content,
+        id: `entity-${entity.name.toLowerCase().replace(/\s+/g, "-")}`,
+        label: entity.name,
+        type: "entity",
+        content: `${entity.type}: ${entity.name}`,
       });
     }
 
@@ -109,38 +104,20 @@ router.get("/api/knowledge/graph", async (req: Request, res: Response) => {
       });
     }
 
-    // Build simple relationships: connect knowledge entries that share keywords
-    // and connect Mem0 memories to related KB entries
-    for (let i = 0; i < entities.length; i++) {
-      for (let j = i + 1; j < entities.length; j++) {
-        const a = entities[i];
-        const b = entities[j];
-        // Skip document-to-document connections
-        if (a.type === "document" && b.type === "document") continue;
-
-        // Simple keyword overlap check
-        const aWords = new Set(a.content.toLowerCase().split(/\W+/).filter(w => w.length > 4));
-        const bWords = new Set(b.content.toLowerCase().split(/\W+/).filter(w => w.length > 4));
-        let overlap = 0;
-        for (const w of aWords) {
-          if (bWords.has(w)) overlap++;
-        }
-        if (overlap >= 2) {
-          relationships.push({
-            source: a.id,
-            target: b.id,
-            type: "related",
-          });
-        }
-      }
-    }
+    // Use Mem0's graph relations directly (no more O(n²) keyword overlap)
+    const relationships = graphRelations.map(rel => ({
+      source: `entity-${rel.source.toLowerCase().replace(/\s+/g, "-")}`,
+      target: `entity-${rel.target.toLowerCase().replace(/\s+/g, "-")}`,
+      type: rel.relationship,
+      score: rel.score,
+    }));
 
     res.json({
       entities,
       relationships,
       stats: {
-        memories: mem0Memories.length,
-        knowledgeEntries: kbEntries.length,
+        memories: memories.length,
+        graphEntities: graphEntities.length,
         documents: docs.length,
         connections: relationships.length,
       },
