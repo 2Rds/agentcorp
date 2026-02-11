@@ -1,6 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
+import { generateFinancialModelRows } from "../lib/kimi-builder.js";
 
 export function financialModelTools(orgId: string) {
   const get_financial_model = tool(
@@ -32,7 +33,7 @@ export function financialModelTools(orgId: string) {
 
   const upsert_financial_model_rows = tool(
     "upsert_financial_model_rows",
-    "Batch create or update financial model rows. Each row needs category, subcategory, month, amount. Provide an id to update existing rows; omit id to create new ones.",
+    "Batch create or update financial model rows. Provide explicit rows OR a plan string for AI-generated data. When a plan is provided, Kimi K2 generates the rows from your high-level description (e.g. 'Build a 24-month SaaS model with 3 revenue tiers'). You can combine a plan with explicit rows — explicit rows take precedence.",
     {
       rows: z.array(z.object({
         id: z.string().optional().describe("Existing row ID to update. Omit for new rows."),
@@ -42,21 +43,60 @@ export function financialModelTools(orgId: string) {
         amount: z.number().describe("Dollar amount for this line item this month"),
         formula: z.string().optional().describe("Description of how this amount was calculated"),
         scenario: z.enum(["base", "best", "worst"]).default("base"),
-      })).describe("Array of financial model rows to upsert"),
+      })).optional().describe("Array of financial model rows to upsert directly"),
+      plan: z.string().optional().describe("High-level plan for K2 to generate rows (e.g. 'Build a 24-month SaaS model starting Jan 2025 with Basic $10/mo, Pro $25/mo, Enterprise $50/mo tiers, base scenario'). K2 will generate the actual row data."),
     },
     async (args) => {
-      const rows = args.rows.map(r => ({
-        ...r,
-        organization_id: orgId,
-      }));
+      const allRows: Array<{
+        id?: string;
+        category: string;
+        subcategory: string;
+        month: string;
+        amount: number;
+        formula?: string;
+        scenario: string;
+        organization_id: string;
+      }> = [];
+
+      // If plan provided, use K2 to generate rows
+      if (args.plan) {
+        // Fetch existing data as context for K2
+        const { data: existing } = await supabaseAdmin
+          .from("financial_model")
+          .select("category, subcategory, month, amount, scenario")
+          .eq("organization_id", orgId)
+          .order("month", { ascending: true })
+          .limit(50);
+
+        const context = existing && existing.length > 0
+          ? JSON.stringify(existing, null, 2)
+          : "No existing financial model data.";
+
+        const generated = await generateFinancialModelRows(args.plan, context);
+        if (generated.length > 0) {
+          allRows.push(...generated.map(r => ({ ...r, organization_id: orgId })));
+          console.log(`K2 generated ${generated.length} financial model rows`);
+        } else {
+          return { content: [{ type: "text" as const, text: "K2 was unable to generate rows from the plan. Please provide explicit rows or try a more specific plan." }], isError: true };
+        }
+      }
+
+      // Add explicit rows (these override K2-generated rows for same month/subcategory)
+      if (args.rows && args.rows.length > 0) {
+        allRows.push(...args.rows.map(r => ({ ...r, organization_id: orgId })));
+      }
+
+      if (allRows.length === 0) {
+        return { content: [{ type: "text" as const, text: "Error: Provide either rows[] or a plan string." }], isError: true };
+      }
 
       const { data, error } = await supabaseAdmin
         .from("financial_model")
-        .upsert(rows, { onConflict: "id" })
+        .upsert(allRows, { onConflict: "id" })
         .select();
 
       if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
-      return { content: [{ type: "text" as const, text: `Successfully upserted ${data.length} rows.\n${JSON.stringify(data, null, 2)}` }] };
+      return { content: [{ type: "text" as const, text: `Successfully upserted ${data.length} rows.\n${JSON.stringify(data.slice(0, 10), null, 2)}${data.length > 10 ? `\n... and ${data.length - 10} more rows` : ""}` }] };
     }
   );
 

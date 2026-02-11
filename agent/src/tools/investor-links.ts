@@ -34,6 +34,7 @@ export function investorLinksTools(orgId: string, userId: string) {
       require_email: z.boolean().default(false).describe("Require viewers to enter email before viewing"),
       expires_at: z.string().optional().describe("Expiration datetime (ISO 8601)"),
       allowed_document_ids: z.array(z.string()).optional().describe("Document IDs this link can access"),
+      enable_data_room: z.boolean().default(false).describe("Enable the premium Data Room experience with live financials, cap table, and AI Q&A"),
     },
     async (args) => {
       // Generate a URL-safe slug
@@ -51,6 +52,7 @@ export function investorLinksTools(orgId: string, userId: string) {
           require_email: args.require_email,
           expires_at: args.expires_at,
           allowed_document_ids: args.allowed_document_ids,
+          enable_data_room: args.enable_data_room,
         })
         .select()
         .single();

@@ -5,9 +5,11 @@ import { capTableTools } from "./cap-table.js";
 import { knowledgeBaseTools } from "./knowledge-base.js";
 import { investorLinksTools } from "./investor-links.js";
 import { documentsTools } from "./documents.js";
+import { documentRagTools } from "./document-rag.js";
 import { webFetchTools } from "./web-fetch.js";
 import { headlessBrowserTools } from "./headless-browser.js";
 import { excelExportTools } from "./excel-export.js";
+import { analyticsTools } from "./analytics.js";
 
 export function createCfoMcpServer(orgId: string, userId: string) {
   return createSdkMcpServer({
@@ -20,9 +22,11 @@ export function createCfoMcpServer(orgId: string, userId: string) {
       ...knowledgeBaseTools(orgId),
       ...investorLinksTools(orgId, userId),
       ...documentsTools(orgId),
+      ...documentRagTools(orgId),
       ...webFetchTools(),
       ...headlessBrowserTools(),
       ...excelExportTools(orgId),
+      ...analyticsTools(orgId),
     ],
   });
 }

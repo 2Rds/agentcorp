@@ -14,6 +14,7 @@ export function CreateLinkDialog() {
   const [email, setEmail] = useState("");
   const [passcode, setPasscode] = useState("");
   const [requireEmail, setRequireEmail] = useState(false);
+  const [enableDataRoom, setEnableDataRoom] = useState(false);
   const [expiresIn, setExpiresIn] = useState("");
   const { createLink } = useInvestorLinks();
 
@@ -32,10 +33,11 @@ export function CreateLinkDialog() {
         passcode: passcode.trim() || undefined,
         require_email: requireEmail,
         expires_at,
+        enable_data_room: enableDataRoom,
       });
       toast.success("Share link created");
       setOpen(false);
-      setName(""); setEmail(""); setPasscode(""); setRequireEmail(false); setExpiresIn("");
+      setName(""); setEmail(""); setPasscode(""); setRequireEmail(false); setEnableDataRoom(false); setExpiresIn("");
     } catch {
       toast.error("Failed to create link");
     }
@@ -69,6 +71,13 @@ export function CreateLinkDialog() {
           <div className="flex items-center justify-between">
             <Label htmlFor="require-email">Require email to view</Label>
             <Switch id="require-email" checked={requireEmail} onCheckedChange={setRequireEmail} />
+          </div>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label htmlFor="enable-dataroom">Enable Data Room</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">Live financials, cap table, and AI Q&A</p>
+            </div>
+            <Switch id="enable-dataroom" checked={enableDataRoom} onCheckedChange={setEnableDataRoom} />
           </div>
           <div className="space-y-2">
             <Label htmlFor="expires">Expires in (days, optional)</Label>

@@ -14,6 +14,7 @@ import Investors from "./pages/Investors";
 import Knowledge from "./pages/Knowledge";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
+import DataRoom from "./pages/DataRoom";
 
 const queryClient = new QueryClient();
 
@@ -45,6 +46,7 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
+            <Route path="/dataroom/:slug" element={<DataRoom />} />
             <Route path="/auth" element={<Auth />} />
             <Route element={<ProtectedRoutes />}>
               <Route path="/" element={<Chat />} />

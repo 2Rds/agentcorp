@@ -25,10 +25,35 @@ export interface DocumentEntry {
   tags: string[] | null;
 }
 
+export interface GraphEntity {
+  id: string;
+  label: string;
+  type: "memory" | "knowledge" | "document";
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface GraphRelationship {
+  source: string;
+  target: string;
+  type: string;
+}
+
+export interface GraphData {
+  entities: GraphEntity[];
+  relationships: GraphRelationship[];
+  stats: {
+    memories: number;
+    knowledgeEntries: number;
+    documents: number;
+    connections: number;
+  };
+}
+
 export default function Knowledge() {
   const { orgId } = useOrganization();
   const { user } = useAuth();
-  const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
+  const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [documents, setDocuments] = useState<DocumentEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,12 +61,86 @@ export default function Knowledge() {
     if (!orgId) return;
     const load = async () => {
       setLoading(true);
-      const [kbRes, docRes] = await Promise.all([
-        supabase.from("knowledge_base").select("id, title, source, content, created_at").eq("organization_id", orgId).order("created_at", { ascending: false }),
-        supabase.from("documents").select("id, name, mime_type, size_bytes, storage_path, created_at, tags").eq("organization_id", orgId).order("created_at", { ascending: false }),
-      ]);
-      setEntries((kbRes.data as KnowledgeEntry[]) ?? []);
-      setDocuments((docRes.data as DocumentEntry[]) ?? []);
+
+      const agentUrl = import.meta.env.VITE_AGENT_URL;
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      // Try agent server knowledge graph endpoint
+      if (agentUrl && token) {
+        try {
+          const resp = await fetch(`${agentUrl}/api/knowledge/graph?organizationId=${orgId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            setGraphData(data);
+            // Extract documents from graph data
+            const docs = data.entities
+              .filter((e: GraphEntity) => e.type === "document")
+              .map((e: GraphEntity) => ({
+                id: e.id.replace("doc-", ""),
+                name: e.label,
+                mime_type: null,
+                size_bytes: null,
+                storage_path: "",
+                created_at: "",
+                tags: null,
+              }));
+            // Still fetch full document data from Supabase for the documents tab
+          }
+        } catch {
+          // Fall through to Supabase direct fetch
+        }
+      }
+
+      // Always fetch documents from Supabase (graph endpoint may not have full metadata)
+      const { data: docData } = await supabase
+        .from("documents")
+        .select("id, name, mime_type, size_bytes, storage_path, created_at, tags")
+        .eq("organization_id", orgId)
+        .order("created_at", { ascending: false });
+      setDocuments((docData as DocumentEntry[]) ?? []);
+
+      // If graph data wasn't fetched from agent, build it from Supabase
+      if (!graphData) {
+        const { data: kbData } = await supabase
+          .from("knowledge_base")
+          .select("id, title, source, content, created_at")
+          .eq("organization_id", orgId)
+          .order("created_at", { ascending: false });
+
+        const entries = (kbData as KnowledgeEntry[]) ?? [];
+        const docs = (docData as DocumentEntry[]) ?? [];
+
+        // Build basic graph data from Supabase
+        const entities: GraphEntity[] = [
+          ...entries.map(e => ({
+            id: `kb-${e.id}`,
+            label: e.title,
+            type: "knowledge" as const,
+            content: e.content,
+          })),
+          ...docs.map(d => ({
+            id: `doc-${d.id}`,
+            label: d.name,
+            type: "document" as const,
+            content: d.name,
+          })),
+        ];
+
+        setGraphData({
+          entities,
+          relationships: [],
+          stats: {
+            memories: 0,
+            knowledgeEntries: entries.length,
+            documents: docs.length,
+            connections: 0,
+          },
+        });
+      }
+
       setLoading(false);
     };
     load();
@@ -97,7 +196,7 @@ export default function Knowledge() {
         </TabsList>
 
         <TabsContent value="graph" className="flex-1 mt-4">
-          <KnowledgeGraph entries={entries} documents={documents} />
+          <KnowledgeGraph graphData={graphData} />
         </TabsContent>
 
         <TabsContent value="documents" className="flex-1 mt-4">

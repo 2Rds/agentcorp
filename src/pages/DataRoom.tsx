@@ -1,0 +1,151 @@
+import { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import { DataRoomAuth } from "@/components/dataroom/DataRoomAuth";
+import { DataRoomLayout } from "@/components/dataroom/DataRoomLayout";
+import { DataRoomDashboard } from "@/components/dataroom/DataRoomDashboard";
+import { DataRoomChat } from "@/components/dataroom/DataRoomChat";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart3, MessageSquare } from "lucide-react";
+
+interface DataRoomConfig {
+  linkId: string;
+  linkName: string;
+  organizationName: string;
+  organizationId: string;
+  requireEmail: boolean;
+  hasPasscode: boolean;
+  allowedDocumentIds: string[] | null;
+}
+
+export default function DataRoom() {
+  const { slug } = useParams<{ slug: string }>();
+  const [config, setConfig] = useState<DataRoomConfig | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [viewerEmail, setViewerEmail] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [sessionId] = useState(() => crypto.randomUUID());
+
+  const agentUrl = import.meta.env.VITE_AGENT_URL;
+
+  // Initial link validation
+  useEffect(() => {
+    if (!slug || !agentUrl) return;
+    const validate = async () => {
+      try {
+        const resp = await fetch(`${agentUrl}/dataroom/${slug}`);
+        const data = await resp.json();
+        if (!resp.ok) {
+          if (data.requireEmail) {
+            setConfig(data);
+            setLoading(false);
+            return;
+          }
+          setError(data.error || "Link not found");
+          setLoading(false);
+          return;
+        }
+        setConfig(data);
+        // Auto-authenticate if no passcode and no email required
+        if (!data.hasPasscode && !data.requireEmail) {
+          setAuthenticated(true);
+        }
+        setLoading(false);
+      } catch {
+        setError("Unable to connect to data room");
+        setLoading(false);
+      }
+    };
+    validate();
+  }, [slug, agentUrl]);
+
+  const handleAuth = async (email: string, code: string) => {
+    if (!slug || !agentUrl) return;
+    const params = new URLSearchParams();
+    if (email) params.set("email", email);
+    if (code) params.set("passcode", code);
+
+    const resp = await fetch(`${agentUrl}/dataroom/${slug}?${params}`);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error);
+
+    setConfig(data);
+    setViewerEmail(email);
+    setPasscode(code);
+    setAuthenticated(true);
+
+    // Track view
+    fetch(`${agentUrl}/dataroom/${slug}/view`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, passcode: code, sessionId, interactionType: "chart_view" }),
+    }).catch(() => {});
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <h1 className="text-2xl font-semibold text-foreground mb-2">Data Room Unavailable</h1>
+          <p className="text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authenticated) {
+    return (
+      <DataRoomAuth
+        companyName={config?.organizationName ?? "Company"}
+        requireEmail={config?.requireEmail ?? false}
+        hasPasscode={config?.hasPasscode ?? false}
+        onAuth={handleAuth}
+      />
+    );
+  }
+
+  const queryParams = new URLSearchParams();
+  if (viewerEmail) queryParams.set("email", viewerEmail);
+  if (passcode) queryParams.set("passcode", passcode);
+  const authQuery = queryParams.toString();
+
+  return (
+    <DataRoomLayout companyName={config?.organizationName ?? "Company"} linkName={config?.linkName ?? ""}>
+      <Tabs defaultValue="dashboard" className="flex-1 flex flex-col">
+        <TabsList className="w-fit mx-6 mt-4">
+          <TabsTrigger value="dashboard" className="gap-1.5">
+            <BarChart3 className="w-3.5 h-3.5" />
+            Financials
+          </TabsTrigger>
+          <TabsTrigger value="chat" className="gap-1.5">
+            <MessageSquare className="w-3.5 h-3.5" />
+            Ask AI
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="dashboard" className="flex-1 p-6">
+          <DataRoomDashboard agentUrl={agentUrl!} slug={slug!} authQuery={authQuery} />
+        </TabsContent>
+
+        <TabsContent value="chat" className="flex-1 p-6">
+          <DataRoomChat
+            agentUrl={agentUrl!}
+            slug={slug!}
+            passcode={passcode}
+            email={viewerEmail}
+            sessionId={sessionId}
+          />
+        </TabsContent>
+      </Tabs>
+    </DataRoomLayout>
+  );
+}

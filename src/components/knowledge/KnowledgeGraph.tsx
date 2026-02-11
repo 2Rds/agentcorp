@@ -1,38 +1,57 @@
 import { useMemo } from "react";
-import type { KnowledgeEntry, DocumentEntry } from "@/pages/Knowledge";
-import { Brain, FileText, MessageSquare, Sparkles } from "lucide-react";
+import type { GraphData } from "@/pages/Knowledge";
+import { Brain, FileText, MessageSquare, Sparkles, Link2 } from "lucide-react";
 
 interface Props {
-  entries: KnowledgeEntry[];
-  documents: DocumentEntry[];
+  graphData: GraphData | null;
 }
 
 interface Node {
   id: string;
   label: string;
-  type: "core" | "knowledge" | "document" | "topic";
+  type: "core" | "memory" | "knowledge" | "document";
   x: number;
   y: number;
   size: number;
 }
 
-export function KnowledgeGraph({ entries, documents }: Props) {
-  const totalItems = entries.length + documents.length;
+export function KnowledgeGraph({ graphData }: Props) {
+  const totalItems = graphData?.entities.length ?? 0;
 
   const nodes = useMemo(() => {
+    if (!graphData) return [];
     const result: Node[] = [];
     const cx = 250, cy = 200;
 
     // Central node
     result.push({ id: "core", label: "Agent Brain", type: "core", x: cx, y: cy, size: 40 });
 
-    // Knowledge entries in inner ring
-    entries.forEach((e, i) => {
-      const angle = (i / Math.max(entries.length, 1)) * Math.PI * 2 - Math.PI / 2;
-      const r = 100 + Math.random() * 30;
+    // Distribute entities by type in concentric rings
+    const memories = graphData.entities.filter(e => e.type === "memory");
+    const knowledge = graphData.entities.filter(e => e.type === "knowledge");
+    const documents = graphData.entities.filter(e => e.type === "document");
+
+    // Memories in inner ring (closest to brain)
+    memories.forEach((e, i) => {
+      const angle = (i / Math.max(memories.length, 1)) * Math.PI * 2 - Math.PI / 2;
+      const r = 80 + (i % 3) * 15;
       result.push({
         id: e.id,
-        label: e.title.length > 20 ? e.title.slice(0, 20) + "…" : e.title,
+        label: e.label.length > 20 ? e.label.slice(0, 20) + "\u2026" : e.label,
+        type: "memory",
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
+        size: 22,
+      });
+    });
+
+    // Knowledge entries in middle ring
+    knowledge.forEach((e, i) => {
+      const angle = (i / Math.max(knowledge.length, 1)) * Math.PI * 2 - Math.PI / 4;
+      const r = 120 + (i % 3) * 15;
+      result.push({
+        id: e.id,
+        label: e.label.length > 20 ? e.label.slice(0, 20) + "\u2026" : e.label,
         type: "knowledge",
         x: cx + Math.cos(angle) * r,
         y: cy + Math.sin(angle) * r,
@@ -43,10 +62,10 @@ export function KnowledgeGraph({ entries, documents }: Props) {
     // Documents in outer ring
     documents.forEach((d, i) => {
       const angle = (i / Math.max(documents.length, 1)) * Math.PI * 2;
-      const r = 160 + Math.random() * 20;
+      const r = 165 + (i % 2) * 12;
       result.push({
         id: d.id,
-        label: d.name.length > 18 ? d.name.slice(0, 18) + "…" : d.name,
+        label: d.label.length > 18 ? d.label.slice(0, 18) + "\u2026" : d.label,
         type: "document",
         x: cx + Math.cos(angle) * r,
         y: cy + Math.sin(angle) * r,
@@ -55,13 +74,50 @@ export function KnowledgeGraph({ entries, documents }: Props) {
     });
 
     return result;
-  }, [entries, documents]);
+  }, [graphData]);
+
+  // Build edge lookup from relationship data
+  const edges = useMemo(() => {
+    if (!graphData) return [];
+    const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+    const result: Array<{ x1: number; y1: number; x2: number; y2: number; type: string }> = [];
+
+    // Connect all non-core nodes to core
+    for (const n of nodes) {
+      if (n.id === "core") continue;
+      result.push({
+        x1: nodes[0].x,
+        y1: nodes[0].y,
+        x2: n.x,
+        y2: n.y,
+        type: "radial",
+      });
+    }
+
+    // Add relationship edges from graph data
+    for (const rel of graphData.relationships) {
+      const source = nodeMap.get(rel.source);
+      const target = nodeMap.get(rel.target);
+      if (source && target) {
+        result.push({
+          x1: source.x,
+          y1: source.y,
+          x2: target.x,
+          y2: target.y,
+          type: rel.type,
+        });
+      }
+    }
+
+    return result;
+  }, [graphData, nodes]);
 
   const typeColors: Record<string, string> = {
     core: "hsl(var(--primary))",
+    memory: "hsl(var(--chart-1))",
     knowledge: "hsl(var(--accent))",
     document: "hsl(var(--chart-3))",
-    topic: "hsl(var(--chart-4))",
   };
 
   if (totalItems === 0) {
@@ -78,6 +134,8 @@ export function KnowledgeGraph({ entries, documents }: Props) {
     );
   }
 
+  const stats = graphData?.stats;
+
   return (
     <div className="rounded-xl border border-border bg-card overflow-hidden min-h-[400px] relative">
       {/* Stats bar */}
@@ -86,30 +144,56 @@ export function KnowledgeGraph({ entries, documents }: Props) {
           <Sparkles className="w-3.5 h-3.5 text-primary" />
           <span className="font-medium text-foreground">{totalItems}</span> knowledge nodes
         </div>
+        {(stats?.memories ?? 0) > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Brain className="w-3.5 h-3.5" style={{ color: typeColors.memory }} />
+            <span>{stats?.memories}</span> memories
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <MessageSquare className="w-3.5 h-3.5 text-accent" />
-          <span>{entries.length}</span> insights
+          <span>{stats?.knowledgeEntries ?? 0}</span> insights
         </div>
         <div className="flex items-center gap-1.5">
-          <FileText className="w-3.5 h-3.5" style={{ color: "hsl(var(--chart-3))" }} />
-          <span>{documents.length}</span> documents
+          <FileText className="w-3.5 h-3.5" style={{ color: typeColors.document }} />
+          <span>{stats?.documents ?? 0}</span> documents
         </div>
+        {(stats?.connections ?? 0) > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Link2 className="w-3.5 h-3.5 text-muted-foreground" />
+            <span>{stats?.connections}</span> connections
+          </div>
+        )}
       </div>
 
       {/* SVG Graph */}
       <svg viewBox="0 0 500 400" className="w-full h-auto" style={{ minHeight: 350 }}>
-        {/* Connection lines */}
-        {nodes.filter(n => n.id !== "core").map(n => (
+        {/* Radial connection lines (faint) */}
+        {edges.filter(e => e.type === "radial").map((e, i) => (
           <line
-            key={`line-${n.id}`}
-            x1={nodes[0].x}
-            y1={nodes[0].y}
-            x2={n.x}
-            y2={n.y}
+            key={`radial-${i}`}
+            x1={e.x1}
+            y1={e.y1}
+            x2={e.x2}
+            y2={e.y2}
             stroke="hsl(var(--border))"
-            strokeWidth={1}
+            strokeWidth={0.5}
             strokeDasharray="4 4"
-            opacity={0.6}
+            opacity={0.4}
+          />
+        ))}
+
+        {/* Relationship edges (more visible) */}
+        {edges.filter(e => e.type !== "radial").map((e, i) => (
+          <line
+            key={`rel-${i}`}
+            x1={e.x1}
+            y1={e.y1}
+            x2={e.x2}
+            y2={e.y2}
+            stroke="hsl(var(--primary))"
+            strokeWidth={1.5}
+            opacity={0.5}
           />
         ))}
 

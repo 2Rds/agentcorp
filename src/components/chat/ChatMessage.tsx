@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import { cn } from "@/lib/utils";
 import { Bot, User } from "lucide-react";
+import { DynamicChart } from "./DynamicChart";
 
 interface ChatMessageProps {
   role: "user" | "assistant" | "system";
@@ -22,7 +23,33 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
           <p className="whitespace-pre-wrap">{content}</p>
         ) : (
           <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-headings:my-2 prose-pre:bg-muted prose-pre:text-foreground prose-code:text-foreground prose-code:before:content-none prose-code:after:content-none">
-            <ReactMarkdown>{content}</ReactMarkdown>
+            <ReactMarkdown
+              components={{
+                code({ className, children, ...props }) {
+                  const match = /language-(\w+)/.exec(className || "");
+                  const lang = match?.[1];
+                  const codeStr = String(children).replace(/\n$/, "");
+
+                  // Render chart blocks as DynamicChart
+                  if (lang === "chart") {
+                    try {
+                      const config = JSON.parse(codeStr);
+                      return <DynamicChart config={config} />;
+                    } catch {
+                      // Fall through to normal code block
+                    }
+                  }
+
+                  return (
+                    <code className={className} {...props}>
+                      {children}
+                    </code>
+                  );
+                },
+              }}
+            >
+              {content}
+            </ReactMarkdown>
           </div>
         )}
       </div>

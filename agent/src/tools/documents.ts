@@ -2,6 +2,8 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
 import { config } from "../config.js";
+import { parseDocumentWithVision } from "../lib/gemini-client.js";
+import { indexDocument } from "../lib/document-indexer.js";
 import * as XLSX from "xlsx";
 import { parse as csvParse } from "csv-parse/sync";
 import { PDFParse } from "pdf-parse";
@@ -18,6 +20,12 @@ const VISION_PROMPT = "Extract ALL text, numbers, data, and content from this im
 const PDF_VISION_PROMPT = "Extract ALL text, numbers, data, and content from this document. Preserve structure, headings, bullet points, and tables. Return only the extracted content.";
 
 async function describeImage(buffer: Buffer, mimeType: string): Promise<string> {
+  // Use Gemini Flash for vision when available (cheaper, 1M context)
+  if (config.useGeminiVision) {
+    return parseDocumentWithVision(buffer, mimeType, VISION_PROMPT);
+  }
+
+  // Fallback to Claude Sonnet vision
   const base64 = buffer.toString("base64");
   const mediaType = mimeType as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
 
@@ -51,6 +59,12 @@ async function describeImage(buffer: Buffer, mimeType: string): Promise<string> 
 }
 
 async function extractPdfWithVision(buffer: Buffer): Promise<string> {
+  // Use Gemini Flash for PDF vision when available
+  if (config.useGeminiVision) {
+    return parseDocumentWithVision(buffer, "application/pdf", PDF_VISION_PROMPT);
+  }
+
+  // Fallback to Claude Sonnet vision
   const base64 = buffer.toString("base64");
 
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
@@ -85,7 +99,7 @@ async function extractPdfWithVision(buffer: Buffer): Promise<string> {
 async function extractFileContent(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {
   const ext = fileName.split(".").pop()?.toLowerCase() ?? "";
 
-  // Excel files
+  // Excel files — keep XLSX.js for structured parsing
   if (ext === "xlsx" || ext === "xls" || mimeType?.includes("spreadsheet") || mimeType?.includes("excel")) {
     const workbook = XLSX.read(buffer, { type: "buffer" });
     const sheets: string[] = [];
@@ -100,7 +114,6 @@ async function extractFileContent(buffer: Buffer, mimeType: string, fileName: st
   // CSV files
   if (ext === "csv" || mimeType === "text/csv") {
     const text = buffer.toString("utf-8");
-    // Return raw CSV — it's already readable
     return text;
   }
 
@@ -192,7 +205,11 @@ export function documentsTools(orgId: string) {
       try {
         const buffer = Buffer.from(await fileData.arrayBuffer());
         const content = await extractFileContent(buffer, doc.mime_type ?? "", doc.name);
-        const result = `📄 **${doc.name}** (${doc.mime_type}, ${doc.size_bytes ? Math.round(doc.size_bytes / 1024) + "KB" : "unknown size"})\n\n${truncate(content)}`;
+        const result = `**${doc.name}** (${doc.mime_type}, ${doc.size_bytes ? Math.round(doc.size_bytes / 1024) + "KB" : "unknown size"})\n\n${truncate(content)}`;
+
+        // Fire-and-forget: index document for RAG if not already indexed
+        indexDocument(args.document_id, orgId).catch(() => {});
+
         return { content: [{ type: "text" as const, text: result }] };
       } catch (parseError: any) {
         return { content: [{ type: "text" as const, text: `Error parsing file "${doc.name}": ${parseError.message}` }], isError: true };
