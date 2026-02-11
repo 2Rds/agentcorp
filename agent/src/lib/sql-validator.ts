@@ -59,16 +59,15 @@ export function validateSQL(rawQuery: string, orgId: string): ValidationResult {
     return { valid: false, query, error: `Forbidden keyword: ${match?.[0]}` };
   }
 
-  // Block schema-qualified table references (e.g., pg_catalog.pg_shadow, auth.users)
-  if (/\b\w+\.\w+/i.test(query.replace(/'[^']*'/g, ""))) {
-    // Exclude common aliases like t.column by checking if the prefix matches a schema pattern
-    const schemaRefs = query.replace(/'[^']*'/g, "").match(/\b(\w+)\.(\w+)/gi) || [];
-    for (const ref of schemaRefs) {
-      const schema = ref.split(".")[0].toLowerCase();
-      // Allow table aliases (short names) but block known dangerous schemas and pg_ prefixes
-      if (schema.startsWith("pg_") || schema === "information_schema" || schema === "auth" || schema === "public") {
-        return { valid: false, query, error: `Schema-qualified reference not allowed: ${ref}` };
-      }
+  // Block schema-qualified table references (e.g., pg_catalog.pg_shadow, auth.users).
+  // Allows table aliases (short names like t.column) but blocks known dangerous schemas.
+  const BLOCKED_SCHEMAS = new Set(["information_schema", "auth", "public"]);
+  const queryWithoutStrings = query.replace(/'[^']*'/g, "");
+  const schemaRefs = queryWithoutStrings.match(/\b(\w+)\.(\w+)/gi) || [];
+  for (const ref of schemaRefs) {
+    const schema = ref.split(".")[0].toLowerCase();
+    if (schema.startsWith("pg_") || BLOCKED_SCHEMAS.has(schema)) {
+      return { valid: false, query, error: `Schema-qualified reference not allowed: ${ref}` };
     }
   }
 

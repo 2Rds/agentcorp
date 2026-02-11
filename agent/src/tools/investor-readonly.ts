@@ -2,6 +2,16 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
 
+type ToolResponse = { content: { type: "text"; text: string }[]; isError?: boolean };
+
+function textResult(text: string): ToolResponse {
+  return { content: [{ type: "text" as const, text }] };
+}
+
+function errorResult(message: string): ToolResponse {
+  return { content: [{ type: "text" as const, text: `Error: ${message}` }], isError: true };
+}
+
 /**
  * Read-only tools for the investor data room agent.
  * No writes, no knowledge base access — only financial data viewing.
@@ -25,8 +35,8 @@ export function investorReadonlyTools(orgId: string, allowedDocumentIds?: string
       if (args.category) query = query.eq("category", args.category);
 
       const { data, error } = await query;
-      if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
-      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+      if (error) return errorResult(error.message);
+      return textResult(JSON.stringify(data, null, 2));
     }
   );
 
@@ -44,9 +54,9 @@ export function investorReadonlyTools(orgId: string, allowedDocumentIds?: string
         .eq("scenario", args.scenario)
         .order("month", { ascending: true });
 
-      if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
+      if (error) return errorResult(error.message);
       if (!data || data.length === 0) {
-        return { content: [{ type: "text" as const, text: "No financial model data available." }] };
+        return textResult("No financial model data available.");
       }
 
       // Compute derived metrics
@@ -86,7 +96,7 @@ export function investorReadonlyTools(orgId: string, allowedDocumentIds?: string
         })),
       };
 
-      return { content: [{ type: "text" as const, text: JSON.stringify(metrics, null, 2) }] };
+      return textResult(JSON.stringify(metrics, null, 2));
     }
   );
 
@@ -101,8 +111,8 @@ export function investorReadonlyTools(orgId: string, allowedDocumentIds?: string
         .eq("organization_id", orgId)
         .order("ownership_pct", { ascending: false });
 
-      if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
-      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+      if (error) return errorResult(error.message);
+      return textResult(JSON.stringify(data, null, 2));
     }
   );
 
@@ -125,8 +135,8 @@ export function investorReadonlyTools(orgId: string, allowedDocumentIds?: string
       }
 
       const { data, error } = await query.order("created_at", { ascending: false }).limit(20);
-      if (error) return { content: [{ type: "text" as const, text: `Error: ${error.message}` }], isError: true };
-      return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+      if (error) return errorResult(error.message);
+      return textResult(JSON.stringify(data, null, 2));
     }
   );
 

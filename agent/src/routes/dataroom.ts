@@ -64,34 +64,75 @@ async function validateLink(slug: string, passcode?: string, email?: string): Pr
   return { link, error: null };
 }
 
-const VALID_SCENARIOS = ["base", "best", "worst"];
+const VALID_SCENARIOS = ["base", "best", "worst"] as const;
 
 /**
- * GET /dataroom/:slug — Validate link and return data room config
+ * Validate a data room link from request params and send error response if invalid.
+ * Returns the validated link record, or null if the response was already sent.
+ */
+async function requireValidLink(
+  req: Request,
+  res: Response,
+  passcode?: string,
+  email?: string
+): Promise<Record<string, any> | null> {
+  const result = await validateLink(
+    req.params.slug,
+    passcode ?? (req.query.passcode as string | undefined),
+    email ?? (req.query.email as string | undefined)
+  );
+
+  if (!result.link) {
+    const status = result.requireEmail ? 403 : 404;
+    res.status(status).json({ error: result.error, requireEmail: result.requireEmail });
+    return null;
+  }
+
+  return result.link;
+}
+
+/**
+ * Aggregate financial model rows into monthly P&L buckets.
+ */
+function aggregateMonthlyPnL(
+  rows: Array<{ category: string; month: string; amount: number }>
+): Record<string, { revenue: number; cogs: number; opex: number }> {
+  const monthly: Record<string, { revenue: number; cogs: number; opex: number }> = {};
+  for (const row of rows) {
+    if (!monthly[row.month]) monthly[row.month] = { revenue: 0, cogs: 0, opex: 0 };
+    const bucket = monthly[row.month];
+    if (row.category === "revenue") bucket.revenue += row.amount;
+    else if (row.category === "cogs") bucket.cogs += row.amount;
+    else if (row.category === "opex" || row.category === "headcount") bucket.opex += row.amount;
+  }
+  return monthly;
+}
+
+/**
+ * Fire-and-forget a dataroom interaction record with error logging.
+ */
+function trackInteraction(record: Record<string, unknown>): void {
+  Promise.resolve(
+    supabaseAdmin.from("dataroom_interactions").insert(record)
+  ).then(({ error }) => {
+    if (error) console.error("Failed to track dataroom interaction:", error.message);
+  }).catch((err: unknown) => console.error("Dataroom interaction tracking threw:", err));
+}
+
+/**
+ * GET /dataroom/:slug -- Validate link and return data room config
  */
 router.get("/dataroom/:slug", readLimiter, async (req: Request, res: Response) => {
   try {
-    const { slug } = req.params;
-    const passcode = req.query.passcode as string | undefined;
-    const email = req.query.email as string | undefined;
+    const link = await requireValidLink(req, res);
+    if (!link) return;
 
-    const result = await validateLink(slug, passcode, email);
-    if (!result.link) {
-      const status = result.requireEmail ? 403 : 404;
-      res.status(status).json({ error: result.error, requireEmail: result.requireEmail });
-      return;
-    }
-
-    const link = result.link;
-
-    // Get org name for branding
     const { data: org } = await supabaseAdmin
       .from("organizations")
       .select("name")
       .eq("id", link.organization_id)
       .single();
 
-    // Only return what the frontend needs — no internal IDs
     res.json({
       linkName: link.name,
       organizationName: org?.name ?? "Company",
@@ -104,39 +145,27 @@ router.get("/dataroom/:slug", readLimiter, async (req: Request, res: Response) =
 });
 
 /**
- * GET /dataroom/:slug/financials — Read-only financial data
+ * GET /dataroom/:slug/financials -- Read-only financial data
  */
 router.get("/dataroom/:slug/financials", readLimiter, async (req: Request, res: Response) => {
   try {
-    const result = await validateLink(req.params.slug, req.query.passcode as string, req.query.email as string);
-    if (!result.link) { res.status(404).json({ error: result.error }); return; }
+    const link = await requireValidLink(req, res);
+    if (!link) return;
 
-    const orgId = result.link.organization_id;
     const scenario = (req.query.scenario as string) || "base";
-
-    if (!VALID_SCENARIOS.includes(scenario)) {
+    if (!VALID_SCENARIOS.includes(scenario as typeof VALID_SCENARIOS[number])) {
       res.status(400).json({ error: "Invalid scenario. Must be base, best, or worst." });
       return;
     }
 
-    // Get financial model data
     const { data: model } = await supabaseAdmin
       .from("financial_model")
       .select("category, subcategory, month, amount")
-      .eq("organization_id", orgId)
+      .eq("organization_id", link.organization_id)
       .eq("scenario", scenario)
       .order("month", { ascending: true });
 
-    // Compute monthly P&L
-    const monthlyData: Record<string, { revenue: number; cogs: number; opex: number }> = {};
-    for (const row of model ?? []) {
-      if (!monthlyData[row.month]) monthlyData[row.month] = { revenue: 0, cogs: 0, opex: 0 };
-      const m = monthlyData[row.month];
-      if (row.category === "revenue") m.revenue += row.amount;
-      else if (row.category === "cogs") m.cogs += row.amount;
-      else if (row.category === "opex" || row.category === "headcount") m.opex += row.amount;
-    }
-
+    const monthlyData = aggregateMonthlyPnL(model ?? []);
     const months = Object.keys(monthlyData).sort();
     const pnl = months.map(m => ({
       month: m,
@@ -152,17 +181,17 @@ router.get("/dataroom/:slug/financials", readLimiter, async (req: Request, res: 
 });
 
 /**
- * GET /dataroom/:slug/cap-table — Read-only cap table
+ * GET /dataroom/:slug/cap-table -- Read-only cap table
  */
 router.get("/dataroom/:slug/cap-table", readLimiter, async (req: Request, res: Response) => {
   try {
-    const result = await validateLink(req.params.slug, req.query.passcode as string, req.query.email as string);
-    if (!result.link) { res.status(404).json({ error: result.error }); return; }
+    const link = await requireValidLink(req, res);
+    if (!link) return;
 
     const { data } = await supabaseAdmin
       .from("cap_table_entries")
       .select("stakeholder_name, stakeholder_type, shares, ownership_pct, investment_amount, round_name")
-      .eq("organization_id", result.link.organization_id)
+      .eq("organization_id", link.organization_id)
       .order("ownership_pct", { ascending: false });
 
     res.json({ entries: data ?? [] });
@@ -172,20 +201,21 @@ router.get("/dataroom/:slug/cap-table", readLimiter, async (req: Request, res: R
 });
 
 /**
- * POST /dataroom/:slug/ask — AI Q&A for investors (rate-limited)
+ * POST /dataroom/:slug/ask -- AI Q&A for investors (rate-limited)
  */
 router.post("/dataroom/:slug/ask", askLimiter, async (req: Request, res: Response) => {
   try {
     const { question, passcode, email, sessionId } = req.body;
-    if (!question) { res.status(400).json({ error: "question is required" }); return; }
+    if (!question) {
+      res.status(400).json({ error: "question is required" });
+      return;
+    }
 
-    const result = await validateLink(req.params.slug, passcode, email);
-    if (!result.link) { res.status(404).json({ error: result.error }); return; }
+    const link = await requireValidLink(req, res, passcode, email);
+    if (!link) return;
 
-    const link = result.link;
     const orgId = link.organization_id;
 
-    // Run investor agent query
     const agentQuery = createInvestorQuery({
       question,
       organizationId: orgId,
@@ -206,19 +236,14 @@ router.post("/dataroom/:slug/ask", askLimiter, async (req: Request, res: Respons
       }
     }
 
-    // Track interaction (fire-and-forget with error logging)
-    Promise.resolve(
-      supabaseAdmin.from("dataroom_interactions").insert({
-        link_id: link.id,
-        organization_id: orgId,
-        interaction_type: "question",
-        content: question,
-        response: fullResponse.slice(0, 5000),
-        session_id: sessionId,
-      })
-    ).then(({ error: insertErr }) => {
-      if (insertErr) console.error("Failed to track dataroom interaction:", insertErr.message);
-    }).catch((err: unknown) => console.error("Dataroom interaction tracking threw:", err));
+    trackInteraction({
+      link_id: link.id,
+      organization_id: orgId,
+      interaction_type: "question",
+      content: question,
+      response: fullResponse.slice(0, 5000),
+      session_id: sessionId,
+    });
 
     res.json({ answer: fullResponse });
   } catch (err: any) {
@@ -228,19 +253,18 @@ router.post("/dataroom/:slug/ask", askLimiter, async (req: Request, res: Respons
 });
 
 /**
- * POST /dataroom/:slug/view — Track engagement
+ * POST /dataroom/:slug/view -- Track engagement
  */
 router.post("/dataroom/:slug/view", async (req: Request, res: Response) => {
   try {
     const { passcode, email, sessionId, interactionType = "chart_view", content } = req.body;
 
-    const result = await validateLink(req.params.slug, passcode, email);
-    if (!result.link) { res.status(404).json({ error: result.error }); return; }
+    const link = await requireValidLink(req, res, passcode, email);
+    if (!link) return;
 
-    // Track as link view
     await supabaseAdmin.from("link_views").insert({
-      link_id: result.link.id,
-      organization_id: result.link.organization_id,
+      link_id: link.id,
+      organization_id: link.organization_id,
       viewer_email: email || null,
       viewer_ip: req.ip || null,
       duration_seconds: 0,
@@ -248,10 +272,9 @@ router.post("/dataroom/:slug/view", async (req: Request, res: Response) => {
       completion_pct: 0,
     });
 
-    // Track as data room interaction
-    await supabaseAdmin.from("dataroom_interactions").insert({
-      link_id: result.link.id,
-      organization_id: result.link.organization_id,
+    trackInteraction({
+      link_id: link.id,
+      organization_id: link.organization_id,
       interaction_type: interactionType,
       content,
       session_id: sessionId,

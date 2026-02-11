@@ -36,21 +36,18 @@ export default function DataRoom() {
         if (!resp.ok) {
           if (data.requireEmail) {
             setConfig(data);
-            setLoading(false);
-            return;
+          } else {
+            setError(data.error || "Link not found");
           }
-          setError(data.error || "Link not found");
-          setLoading(false);
           return;
         }
         setConfig(data);
-        // Auto-authenticate if no passcode and no email required
         if (!data.hasPasscode && !data.requireEmail) {
           setAuthenticated(true);
         }
-        setLoading(false);
       } catch {
         setError("Unable to connect to data room");
+      } finally {
         setLoading(false);
       }
     };

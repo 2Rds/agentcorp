@@ -70,6 +70,40 @@ Ensure ownership percentages sum to 100%.
 Output ONLY valid JSON: {"entries": [...]}`;
 
 /**
+ * Build a user prompt with optional existing data context prepended.
+ */
+function buildUserPrompt(plan: string, context: string): string {
+  if (!context) return plan;
+  return `## Existing Data Context\n${context}\n\n## Plan\n${plan}`;
+}
+
+/**
+ * Salvage individually valid items from a partially invalid K2 response.
+ */
+function salvageValidItems<T extends z.ZodTypeAny>(items: unknown[], schema: T): z.output<T>[] {
+  const valid: z.output<T>[] = [];
+  for (const raw of items) {
+    const result = schema.safeParse(raw);
+    if (result.success) valid.push(result.data);
+  }
+  return valid;
+}
+
+/**
+ * Classify a K2 API error and rethrow auth/rate-limit errors with clear messages.
+ * Returns without throwing for transient or unknown errors (caller returns empty fallback).
+ */
+function rethrowKnownErrors(e: unknown): void {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (msg.includes("401") || msg.includes("403")) {
+    throw new Error("Kimi K2 API authentication failed. Check MOONSHOT_API_KEY configuration.");
+  }
+  if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
+    throw new Error("Kimi K2 rate limit exceeded. Please wait and try again.");
+  }
+}
+
+/**
  * Use Kimi K2 to generate financial model rows from a high-level plan.
  * Falls back to returning empty array if K2 unavailable.
  */
@@ -82,42 +116,25 @@ export async function generateFinancialModelRows(
     return [];
   }
 
-  const userPrompt = context
-    ? `## Existing Data Context\n${context}\n\n## Plan\n${plan}`
-    : plan;
-
   try {
     const result = await extractStructured<{ rows: unknown[] }>(
       [
         { role: "system", content: FM_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
+        { role: "user", content: buildUserPrompt(plan, context) },
       ],
       { maxTokens: 16384, temperature: 0.2 }
     );
 
     const parsed = FinancialModelResponseSchema.safeParse(result);
-    if (!parsed.success) {
-      console.error("K2 financial model validation error:", parsed.error.message);
-      // Try to salvage valid rows
-      const rows: FinancialModelRow[] = [];
-      for (const raw of result.rows || []) {
-        const rowParse = FinancialModelRowSchema.safeParse(raw);
-        if (rowParse.success) rows.push(rowParse.data);
-      }
-      console.log(`Salvaged ${rows.length} valid rows from K2 response`);
-      return rows;
-    }
+    if (parsed.success) return parsed.data.rows;
 
-    return parsed.data.rows;
-  } catch (e: any) {
+    console.error("K2 financial model validation error:", parsed.error.message);
+    const salvaged = salvageValidItems(result.rows || [], FinancialModelRowSchema);
+    console.log(`Salvaged ${salvaged.length} valid rows from K2 response`);
+    return salvaged;
+  } catch (e: unknown) {
     console.error("K2 financial model generation error:", e);
-    const msg = e?.message ?? String(e);
-    if (msg.includes("401") || msg.includes("403")) {
-      throw new Error("Kimi K2 API authentication failed. Check MOONSHOT_API_KEY configuration.");
-    }
-    if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
-      throw new Error("Kimi K2 rate limit exceeded. Please wait and try again.");
-    }
+    rethrowKnownErrors(e);
     return [];
   }
 }
@@ -134,40 +151,23 @@ export async function generateCapTableEntries(
     return [];
   }
 
-  const userPrompt = context
-    ? `## Existing Data Context\n${context}\n\n## Plan\n${plan}`
-    : plan;
-
   try {
     const result = await extractStructured<{ entries: unknown[] }>(
       [
         { role: "system", content: CT_SYSTEM_PROMPT },
-        { role: "user", content: userPrompt },
+        { role: "user", content: buildUserPrompt(plan, context) },
       ],
       { maxTokens: 4096, temperature: 0.2 }
     );
 
     const parsed = CapTableResponseSchema.safeParse(result);
-    if (!parsed.success) {
-      console.error("K2 cap table validation error:", parsed.error.message);
-      const entries: CapTableEntry[] = [];
-      for (const raw of result.entries || []) {
-        const entryParse = CapTableEntrySchema.safeParse(raw);
-        if (entryParse.success) entries.push(entryParse.data);
-      }
-      return entries;
-    }
+    if (parsed.success) return parsed.data.entries;
 
-    return parsed.data.entries;
-  } catch (e: any) {
+    console.error("K2 cap table validation error:", parsed.error.message);
+    return salvageValidItems(result.entries || [], CapTableEntrySchema);
+  } catch (e: unknown) {
     console.error("K2 cap table generation error:", e);
-    const msg = e?.message ?? String(e);
-    if (msg.includes("401") || msg.includes("403")) {
-      throw new Error("Kimi K2 API authentication failed. Check MOONSHOT_API_KEY configuration.");
-    }
-    if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
-      throw new Error("Kimi K2 rate limit exceeded. Please wait and try again.");
-    }
+    rethrowKnownErrors(e);
     return [];
   }
 }

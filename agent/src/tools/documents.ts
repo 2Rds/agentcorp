@@ -5,7 +5,6 @@ import { config } from "../config.js";
 import { parseDocumentWithVision } from "../lib/gemini-client.js";
 import { indexDocument } from "../lib/document-indexer.js";
 import * as XLSX from "xlsx";
-import { parse as csvParse } from "csv-parse/sync";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
 
@@ -19,16 +18,15 @@ function truncate(text: string): string {
 const VISION_PROMPT = "Extract ALL text, numbers, data, and content from this image. Preserve structure, headings, bullet points, and tables. Return only the extracted content.";
 const PDF_VISION_PROMPT = "Extract ALL text, numbers, data, and content from this document. Preserve structure, headings, bullet points, and tables. Return only the extracted content.";
 
-async function describeImage(buffer: Buffer, mimeType: string): Promise<string> {
-  // Use Gemini Flash for vision when available (lower cost than Claude Sonnet)
-  if (config.useGeminiVision) {
-    return parseDocumentWithVision(buffer, mimeType, VISION_PROMPT);
-  }
-
-  // Fallback to Claude Sonnet vision
-  const base64 = buffer.toString("base64");
-  const mediaType = mimeType as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
-
+/**
+ * Call the Claude Sonnet API for vision-based content extraction.
+ * Used as a fallback when Gemini vision is not configured.
+ */
+async function callClaudeVision(
+  contentBlock: Record<string, unknown>,
+  prompt: string,
+  label: string
+): Promise<string> {
   const resp = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -41,59 +39,43 @@ async function describeImage(buffer: Buffer, mimeType: string): Promise<string> 
       max_tokens: 4096,
       messages: [{
         role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-          { type: "text", text: VISION_PROMPT },
-        ],
+        content: [contentBlock, { type: "text", text: prompt }],
       }],
     }),
   });
 
   if (!resp.ok) {
     const err = await resp.text();
-    throw new Error(`Vision API error (${resp.status}): ${err}`);
+    throw new Error(`${label} API error (${resp.status}): ${err}`);
   }
 
   const data = await resp.json();
   return data.content?.[0]?.text ?? "";
 }
 
+async function describeImage(buffer: Buffer, mimeType: string): Promise<string> {
+  if (config.useGeminiVision) {
+    return parseDocumentWithVision(buffer, mimeType, VISION_PROMPT);
+  }
+
+  const mediaType = mimeType as "image/png" | "image/jpeg" | "image/gif" | "image/webp";
+  return callClaudeVision(
+    { type: "image", source: { type: "base64", media_type: mediaType, data: buffer.toString("base64") } },
+    VISION_PROMPT,
+    "Vision"
+  );
+}
+
 async function extractPdfWithVision(buffer: Buffer): Promise<string> {
-  // Use Gemini Flash for PDF vision when available
   if (config.useGeminiVision) {
     return parseDocumentWithVision(buffer, "application/pdf", PDF_VISION_PROMPT);
   }
 
-  // Fallback to Claude Sonnet vision
-  const base64 = buffer.toString("base64");
-
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "x-api-key": config.anthropicApiKey,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64 } },
-          { type: "text", text: PDF_VISION_PROMPT },
-        ],
-      }],
-    }),
-  });
-
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`PDF vision API error (${resp.status}): ${err}`);
-  }
-
-  const data = await resp.json();
-  return data.content?.[0]?.text ?? "";
+  return callClaudeVision(
+    { type: "document", source: { type: "base64", media_type: "application/pdf", data: buffer.toString("base64") } },
+    PDF_VISION_PROMPT,
+    "PDF vision"
+  );
 }
 
 async function extractFileContent(buffer: Buffer, mimeType: string, fileName: string): Promise<string> {

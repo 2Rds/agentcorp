@@ -61,7 +61,7 @@ export async function chatCompletion(
   });
 
   const content = response.choices[0]?.message?.content;
-  if (content === null || content === undefined) {
+  if (content == null) {
     throw new Error(`${provider} API returned no content (finish_reason: ${response.choices[0]?.finish_reason ?? "no choices"})`);
   }
   return content;

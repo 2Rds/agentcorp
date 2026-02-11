@@ -50,12 +50,23 @@ export interface GraphData {
   };
 }
 
+const DOCUMENT_SELECT = "id, name, mime_type, size_bytes, storage_path, created_at, tags" as const;
+
 export default function Knowledge() {
   const { orgId } = useOrganization();
   const { user } = useAuth();
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [documents, setDocuments] = useState<DocumentEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  async function fetchDocuments(organizationId: string): Promise<DocumentEntry[]> {
+    const { data } = await supabase
+      .from("documents")
+      .select(DOCUMENT_SELECT)
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
+    return (data as DocumentEntry[]) ?? [];
+  }
 
   useEffect(() => {
     if (!orgId) return;
@@ -74,8 +85,7 @@ export default function Knowledge() {
             headers: { Authorization: `Bearer ${token}` },
           });
           if (resp.ok) {
-            const data = await resp.json();
-            setGraphData(data);
+            setGraphData(await resp.json());
             fetchedFromAgent = true;
           }
         } catch (err) {
@@ -83,15 +93,10 @@ export default function Knowledge() {
         }
       }
 
-      // Always fetch documents from Supabase (graph endpoint may not have full metadata)
-      const { data: docData } = await supabase
-        .from("documents")
-        .select("id, name, mime_type, size_bytes, storage_path, created_at, tags")
-        .eq("organization_id", orgId)
-        .order("created_at", { ascending: false });
-      setDocuments((docData as DocumentEntry[]) ?? []);
+      const docs = await fetchDocuments(orgId);
+      setDocuments(docs);
 
-      // If graph data wasn't fetched from agent, build it from Supabase
+      // If graph data was not fetched from agent, build it from Supabase
       if (!fetchedFromAgent) {
         const { data: kbData } = await supabase
           .from("knowledge_base")
@@ -100,9 +105,7 @@ export default function Knowledge() {
           .order("created_at", { ascending: false });
 
         const entries = (kbData as KnowledgeEntry[]) ?? [];
-        const docs = (docData as DocumentEntry[]) ?? [];
 
-        // Build basic graph data from Supabase
         const entities: GraphEntity[] = [
           ...entries.map(e => ({
             id: `kb-${e.id}`,
@@ -152,9 +155,8 @@ export default function Knowledge() {
       });
       if (dbErr) console.error("DB error:", dbErr);
     }
-    // Refresh
-    const { data } = await supabase.from("documents").select("id, name, mime_type, size_bytes, storage_path, created_at, tags").eq("organization_id", orgId).order("created_at", { ascending: false });
-    setDocuments((data as DocumentEntry[]) ?? []);
+
+    setDocuments(await fetchDocuments(orgId));
   };
 
   if (loading) {

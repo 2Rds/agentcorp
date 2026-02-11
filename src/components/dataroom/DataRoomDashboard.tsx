@@ -55,7 +55,6 @@ export function DataRoomDashboard({ agentUrl, slug, authQuery }: DataRoomDashboa
 
         if (!finResp.ok || !capResp.ok) {
           setFetchError("Failed to load financial data. Please try again.");
-          setLoading(false);
           return;
         }
 
@@ -65,8 +64,9 @@ export function DataRoomDashboard({ agentUrl, slug, authQuery }: DataRoomDashboa
       } catch (err) {
         console.error("DataRoomDashboard fetch error:", err);
         setFetchError("Unable to connect to data room server.");
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     load();
   }, [agentUrl, slug, authQuery]);
