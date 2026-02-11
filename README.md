@@ -1,73 +1,101 @@
-# Welcome to your Lovable project
+# CFO
 
-## Project info
+AI-powered CFO platform for seed-stage startups. Natural language financial modeling, cap table management, investor data rooms, and document intelligence.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+**Live:** [cfo.blockdrive.co](https://cfo.blockdrive.co)
 
-## How can I edit this code?
+## Architecture
 
-There are several ways of editing your application.
+Two-tier system: a React frontend deployed to Vercel, and an Express agent server powered by the Claude Agent SDK.
 
-**Use Lovable**
+### Frontend
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+React 18 + TypeScript + Vite. Supabase for auth, database (PostgreSQL), storage, and realtime subscriptions.
 
-Changes made via Lovable will be committed automatically to this repo.
+- **Chat** — Streaming AI CFO conversations with tool-use rendering
+- **Dashboard** — P&L, burn/runway, cap table, and OpEx charts (Recharts)
+- **Knowledge** — Document uploads with AI extraction and knowledge graph
+- **Investors** — DocSend-style shareable links with engagement analytics
+- **Data Room** — Public investor portal with password/email gating
 
-**Use your preferred IDE**
+### Agent Server (`agent/`)
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Express server with the Claude Agent SDK. Multi-model orchestration:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+| Model | Role |
+|-------|------|
+| Claude Opus 4.6 | Primary reasoning, tool orchestration, chat |
+| Kimi K2 (Moonshot) | Structured data generation (financial rows, cap table entries, SQL) |
+| Gemini Flash | Document vision, file processing, embeddings, RAG |
+| Mem0 | Org-scoped intelligent memory with Supabase fallback |
 
-Follow these steps:
+**20 MCP tools** across 7 domains: financial model (3), derived metrics (1), cap table (3), knowledge base (2), investor links (4), documents (2), document RAG (1), analytics (1), web fetch (1), headless browser (1), excel export (1).
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+**4 route groups:** `/api/chat`, `/api/knowledge/graph`, `/dataroom/:slug/*`, `/health`.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+Features auto-enable based on which API keys are set (Moonshot, Gemini, Mem0). Set `USE_X=false` to explicitly disable.
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Quick Start
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+### Frontend
+
+```bash
+npm install
+npm run dev          # Starts on port 8080
 ```
 
-**Edit a file directly in GitHub**
+### Agent Server
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+cd agent
+npm install
+npm run dev          # Starts on port 3001
+```
 
-**Use GitHub Codespaces**
+### Environment Variables
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+**Required:**
+```
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_PUBLISHABLE_KEY=...
+ANTHROPIC_API_KEY=...
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+```
 
-## What technologies are used for this project?
+**Optional (enable multi-model features):**
+```
+MOONSHOT_API_KEY=...     # Kimi K2 structured generation
+GEMINI_API_KEY=...       # Document vision, embeddings, RAG
+MEM0_API_KEY=...         # Intelligent memory
+VITE_AGENT_URL=...       # Agent server URL (falls back to edge functions)
+```
 
-This project is built with:
+## Tech Stack
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui |
+| Charts | Recharts |
+| State | TanStack Query (server), React Context (auth) |
+| Backend | Supabase (PostgreSQL, Auth, Storage, Edge Functions, Realtime) |
+| Agent | Express, Claude Agent SDK, Zod |
+| Multi-model | OpenAI SDK (Kimi K2), @google/genai (Gemini), Mem0 SDK |
+| Deployment | Vercel (frontend), Docker (agent) |
 
-## How can I deploy this project?
+## Scripts
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+```bash
+# Frontend
+npm run dev          # Dev server (port 8080)
+npm run build        # Production build
+npm run lint         # ESLint
+npm run test         # Vitest
+npm run test:watch   # Watch mode
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+# Agent
+cd agent
+npm run dev          # Dev server with hot reload (tsx watch)
+npm run build        # TypeScript compile
+npm run start        # Production (node dist/)
+```
