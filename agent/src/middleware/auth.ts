@@ -43,6 +43,10 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
     next();
   } catch (err: any) {
     console.error("Auth error:", err);
-    res.status(500).json({ error: "Authentication failed" });
+    if (err?.message?.includes("token") || err?.message?.includes("jwt") || err?.message?.includes("expired")) {
+      res.status(401).json({ error: "Invalid or expired token" });
+    } else {
+      res.status(500).json({ error: "Authentication failed" });
+    }
   }
 }

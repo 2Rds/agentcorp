@@ -37,7 +37,10 @@ export default function Chat() {
       // Try agent server first, fall back to edge function on network error
       if (agentUrl) {
         try {
-          const token = await (window as any).__clerk_session?.getToken() ?? "";
+          const session = (window as any).__clerk_session;
+          if (!session) throw new Error("Not signed in — please refresh and try again");
+          const token = await session.getToken();
+          if (!token) throw new Error("Session expired — please sign in again");
           resp = await fetch(`${agentUrl}/api/chat`, {
             method: "POST",
             headers: {

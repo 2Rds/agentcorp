@@ -1,23 +1,25 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git pull:*)",
-      "mcp__plugin_supabase_supabase__list_organizations",
-      "mcp__plugin_supabase_supabase__get_project",
-      "mcp__plugin_supabase_supabase__apply_migration",
-      "mcp__plugin_supabase_supabase__list_tables",
-      "mcp__plugin_supabase_supabase__deploy_edge_function",
-      "mcp__plugin_supabase_supabase__get_project_url",
-      "mcp__plugin_supabase_supabase__get_publishable_keys",
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$\\(cat <<''EOF''\nMigrate Supabase backend from Lovable Cloud to self-hosted project\n\n- Update .env and config.toml to new project \\(eisiohgjfviwxgdyfnsd\\)\n- Replace Lovable AI Gateway / Gemini Flash Lite with Anthropic API \\(Opus 4.6\\) for knowledge extraction in chat edge function\n- Add Supabase MCP tool permissions to local settings\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(npm run dev:*)",
-      "Bash(npm install:*)",
-      "Bash(start:*)",
+      "Bash(*)",
+      "WebFetch(*)",
       "WebSearch",
-      "Bash(npx tsc:*)",
-      "Bash(node -e:*)",
-      "Bash(cd:*)"
+      "mcp__plugin_supabase_supabase__*",
+      "mcp__claude_ai_Cloudflare_Developer_Platform__*",
+      "mcp__claude_ai_Vercel__*",
+      "mcp__claude_ai_Linear__*",
+      "mcp__claude_ai_Stripe__*",
+      "mcp__claude_ai_Context7__*",
+      "mcp__context7__*",
+      "mcp__claude-in-chrome__*",
+      "mcp__ide__*",
+      "mcp__mem0__search-memories"
+    ],
+    "deny": [
+      "Bash(rm -rf /*)",
+      "Bash(git push --force:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean -f:*)"
     ]
   },
   "hooks": {

@@ -21,13 +21,19 @@ export function useOrganization() {
       return;
     }
 
+    let timerHandle: ReturnType<typeof setTimeout> | null = null;
+    let cancelled = false;
+
     const lookupOrgId = async () => {
+      if (cancelled) return;
       setLoading(true);
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("organizations")
         .select("id")
         .eq("clerk_org_id", activeOrganization.id)
         .single();
+
+      if (cancelled) return;
 
       if (data?.id) {
         setOrgId(data.id);
@@ -35,9 +41,11 @@ export function useOrganization() {
         retryRef.current = 0;
       } else if (retryRef.current < 5) {
         // Webhook may not have fired yet — retry with backoff
+        if (error) console.warn(`[useOrganization] Lookup attempt ${retryRef.current + 1}/5 failed:`, error.message);
         retryRef.current += 1;
-        setTimeout(lookupOrgId, 1000);
+        timerHandle = setTimeout(lookupOrgId, 1000);
       } else {
+        console.error("[useOrganization] Failed to resolve Clerk org to Supabase UUID after 5 retries:", activeOrganization.id);
         setOrgId(null);
         setLoading(false);
         retryRef.current = 0;
@@ -45,6 +53,11 @@ export function useOrganization() {
     };
 
     lookupOrgId();
+
+    return () => {
+      cancelled = true;
+      if (timerHandle) clearTimeout(timerHandle);
+    };
   }, [activeOrganization, isOrgLoaded]);
 
   const createOrganization = useCallback(async (name: string) => {

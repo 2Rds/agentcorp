@@ -80,6 +80,8 @@ router.post("/api/model/create-sheet", authMiddleware, async (req: Request, res:
 
     if (insertError) {
       console.error("Failed to store sheet mapping:", insertError);
+      res.status(500).json({ error: "Sheet was created but failed to save mapping. Please try again." });
+      return;
     }
 
     res.json({

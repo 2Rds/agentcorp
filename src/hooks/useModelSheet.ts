@@ -126,11 +126,15 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
     if (!orgId || !agentUrl) return;
     try {
       const headers = await getAuthHeaders();
-      await fetch(`${agentUrl}/api/model/delete-sheet`, {
+      const res = await fetch(`${agentUrl}/api/model/delete-sheet`, {
         method: "POST",
         headers,
         body: JSON.stringify({ organizationId: orgId }),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err.error ?? "Failed to delete sheet");
+      }
       setSheet(null);
     } catch (err: any) {
       setError(err.message);

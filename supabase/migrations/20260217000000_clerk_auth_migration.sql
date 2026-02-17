@@ -478,35 +478,74 @@ CREATE POLICY "Org members can insert link views" ON public.link_views
 
 -- ── storage (agent-documents bucket) ──
 
-CREATE POLICY "Authenticated users can upload documents" ON storage.objects
+-- Storage policies scoped by org: files are stored under {org_id}/ prefix.
+-- is_org_member check ensures users can only access their org's files.
+CREATE POLICY "Org members can upload documents" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'agent-documents'
     AND (auth.jwt() ->> 'sub') IS NOT NULL
+    AND public.is_org_member(
+      (auth.jwt() ->> 'sub'),
+      (storage.foldername(name))[1]::uuid
+    )
   );
 
-CREATE POLICY "Authenticated users can view documents" ON storage.objects
+CREATE POLICY "Org members can view documents" ON storage.objects
   FOR SELECT TO authenticated
   USING (
     bucket_id = 'agent-documents'
     AND (auth.jwt() ->> 'sub') IS NOT NULL
+    AND public.is_org_member(
+      (auth.jwt() ->> 'sub'),
+      (storage.foldername(name))[1]::uuid
+    )
   );
 
-CREATE POLICY "Users can delete own uploads" ON storage.objects
+CREATE POLICY "Org members can delete documents" ON storage.objects
   FOR DELETE TO authenticated
   USING (
     bucket_id = 'agent-documents'
     AND (auth.jwt() ->> 'sub') IS NOT NULL
+    AND public.is_org_member(
+      (auth.jwt() ->> 'sub'),
+      (storage.foldername(name))[1]::uuid
+    )
   );
 
--- ─── 9. Re-grant permissions ────────────────────────────────────────────────
+-- ─── 9. Create model_sheets table (Google Sheets integration) ──────────────
+
+CREATE TABLE IF NOT EXISTS public.model_sheets (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  spreadsheet_id TEXT NOT NULL,
+  sheet_url TEXT NOT NULL,
+  template_id TEXT NOT NULL,
+  template_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+ALTER TABLE public.model_sheets ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Org members can view model sheets" ON public.model_sheets
+  FOR SELECT TO authenticated
+  USING (public.is_org_member((auth.jwt() ->> 'sub'), organization_id));
+
+CREATE POLICY "Org members can manage model sheets" ON public.model_sheets
+  FOR ALL TO authenticated
+  USING (public.is_org_member((auth.jwt() ->> 'sub'), organization_id))
+  WITH CHECK (public.is_org_member((auth.jwt() ->> 'sub'), organization_id));
+
+-- ─── 10. Re-grant permissions ───────────────────────────────────────────────
 
 GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO anon;
-GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon;
+-- Only grant anon access to tables needed for public data room
+GRANT SELECT ON public.investor_links TO anon;
+GRANT SELECT ON public.link_views TO anon;
+GRANT INSERT ON public.link_views TO anon;
+GRANT SELECT ON public.organizations TO anon;
 
 -- Notify PostgREST to reload schema cache
 NOTIFY pgrst, 'reload schema';

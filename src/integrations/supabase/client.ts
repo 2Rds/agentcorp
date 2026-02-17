@@ -15,7 +15,15 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   },
   async accessToken() {
     const session = (window as any).__clerk_session;
-    if (!session) return null;
-    return (await session.getToken()) ?? null;
+    if (!session) {
+      console.warn("Supabase accessToken: no Clerk session available — RLS queries will use anon role");
+      return null;
+    }
+    try {
+      return (await session.getToken()) ?? null;
+    } catch (err) {
+      console.error("Supabase accessToken: failed to get Clerk token", err);
+      return null;
+    }
   },
 });

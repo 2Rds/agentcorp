@@ -48,11 +48,11 @@ export async function copyTemplateSheet(
 
   const spreadsheetId = res.data.id!;
 
-  // Make the copy accessible to anyone with the link (editor access)
+  // Make the copy accessible to anyone with the link (read-only)
   await drive.permissions.create({
     fileId: spreadsheetId,
     requestBody: {
-      role: "writer",
+      role: "reader",
       type: "anyone",
     },
   });

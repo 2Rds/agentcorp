@@ -74,7 +74,9 @@ export default function Knowledge() {
       setLoading(true);
 
       const agentUrl = import.meta.env.VITE_AGENT_URL;
-      const token = await (window as any).__clerk_session?.getToken() ?? null;
+      const session = (window as any).__clerk_session;
+      const token = session ? await session.getToken() : null;
+      if (!token) console.warn("No Clerk session token — agent requests will fail");
 
       // Try agent server knowledge graph endpoint
       let fetchedFromAgent = false;
