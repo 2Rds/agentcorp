@@ -2,6 +2,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { vectorSearch, isRedisAvailable } from "./redis-client.js";
 import { embed } from "./model-router.js";
+import { rerank, isCohereAvailable } from "./cohere-client.js";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,31 @@ export async function resolveSkills(
     }
   } else {
     ranked = candidates.map((c) => ({ id: c.entry.id, score: c.score }));
+  }
+
+  // Stage 2.5: Cohere Rerank (cross-encoder, only when 2+ candidates and Cohere is available)
+  if (ranked.length >= 2 && isCohereAvailable()) {
+    try {
+      const rankedEntries = ranked
+        .map((r) => ({ ...r, entry: reg.find((e) => e.id === r.id) }))
+        .filter((r) => r.entry != null);
+
+      if (rankedEntries.length >= 2) {
+        const descriptions = rankedEntries.map(
+          (r) => `${r.entry!.name}: ${r.entry!.description}`,
+        );
+        const reranked = await rerank(query, descriptions, maxSkills * 2);
+
+        if (reranked.length > 0) {
+          ranked = reranked.map((r) => ({
+            id: rankedEntries[r.index].id,
+            score: r.relevanceScore,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Cohere rerank failed (using previous ranking):", err);
+    }
   }
 
   // Select top skills within token budget

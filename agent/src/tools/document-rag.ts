@@ -4,6 +4,7 @@ import { supabaseAdmin } from "../lib/supabase.js";
 import { config } from "../config.js";
 import { queryDocumentsWithGemini, generateEmbedding } from "../lib/gemini-client.js";
 import { vectorSearch, hybridSearch, isRedisAvailable } from "../lib/redis-client.js";
+import { rerank, isCohereAvailable } from "../lib/cohere-client.js";
 
 export function documentRagTools(orgId: string) {
   const query_documents = tool(
@@ -45,6 +46,19 @@ export function documentRagTools(orgId: string) {
                 }
 
                 if (filtered.length > 0) {
+                  // Cohere Rerank: cross-encoder re-scoring for better relevance
+                  if (filtered.length >= 2 && isCohereAvailable()) {
+                    try {
+                      const contents = filtered.map(r => r.fields.content ?? "");
+                      const reranked = await rerank(args.query, contents, 5);
+                      if (reranked.length > 0) {
+                        filtered = reranked.map(r => filtered[r.index]);
+                      }
+                    } catch (err) {
+                      console.error("Cohere rerank failed for document RAG (using vector order):", err);
+                    }
+                  }
+
                   const chunks = filtered.map((r, i) => {
                     const similarity = (1 - r.distance).toFixed(3);
                     return `**${r.fields.source ?? "Unknown"}** (chunk ${r.fields.chunk_index ?? "?"}, similarity: ${similarity})\n${r.fields.content ?? ""}`;

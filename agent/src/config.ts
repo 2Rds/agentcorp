@@ -42,6 +42,9 @@ export const config = {
   clerkSecretKey: optional("CLERK_SECRET_KEY"),
   clerkPublishableKey: optional("CLERK_PUBLISHABLE_KEY"),
 
+  // Cohere (Rerank for plugin resolution + document RAG)
+  cohereApiKey: optional("COHERE_API_KEY"),
+
   // Webhook secrets
   mem0WebhookSecret: optional("MEM0_WEBHOOK_SECRET"),
 

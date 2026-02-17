@@ -9,7 +9,9 @@ export type ModelAlias =
   | "gemini-lite"
   | "sonar"
   | "deepseek"
-  | "deepseek-speciale";
+  | "deepseek-speciale"
+  | "granite"
+  | "sonnet";
 
 const MODEL_IDS: Record<ModelAlias, string> = {
   kimi: "moonshotai/kimi-k2.5",
@@ -19,6 +21,8 @@ const MODEL_IDS: Record<ModelAlias, string> = {
   sonar: "perplexity/sonar-pro",
   deepseek: "deepseek/deepseek-v3.2",
   "deepseek-speciale": "deepseek/deepseek-v3.2-speciale",
+  granite: "ibm-granite/granite-4.0-h-micro",
+  sonnet: "anthropic/claude-sonnet-4-6-20260217",
 };
 
 // ─── AI Gateway helpers ──────────────────────────────────────────────────────
