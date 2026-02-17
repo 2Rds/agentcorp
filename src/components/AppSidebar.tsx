@@ -1,4 +1,4 @@
-import { MessageSquare, BarChart3, FileText, Users, Settings, LogOut, Brain, BookOpen } from "lucide-react";
+import { MessageSquare, BarChart3, Table2, FileText, Users, Settings, LogOut, Brain, BookOpen } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/hooks/useAuth";
 import { useNavigate } from "react-router-dom";
@@ -23,6 +23,7 @@ const navItems = [
   { title: "Chat", url: "/", icon: MessageSquare },
   { title: "Knowledge", url: "/knowledge", icon: Brain },
   { title: "Dashboard", url: "/dashboard", icon: BarChart3 },
+  { title: "Model", url: "/model", icon: Table2 },
   { title: "Investors", url: "/investors", icon: Users },
   { title: "Docs", url: "/docs", icon: BookOpen },
   { title: "Settings", url: "/settings", icon: Settings },
@@ -48,8 +49,8 @@ export function AppSidebar() {
               <span className="text-primary-foreground font-bold text-sm">CF</span>
             </div>
             <div>
-              <h2 className="font-semibold text-sm text-sidebar-foreground">CFO Agent</h2>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Seed Round</p>
+              <h2 className="font-semibold text-sm text-sidebar-foreground">Chief Financial Agent</h2>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Financial Intelligence</p>
             </div>
           </div>
         )}

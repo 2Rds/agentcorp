@@ -3,6 +3,7 @@ import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
 import { config } from "../config.js";
 import { queryDocumentsWithGemini, generateEmbedding } from "../lib/gemini-client.js";
+import { vectorSearch, hybridSearch, isRedisAvailable } from "../lib/redis-client.js";
 
 export function documentRagTools(orgId: string) {
   const query_documents = tool(
@@ -14,7 +15,57 @@ export function documentRagTools(orgId: string) {
     },
     async (args) => {
       try {
-        // Get documents with Gemini file URIs
+        // Strategy 1: Redis hybrid search (text + vector)
+        if (isRedisAvailable()) {
+          try {
+            const queryEmbedding = await generateEmbedding(args.query);
+            if (queryEmbedding.length > 0) {
+              const orgFilter = `@org_id:{${orgId.replace(/-/g, "\\-")}}`;
+
+              // Try hybrid search first (text + vector + org filter), fall back to pure vector
+              let results = await hybridSearch(
+                "idx:documents",
+                args.query,
+                queryEmbedding,
+                5,
+                "content",
+                orgFilter,
+              );
+
+              if (results.length === 0) {
+                results = await vectorSearch("idx:documents", queryEmbedding, 5, orgFilter);
+              }
+
+              if (results.length > 0) {
+                // Filter by document_ids if specified
+                let filtered = results;
+                if (args.document_ids && args.document_ids.length > 0) {
+                  const allowedIds = new Set(args.document_ids);
+                  filtered = results.filter(r => allowedIds.has(r.fields.document_id ?? ""));
+                }
+
+                if (filtered.length > 0) {
+                  const chunks = filtered.map((r, i) => {
+                    const similarity = (1 - r.distance).toFixed(3);
+                    return `**${r.fields.source ?? "Unknown"}** (chunk ${r.fields.chunk_index ?? "?"}, similarity: ${similarity})\n${r.fields.content ?? ""}`;
+                  });
+
+                  const sources = [...new Set(filtered.map(r => r.fields.source ?? "Unknown"))].join(", ");
+                  return {
+                    content: [{
+                      type: "text" as const,
+                      text: `## Relevant Document Passages (Redis hybrid search)\n\n${chunks.join("\n\n---\n\n")}\n\n**Sources:** ${sources}`,
+                    }],
+                  };
+                }
+              }
+            }
+          } catch (err) {
+            console.error("Redis document search failed (falling back):", err);
+          }
+        }
+
+        // Strategy 2: Gemini grounded generation with file URIs
         let docQuery = supabaseAdmin
           .from("documents")
           .select("id, name, mime_type, gemini_file_uri, embedding")
@@ -30,7 +81,6 @@ export function documentRagTools(orgId: string) {
           return { content: [{ type: "text" as const, text: "No documents found. Upload documents first using the Knowledge page." }] };
         }
 
-        // Strategy 1: Use Gemini grounded generation with file URIs
         const geminiDocs = docs.filter(d => d.gemini_file_uri);
         if (config.useGeminiVision && geminiDocs.length > 0) {
           const fileUris = geminiDocs.map(d => ({
@@ -38,7 +88,6 @@ export function documentRagTools(orgId: string) {
             mimeType: d.mime_type || "application/octet-stream",
           }));
 
-          // Gemini has limits on files per request — take top 10
           const answer = await queryDocumentsWithGemini(
             fileUris.slice(0, 10),
             args.query
@@ -53,12 +102,11 @@ export function documentRagTools(orgId: string) {
           };
         }
 
-        // Strategy 2: Semantic search via pgvector embeddings
+        // Strategy 3: Supabase pgvector (legacy fallback)
         if (config.openRouterApiKey) {
           try {
             const queryEmbedding = await generateEmbedding(args.query);
             if (queryEmbedding.length > 0) {
-              // Use pgvector cosine similarity via RPC
               const { data: results, error: searchError } = await supabaseAdmin
                 .rpc("match_documents", {
                   query_embedding: JSON.stringify(queryEmbedding),
@@ -89,7 +137,7 @@ export function documentRagTools(orgId: string) {
           }
         }
 
-        // Strategy 3: Return document list for manual reading
+        // Strategy 4: Return document list for manual reading
         const docList = docs.map(d => `- **${d.name}** (id: ${d.id})`).join("\n");
         return {
           content: [{

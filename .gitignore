@@ -28,3 +28,8 @@ dist-ssr
 agent/.env
 .mcp.json
 nul
+
+# Cloudflare AI Gateway (Provider Keys mode)
+CF_ACCOUNT_ID=0804701ffff5f5a40649e79e868ea832
+CF_GATEWAY_ID=cognitive-agents
+CF_AIG_TOKEN=7CSvPXL_dHCPdIZf8VmiR_6qmhCW7k8FtlON6MDG

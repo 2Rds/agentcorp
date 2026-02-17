@@ -7,8 +7,11 @@ RUN npm ci
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY plugins ./plugins
+COPY scripts ./scripts
 
-RUN npx tsc
+# Build plugin registry + compile TypeScript
+RUN npx tsx scripts/build-registry.ts && npx tsc
 
 # --- Production image ---
 FROM node:20
@@ -22,6 +25,7 @@ RUN npm ci --omit=dev
 RUN npx playwright install chromium --with-deps
 
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/plugins ./plugins
 
 EXPOSE 3001
 

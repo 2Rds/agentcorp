@@ -74,8 +74,7 @@ export default function Knowledge() {
       setLoading(true);
 
       const agentUrl = import.meta.env.VITE_AGENT_URL;
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = await (window as any).__clerk_session?.getToken() ?? null;
 
       // Try agent server knowledge graph endpoint
       let fetchedFromAgent = false;

@@ -5,7 +5,6 @@ import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, Sparkles } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function Chat() {
   const { orgId } = useOrganization();
@@ -38,12 +37,12 @@ export default function Chat() {
       // Try agent server first, fall back to edge function on network error
       if (agentUrl) {
         try {
-          const { data: { session } } = await supabase.auth.getSession();
+          const token = await (window as any).__clerk_session?.getToken() ?? "";
           resp = await fetch(`${agentUrl}/api/chat`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              Authorization: `Bearer ${session?.access_token ?? ""}`,
+              Authorization: `Bearer ${token}`,
             },
             body: JSON.stringify(payload),
           });

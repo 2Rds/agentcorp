@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import { supabaseAdmin } from "../lib/supabase.js";
 
 export interface AuthenticatedRequest extends Request {
@@ -8,32 +9,22 @@ export interface AuthenticatedRequest extends Request {
 
 export async function authMiddleware(req: Request, res: Response, next: NextFunction) {
   try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader?.startsWith("Bearer ")) {
-      res.status(401).json({ error: "Missing authorization header" });
+    // Clerk's clerkMiddleware() (in index.ts) has already verified the JWT.
+    // getAuth() extracts the userId from the verified token.
+    const { userId } = getAuth(req);
+    if (!userId) {
+      res.status(401).json({ error: "Not authenticated" });
       return;
     }
 
-    const token = authHeader.slice(7);
-
-    // Use Supabase's own auth to verify the token — no JWT secret needed
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      console.error("Auth verification failed:", authError?.message);
-      res.status(401).json({ error: "Invalid or expired token" });
-      return;
-    }
-
-    const userId = user.id;
-
-    // Extract organizationId from body
-    const organizationId = req.body?.organizationId;
+    // Extract organizationId from body or query
+    const organizationId = req.body?.organizationId || req.query?.organizationId;
     if (!organizationId) {
       res.status(400).json({ error: "Missing organizationId in request body" });
       return;
     }
 
-    // Verify user is a member of this organization
+    // Verify user is a member of this organization via service role (bypasses RLS)
     const { data, error } = await supabaseAdmin
       .from("user_roles")
       .select("id")

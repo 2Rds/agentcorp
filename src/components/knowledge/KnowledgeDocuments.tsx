@@ -2,7 +2,6 @@ import { useRef } from "react";
 import type { DocumentEntry } from "@/pages/Knowledge";
 import { Button } from "@/components/ui/button";
 import { Upload, FileText, FileSpreadsheet, FileImage, File, Trash2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   documents: DocumentEntry[];

@@ -1,0 +1,42 @@
+{
+  "~~data_warehouse": {
+    "tool": "run_analytics_query",
+    "description": "Executes SQL queries against the company database with auto-visualization"
+  },
+  "~~cloud_storage": {
+    "tool": "query_documents",
+    "description": "Searches uploaded documents using semantic and keyword matching"
+  },
+  "~~knowledge_base": {
+    "tool": "search_knowledge_base",
+    "description": "Searches the company knowledge base for relevant entries"
+  },
+  "~~erp": {
+    "tool": "get_financial_model",
+    "description": "Retrieves financial model data (revenue, COGS, OpEx, headcount, funding)"
+  },
+  "~~chat": {
+    "tool": null,
+    "note": "Chat/messaging integration not connected"
+  },
+  "~~email": {
+    "tool": null,
+    "note": "Email integration not connected"
+  },
+  "~~crm": {
+    "tool": null,
+    "note": "CRM integration not connected"
+  },
+  "~~ticketing_system": {
+    "tool": null,
+    "note": "Ticketing system not connected"
+  },
+  "~~wiki": {
+    "tool": "search_knowledge_base",
+    "description": "Searches the company knowledge base"
+  },
+  "~~project_management": {
+    "tool": null,
+    "note": "Project management integration not connected"
+  }
+}

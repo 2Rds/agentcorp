@@ -28,13 +28,10 @@ async function callClaudeVision(
   prompt: string,
   label: string
 ): Promise<string> {
-  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+  const { getAnthropicHeaders, getAnthropicBaseURL } = await import("../lib/model-router.js");
+  const resp = await fetch(`${getAnthropicBaseURL()}/v1/messages`, {
     method: "POST",
-    headers: {
-      "x-api-key": config.anthropicApiKey,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
+    headers: getAnthropicHeaders(),
     body: JSON.stringify({
       model: "claude-sonnet-4-5-20250929",
       max_tokens: 4096,

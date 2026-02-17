@@ -2,6 +2,28 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Persistent Memory (mem0)
+
+This project uses mem0 for persistent memory. User ID: `claude-code-universal` (shared across all projects).
+
+When saving memories for this project, always tag with:
+```json
+{
+  "project": "cfo",
+  "domain": "finance/saas/ai-agents"
+}
+```
+
+### Session Protocol
+- **On start**: Silently query mem0 for memories relevant to the current task. Apply context naturally.
+- **During work**: Proactively save memories when discovering architecture decisions, bug fixes, user preferences, or cross-project patterns. Do not wait to be asked.
+- **On end**: Review what was accomplished and persist any new knowledge worth remembering.
+
+### Memory Guidelines
+- Keep entries concise (1-3 sentences), always include project metadata
+- Search before adding to avoid duplicates
+- Do NOT save trivial info, session-specific state, or secrets
+
 ## Commands
 
 ```bash

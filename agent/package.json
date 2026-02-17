@@ -5,22 +5,26 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsx scripts/build-registry.ts && tsc",
+    "build:registry": "tsx scripts/build-registry.ts",
+    "seed:plugins": "tsx scripts/build-registry.ts --seed-redis",
     "start": "node dist/index.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
+    "@clerk/express": "^1.7.70",
     "@supabase/supabase-js": "^2.95.3",
     "cors": "^2.8.5",
     "csv-parse": "^6.1.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
+    "googleapis": "^171.4.0",
     "jsonwebtoken": "^9.0.2",
     "mammoth": "^1.11.0",
     "pdf-parse": "^2.4.5",
-    "openai": "^4.96.0",
     "playwright": "^1.58.2",
+    "redis": "^5.11.0",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },

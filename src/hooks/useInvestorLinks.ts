@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "./useOrganization";
+import { useAuth } from "./useAuth";
 import { useEffect } from "react";
 
 export interface InvestorLink {
@@ -55,6 +56,7 @@ function generateSlug(): string {
 
 export function useInvestorLinks() {
   const { orgId } = useOrganization();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const linksQuery = useQuery({
@@ -106,14 +108,13 @@ export function useInvestorLinks() {
   const createLink = useMutation({
     mutationFn: async (params: { name: string; email?: string; passcode?: string; require_email?: boolean; expires_at?: string; allowed_document_ids?: string[] }) => {
       if (!orgId) throw new Error("No organization");
-      const { data: userData } = await supabase.auth.getUser();
-      if (!userData.user) throw new Error("Not authenticated");
+      if (!user) throw new Error("Not authenticated");
       const slug = generateSlug();
       const { data, error } = await supabase
         .from("investor_links")
         .insert({
           organization_id: orgId,
-          created_by: userData.user.id,
+          created_by: user.id,
           name: params.name,
           email: params.email || null,
           slug,

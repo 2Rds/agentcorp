@@ -1,51 +1,61 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useClerkAuth } from "@/contexts/ClerkAuthContext";
+import { useOrganizationList } from "@clerk/clerk-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "./useAuth";
 
 export function useOrganization() {
-  const { user } = useAuth();
+  const { activeOrganization, isOrgLoaded } = useClerkAuth();
+  const orgList = useOrganizationList({ userMemberships: { infinite: true } });
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const retryRef = useRef(0);
 
+  // Look up Supabase UUID for the active Clerk organization
   useEffect(() => {
-    if (!user) {
+    if (!isOrgLoaded) return;
+
+    if (!activeOrganization) {
       setOrgId(null);
       setLoading(false);
+      retryRef.current = 0;
       return;
     }
 
-    const fetchOrg = async () => {
+    const lookupOrgId = async () => {
+      setLoading(true);
       const { data } = await supabase
-        .from("profiles")
-        .select("organization_id")
-        .eq("user_id", user.id)
+        .from("organizations")
+        .select("id")
+        .eq("clerk_org_id", activeOrganization.id)
         .single();
 
-      setOrgId(data?.organization_id ?? null);
-      setLoading(false);
+      if (data?.id) {
+        setOrgId(data.id);
+        setLoading(false);
+        retryRef.current = 0;
+      } else if (retryRef.current < 5) {
+        // Webhook may not have fired yet — retry with backoff
+        retryRef.current += 1;
+        setTimeout(lookupOrgId, 1000);
+      } else {
+        setOrgId(null);
+        setLoading(false);
+        retryRef.current = 0;
+      }
     };
 
-    fetchOrg();
-  }, [user]);
+    lookupOrgId();
+  }, [activeOrganization, isOrgLoaded]);
 
-  const createOrganization = async (name: string) => {
-    if (!user) throw new Error("Not authenticated");
-
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-    if (!token) throw new Error("No session");
-
-    const response = await supabase.functions.invoke("create-organization", {
-      body: { name },
-    });
-
-    if (response.error) throw new Error(response.error.message || "Failed to create organization");
-    if (response.data?.error) throw new Error(response.data.error);
-
-    const orgId = response.data.id;
-    setOrgId(orgId);
-    return orgId;
-  };
+  const createOrganization = useCallback(async (name: string) => {
+    if (!orgList?.createOrganization || !orgList?.setActive) {
+      throw new Error("Organization features not loaded");
+    }
+    const org = await orgList.createOrganization({ name });
+    await orgList.setActive({ organization: org.id });
+    // Clerk webhook will create the Supabase record; useEffect picks it up
+    return org.id;
+  }, [orgList]);
 
   return { orgId, loading, createOrganization };
 }

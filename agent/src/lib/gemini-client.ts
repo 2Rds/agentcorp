@@ -1,8 +1,8 @@
-import { chatCompletion, embed, getOpenRouterClient } from "./model-router.js";
+import { chatCompletion, embed } from "./model-router.js";
 
 /**
- * Parse a document (image or PDF) using Gemini 3 Flash vision via OpenRouter.
- * Vision requires raw multipart content, so we use the shared OpenRouter client directly.
+ * Parse a document (image or PDF) using Gemini 3 Pro vision via OpenRouter.
+ * Uses chatCompletion with multipart content (image_url with data URI).
  */
 export async function parseDocumentWithVision(
   buffer: Buffer,
@@ -12,20 +12,15 @@ export async function parseDocumentWithVision(
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
 
-  const response = await getOpenRouterClient().chat.completions.create({
-    model: "google/gemini-3-flash-preview",
-    messages: [{
+  return chatCompletion("gemini-pro", [
+    {
       role: "user",
       content: [
         { type: "image_url", image_url: { url: dataUrl } },
         { type: "text", text: prompt },
       ],
-    }],
-    max_tokens: 8192,
-    temperature: 0.1,
-  });
-
-  return response.choices[0]?.message?.content ?? "";
+    },
+  ], { maxTokens: 8192, temperature: 0.1 });
 }
 
 /**

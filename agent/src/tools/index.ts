@@ -10,6 +10,7 @@ import { webFetchTools } from "./web-fetch.js";
 import { headlessBrowserTools } from "./headless-browser.js";
 import { excelExportTools } from "./excel-export.js";
 import { analyticsTools } from "./analytics.js";
+import { googleSheetsTools } from "./google-sheets-tools.js";
 
 export function createCfoMcpServer(orgId: string, userId: string) {
   return createSdkMcpServer({
@@ -27,6 +28,7 @@ export function createCfoMcpServer(orgId: string, userId: string) {
       ...headlessBrowserTools(),
       ...excelExportTools(orgId),
       ...analyticsTools(orgId),
+      ...googleSheetsTools(orgId),
     ],
   });
 }
