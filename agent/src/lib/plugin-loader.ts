@@ -35,7 +35,7 @@ const REGISTRY_PATH = join(PLUGINS_DIR, "registry.json");
 
 let registry: SkillEntry[] | null = null;
 
-// LRU cache for loaded skill content (avoid repeated disk reads)
+// FIFO cache for loaded skill content (avoid repeated disk reads)
 const skillContentCache = new Map<string, string>();
 const CACHE_MAX = 50;
 
@@ -180,7 +180,7 @@ export async function resolveSkills(
 
 /**
  * Load a SKILL.md file, strip frontmatter, and replace ~~placeholders.
- * LRU cached (50 entries).
+ * FIFO cached (50 entries).
  */
 function loadSkillContent(entry: SkillEntry): string | null {
   if (skillContentCache.has(entry.id)) {
@@ -233,7 +233,7 @@ const CONVERSATION_SKILLS_MAX = 500;
  */
 export function getSkillContext(conversationId: string): SkillContext {
   if (!conversationSkills.has(conversationId)) {
-    // LRU eviction: remove oldest entries when at capacity
+    // FIFO eviction: remove oldest entries when at capacity
     if (conversationSkills.size >= CONVERSATION_SKILLS_MAX) {
       const oldestKey = conversationSkills.keys().next().value;
       if (oldestKey) conversationSkills.delete(oldestKey);

@@ -28,12 +28,12 @@ const CATEGORY_LABELS: Record<string, string> = {
   funding: "Funding",
 };
 
-function formatMonth(m: string): string {
+export function formatMonth(m: string): string {
   const d = new Date(m + "-01");
-  return d.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+  return d.toLocaleDateString("en-US", { month: "short", year: "2-digit", timeZone: "UTC" });
 }
 
-function formatSummary(n: number): string {
+export function formatSummary(n: number): string {
   const abs = Math.abs(n);
   if (abs >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (abs >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;

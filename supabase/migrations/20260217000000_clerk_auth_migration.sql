@@ -113,6 +113,8 @@ ALTER TABLE public.organizations ADD COLUMN IF NOT EXISTS clerk_org_id TEXT UNIQ
 -- ─── 6. Recreate constraints and indexes ────────────────────────────────────
 
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_id_key UNIQUE (user_id);
+-- Changed from (user_id, organization_id, role) to (user_id, organization_id):
+-- a user should have exactly one role per org, not one entry per role.
 ALTER TABLE public.user_roles ADD CONSTRAINT user_roles_user_id_organization_id_key UNIQUE (user_id, organization_id);
 
 CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON public.profiles(user_id);
@@ -136,7 +138,7 @@ AS $$
   )
 $$;
 
-CREATE OR REPLACE FUNCTION public.has_role(_user_id TEXT, _role app_role)
+CREATE OR REPLACE FUNCTION public.has_role(_user_id TEXT, _role app_role, _org_id UUID)
 RETURNS BOOLEAN
 LANGUAGE sql
 STABLE
@@ -145,7 +147,7 @@ SET search_path = public
 AS $$
   SELECT EXISTS (
     SELECT 1 FROM public.user_roles
-    WHERE user_id = _user_id AND role = _role
+    WHERE user_id = _user_id AND role = _role AND organization_id = _org_id
   )
 $$;
 
@@ -175,14 +177,13 @@ $$;
 -- ─── 8. Recreate ALL RLS policies ──────────────────────────────────────────
 -- All policies now use (auth.jwt() ->> 'sub') instead of auth.uid()
 
--- Helper alias for readability (used in policy expressions below):
--- clerk_uid = (auth.jwt() ->> 'sub')
+-- All policies below use (auth.jwt() ->> 'sub') to get the Clerk user ID.
 
 -- ── organizations ──
 
 CREATE POLICY "Authenticated users can create org" ON public.organizations
   FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (public.can_create_org((auth.jwt() ->> 'sub')));
 
 CREATE POLICY "Members can view own org" ON public.organizations
   FOR SELECT TO authenticated
@@ -191,7 +192,7 @@ CREATE POLICY "Members can view own org" ON public.organizations
 CREATE POLICY "Owners can update org" ON public.organizations
   FOR UPDATE TO authenticated
   USING (
-    public.has_role((auth.jwt() ->> 'sub'), 'owner')
+    public.has_role((auth.jwt() ->> 'sub'), 'owner', id)
     AND public.is_org_member((auth.jwt() ->> 'sub'), id)
   );
 
@@ -221,18 +222,18 @@ CREATE POLICY "Org members can view roles" ON public.user_roles
 CREATE POLICY "Owners can manage roles" ON public.user_roles
   FOR INSERT TO authenticated
   WITH CHECK (
-    public.has_role((auth.jwt() ->> 'sub'), 'owner')
+    public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
     AND public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
   );
 
-CREATE POLICY "Users can assign own role" ON public.user_roles
-  FOR INSERT TO authenticated
-  WITH CHECK (user_id = (auth.jwt() ->> 'sub'));
+-- Removed: "Users can assign own role" — role assignment is handled exclusively
+-- by the Clerk webhook (service role key bypasses RLS). Allowing self-assignment
+-- would let any authenticated user grant themselves any role in any organization.
 
 CREATE POLICY "Owners can delete roles" ON public.user_roles
   FOR DELETE TO authenticated
   USING (
-    public.has_role((auth.jwt() ->> 'sub'), 'owner')
+    public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
     AND public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
   );
 
@@ -254,8 +255,8 @@ CREATE POLICY "Owner/cofounder can update conversations" ON public.conversations
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner')
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder')
+      public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder', organization_id)
       OR created_by = (auth.jwt() ->> 'sub')
     )
   );
@@ -265,8 +266,8 @@ CREATE POLICY "Owner/cofounder can delete conversations" ON public.conversations
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner')
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder')
+      public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder', organization_id)
     )
   );
 
@@ -299,8 +300,8 @@ CREATE POLICY "Owner/cofounder can manage KB" ON public.knowledge_base
   WITH CHECK (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner')
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder')
+      public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder', organization_id)
     )
   );
 
@@ -309,8 +310,8 @@ CREATE POLICY "Owner/cofounder can update KB" ON public.knowledge_base
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner')
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder')
+      public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder', organization_id)
     )
   );
 
@@ -319,8 +320,8 @@ CREATE POLICY "Owner/cofounder can delete KB" ON public.knowledge_base
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner')
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder')
+      public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder', organization_id)
     )
   );
 
@@ -342,8 +343,8 @@ CREATE POLICY "Owners can update documents" ON public.documents
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner')
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder')
+      public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder', organization_id)
       OR uploaded_by = (auth.jwt() ->> 'sub')
     )
   );
@@ -353,8 +354,8 @@ CREATE POLICY "Owners can delete documents" ON public.documents
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner')
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder')
+      public.has_role((auth.jwt() ->> 'sub'), 'owner', organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder', organization_id)
     )
   );
 
@@ -369,8 +370,8 @@ CREATE POLICY "Owner/cofounder can insert financial model" ON public.financial_m
   WITH CHECK (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -379,8 +380,8 @@ CREATE POLICY "Owner/cofounder can update financial model" ON public.financial_m
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -389,8 +390,8 @@ CREATE POLICY "Owner/cofounder can delete financial model" ON public.financial_m
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -405,8 +406,8 @@ CREATE POLICY "Owner/cofounder can insert cap table" ON public.cap_table_entries
   WITH CHECK (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -415,8 +416,8 @@ CREATE POLICY "Owner/cofounder can update cap table" ON public.cap_table_entries
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -425,8 +426,8 @@ CREATE POLICY "Owner/cofounder can delete cap table" ON public.cap_table_entries
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -441,8 +442,8 @@ CREATE POLICY "Owner/cofounder can create investor links" ON public.investor_lin
   WITH CHECK (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -451,8 +452,8 @@ CREATE POLICY "Owner/cofounder can update investor links" ON public.investor_lin
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -461,8 +462,8 @@ CREATE POLICY "Owner/cofounder can delete investor links" ON public.investor_lin
   USING (
     public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
     AND (
-      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role)
-      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role)
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
     )
   );
 
@@ -530,16 +531,41 @@ CREATE POLICY "Org members can view model sheets" ON public.model_sheets
   FOR SELECT TO authenticated
   USING (public.is_org_member((auth.jwt() ->> 'sub'), organization_id));
 
-CREATE POLICY "Org members can manage model sheets" ON public.model_sheets
-  FOR ALL TO authenticated
-  USING (public.is_org_member((auth.jwt() ->> 'sub'), organization_id))
-  WITH CHECK (public.is_org_member((auth.jwt() ->> 'sub'), organization_id));
+CREATE POLICY "Owner/cofounder can insert model sheets" ON public.model_sheets
+  FOR INSERT TO authenticated
+  WITH CHECK (
+    public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
+    AND (
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
+    )
+  );
+
+CREATE POLICY "Owner/cofounder can update model sheets" ON public.model_sheets
+  FOR UPDATE TO authenticated
+  USING (
+    public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
+    AND (
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
+    )
+  );
+
+CREATE POLICY "Owner/cofounder can delete model sheets" ON public.model_sheets
+  FOR DELETE TO authenticated
+  USING (
+    public.is_org_member((auth.jwt() ->> 'sub'), organization_id)
+    AND (
+      public.has_role((auth.jwt() ->> 'sub'), 'owner'::app_role, organization_id)
+      OR public.has_role((auth.jwt() ->> 'sub'), 'cofounder'::app_role, organization_id)
+    )
+  );
 
 -- ─── 10. Re-grant permissions ───────────────────────────────────────────────
 
-GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO authenticated;
 
 -- Only grant anon access to tables needed for public data room
 GRANT SELECT ON public.investor_links TO anon;

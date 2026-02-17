@@ -1,6 +1,7 @@
 import { createContext, useContext, ReactNode, useMemo, useEffect } from 'react';
 import { useUser, useSession, useClerk, useOrganization, useOrganizationList } from '@clerk/clerk-react';
 import { createClerkSupabaseClient, supabaseAnon } from '@/integrations/clerk/ClerkSupabaseClient';
+import { setClerkSession } from '@/lib/clerk-session';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/integrations/supabase/types';
 
@@ -94,16 +95,14 @@ export const ClerkAuthProvider = ({ children }: { children: ReactNode }) => {
     return supabaseAnon;
   }, [session]);
 
-  // Expose Clerk session globally for non-React code (agent server calls from helpers)
+  // Expose Clerk session globally for non-React code (Supabase client, useModelSheet, etc.)
   useEffect(() => {
     if (session) {
-      (window as any).__clerk_session = {
-        getToken: () => session.getToken(),
-      };
+      setClerkSession({ getToken: () => session.getToken() });
     } else {
-      delete (window as any).__clerk_session;
+      setClerkSession(null);
     }
-    return () => { delete (window as any).__clerk_session; };
+    return () => { setClerkSession(null); };
   }, [session]);
 
   const handleSignOut = async () => {

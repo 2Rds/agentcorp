@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { getClerkSession } from "@/lib/clerk-session";
 
 interface ModelSheet {
   spreadsheetId: string;
@@ -23,11 +24,11 @@ interface UseModelSheetReturn {
 
 const agentUrl = import.meta.env.VITE_AGENT_URL;
 
-async function getAuthHeaders() {
-  const session = (window as any).__clerk_session;
+async function getAuthHeaders(): Promise<{ "Content-Type": string; Authorization: string }> {
+  const session = getClerkSession();
   if (!session) throw new Error("Not authenticated — please sign in again");
   const token = await session.getToken();
-  if (!token) throw new Error("Not authenticated — please sign in again");
+  if (!token) throw new Error("Session expired — please sign in again");
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`,

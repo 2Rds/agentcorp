@@ -17,7 +17,9 @@ function getAuth() {
 function getSheets(): sheets_v4.Sheets | null {
   if (!config.googleSheetsEnabled) return null;
   if (!sheetsClient) {
-    sheetsClient = google.sheets({ version: "v4", auth: getAuth()! });
+    const auth = getAuth();
+    if (!auth) return null;
+    sheetsClient = google.sheets({ version: "v4", auth });
   }
   return sheetsClient;
 }
@@ -25,7 +27,9 @@ function getSheets(): sheets_v4.Sheets | null {
 function getDrive(): drive_v3.Drive | null {
   if (!config.googleSheetsEnabled) return null;
   if (!driveClient) {
-    driveClient = google.drive({ version: "v3", auth: getAuth()! });
+    const auth = getAuth();
+    if (!auth) return null;
+    driveClient = google.drive({ version: "v3", auth });
   }
   return driveClient;
 }
@@ -46,7 +50,10 @@ export async function copyTemplateSheet(
     requestBody: { name: title },
   });
 
-  const spreadsheetId = res.data.id!;
+  const spreadsheetId = res.data.id;
+  if (!spreadsheetId) {
+    throw new Error("Google Drive API returned no file ID after copy");
+  }
 
   // Make the copy accessible to anyone with the link (read-only)
   await drive.permissions.create({

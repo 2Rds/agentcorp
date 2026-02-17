@@ -112,7 +112,12 @@ router.post("/api/model/get-sheet", authMiddleware, async (req: Request, res: Re
       .limit(1)
       .single();
 
-    if (error || !data) {
+    if (error && error.code !== "PGRST116") {
+      console.error("Get sheet DB error:", error);
+      res.status(500).json({ error: "Failed to fetch sheet data" });
+      return;
+    }
+    if (!data) {
       res.json({ sheet: null });
       return;
     }

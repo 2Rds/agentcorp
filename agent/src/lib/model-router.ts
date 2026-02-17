@@ -154,7 +154,7 @@ export async function chatCompletion(
 // ─── Embeddings ──────────────────────────────────────────────────────────────
 
 /**
- * Generate embeddings via OpenRouter (or Cloudflare Workers AI when configured).
+ * Generate embeddings via Cloudflare Workers AI (primary, 768-dim) with OpenRouter fallback.
  */
 export async function embed(text: string): Promise<number[]> {
   // If Cloudflare Workers AI is configured, use it (free tier, 768-dim)

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAgentThread } from "@/hooks/useAgentThread";
 import { useOrganization } from "@/hooks/useOrganization";
+import { getClerkSession } from "@/lib/clerk-session";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -37,7 +38,7 @@ export default function Chat() {
       // Try agent server first, fall back to edge function on network error
       if (agentUrl) {
         try {
-          const session = (window as any).__clerk_session;
+          const session = getClerkSession();
           if (!session) throw new Error("Not signed in — please refresh and try again");
           const token = await session.getToken();
           if (!token) throw new Error("Session expired — please sign in again");
@@ -49,7 +50,11 @@ export default function Chat() {
             },
             body: JSON.stringify(payload),
           });
-        } catch {
+        } catch (e) {
+          // Re-throw auth errors so the user sees them instead of silently falling back
+          if (e instanceof Error && (e.message.includes("Not signed in") || e.message.includes("Session expired"))) {
+            throw e;
+          }
           // Agent server unreachable — fall through to edge function
           console.warn("Agent server unreachable, falling back to edge function");
           resp = null;

@@ -49,9 +49,9 @@ AI-powered CFO SaaS for seed-stage startups (v1.0.0). Two-tier: React 18 + TypeS
 
 ### Auth & Multi-tenancy
 
-Auth flow: `/auth` → Onboarding (org creation) → `ProtectedRoutes` → `AppLayout` with sidebar.
+Auth flow: `/auth` (Clerk `<SignIn />`) → `ClerkProtectedRoute` → `OrgGate` (checks org membership) → Onboarding or `AppLayout` with sidebar.
 
-Users belong to organizations via `user_roles` table with roles: owner, cofounder, advisor, investor. All data access scoped by organization through RLS using `is_org_member()` and `has_role()` PostgreSQL helper functions.
+Users belong to organizations via `user_roles` table with roles: owner, cofounder, advisor, investor. All data access scoped by organization through RLS using `is_org_member(_user_id, _org_id)` and `has_role(_user_id, _role, _org_id)` PostgreSQL helper functions. Auth uses Clerk (`@clerk/clerk-react` frontend, `@clerk/express` agent server) with Supabase RLS via `auth.jwt() ->> 'sub'`.
 
 ### Core Data Model
 
@@ -70,9 +70,11 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - Claude Opus 4.6 (Anthropic direct) — Primary reasoning, tool orchestration, streaming chat
 - Kimi K2.5 (OpenRouter) — Structured data generation (financial rows, cap table entries, SQL)
 - Gemini 3 Flash (OpenRouter) — Document vision, file processing, embeddings, RAG
+- Gemini 3 Pro (OpenRouter) — Document vision, advanced reasoning
 - Gemini 2.5 Flash Lite (OpenRouter) — Lightweight tasks at minimal cost
+- DeepSeek V3.2 (OpenRouter) — Structured data, cost-effective alternative
+- DeepSeek V3.2 Speciale (OpenRouter) — Extended capability variant
 - Sonar Pro (OpenRouter) — Web research and intelligence gathering
-- Grok 4 (OpenRouter) — Advanced reasoning
 
 **Mem0 (persistent memory):**
 - Sole knowledge store — no Supabase dual-write
@@ -86,24 +88,27 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Key directories:**
 - `agent/src/agent/` — Agent configurations (`cfo-agent.ts`, `investor-agent.ts`, `knowledge-extractor.ts`, `system-prompt.ts`)
-- `agent/src/tools/` — 23 MCP tools across 8 domains, all org-scoped via closure
-- `agent/src/lib/` — Multi-model clients (`model-router.ts`, `gemini-client.ts`, `mem0-client.ts`, `mem0-setup.ts`), utilities (`sql-validator.ts`, `chart-suggestor.ts`, `document-indexer.ts`, `stream-adapter.ts`)
-- `agent/src/routes/` — Express routes (`chat.ts`, `dataroom.ts`, `knowledge.ts`, `health.ts`, `webhooks.ts`)
-- `agent/src/middleware/` — Auth (Supabase JWT verification + org membership) and CORS
+- `agent/src/tools/` — 26 MCP tools across 9 domains, all org-scoped via closure
+- `agent/src/lib/` — Multi-model clients (`model-router.ts`, `gemini-client.ts`, `moonshot-client.ts`, `dual-verify.ts`, `mem0-client.ts`, `mem0-setup.ts`), infrastructure (`redis-client.ts`, `semantic-cache.ts`, `plugin-loader.ts`, `google-sheets-client.ts`), utilities (`sql-validator.ts`, `chart-suggestor.ts`, `document-indexer.ts`, `stream-adapter.ts`)
+- `agent/src/routes/` — Express routes (`chat.ts`, `model.ts`, `dataroom.ts`, `knowledge.ts`, `health.ts`, `webhooks.ts`)
+- `agent/src/middleware/` — Auth (Clerk JWT verification via `@clerk/express` + org membership check via Supabase service role) and CORS
 
-**Tools (23 total):**
+**Tools (26 total):**
 - financial-model (3): get, upsert (with K2.5 plan generation + memory), delete
 - derived-metrics (1): compute burn, runway, MRR, gross margin
 - cap-table (3): get, upsert (with graph memory for fundraising), delete
 - knowledge-base (5): search (rerank + keyword), add (with categories/graph/timestamps), update, delete, rate_quality
 - investor-links (4): CRUD with `enable_data_room` support
 - documents (2): upload with Gemini vision processing + memory attribution
-- document-rag (1): `query_documents` via Gemini + pgvector
+- document-rag (1): `query_documents` via Redis hybrid search (primary) with Gemini + pgvector fallbacks
+- google-sheets (3): populate_model_sheet, read_model_sheet, get_model_sheet_info
 - analytics (1): `run_analytics_query` — natural language → SQL → chart suggestion
 - web-fetch (1), headless-browser (1), excel-export (1)
 
 **Routes:**
 - `POST /api/chat` — Streaming AI chat (SDK `query()` with `includePartialMessages`, memory-enriched system prompt)
+- `GET /api/model/status` — Google Sheets integration status (no auth)
+- `POST /api/model/create-sheet, get-sheet, delete-sheet` — Org model sheet CRUD
 - `GET /api/knowledge/graph` — Knowledge graph via Mem0 graph API (native `output_format: v1.1`)
 - `GET/POST /dataroom/:slug/*` — Public investor data room (validate, financials, cap-table, ask, view)
 - `POST /api/webhooks/mem0` — Memory event webhooks (memory_add, memory_update, memory_delete)
@@ -116,13 +121,15 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - Service role key bypasses RLS for agent operations
 
 **Environment:**
-- Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `MEM0_API_KEY`
-- Optional: `PORT` (default 3001), `CORS_ORIGINS` (comma-separated)
+- Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `MEM0_API_KEY`, `CLERK_SECRET_KEY`
+- Optional: `PORT` (default 3001), `CORS_ORIGINS` (comma-separated), `MOONSHOT_API_KEY`, `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN` (enables Provider Keys mode — gateway injects API keys at edge), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
 
 ### Key Hooks (src/hooks/)
 
-- `useAuth` — Auth state context, wraps Supabase auth
-- `useOrganization` — Current org ID from user's role, used for data scoping everywhere
+- `useAuth` — Compatibility shim wrapping `useClerkAuth()`, provides legacy interface for existing consumers
+- `useClerkAuth` — Full Clerk auth context (user, session, org, Supabase client)
+- `useOrganization` — Resolves Clerk org ID to Supabase UUID with retry logic, used for data scoping everywhere
+- `useModelSheet(orgId)` — Google Sheets integration (create/delete model sheets)
 - `useFinancialModel(orgId, scenario)` — Fetches financial_model, computes `DerivedMetrics` (burn, runway, MRR, gross margin, monthly aggregates, breakdowns)
 - `useCapTable(orgId)` — Cap table entries with computed totals
 - `useAgentThread` / `useConversations` — Chat thread management (one thread per org)
@@ -132,9 +139,11 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 | Path | Page | Purpose |
 |------|------|---------|
-| `/auth` | Auth | Sign in/up (unprotected) |
+| `/auth` | Auth | Clerk sign-in (unprotected) |
+| `/sign-up` | SignUp | Clerk sign-up (unprotected) |
 | `/` | Chat | AI CFO agent streaming chat |
 | `/knowledge` | Knowledge | Document uploads + agent knowledge base with graph |
+| `/model` | FinancialModel | Google Sheets financial model with template selector |
 | `/dashboard` | Dashboard | Financial model charts (P&L, burn/runway, cap table, OpEx) |
 | `/investors` | Investors | Investor portal with shareable links and engagement analytics |
 | `/docs` | Docs | Comprehensive platform documentation |
@@ -145,6 +154,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 Written in Deno for Supabase Edge Functions runtime. Used as fallback when agent server is unreachable.
 
 - **`chat/`** — Streaming AI chat via OpenAI API with CFO system prompt and knowledge extraction
+- **`clerk-webhook/`** — Clerk webhook handler (organization.created, membership.created/deleted, user.created/updated) — syncs Clerk to Supabase
 - **`create-organization/`** — Org creation with initial role assignment
 - **`track-view/`** — Analytics for investor link views
 

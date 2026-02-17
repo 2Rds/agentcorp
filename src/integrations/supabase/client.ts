@@ -1,11 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
+import { getClerkSession } from '@/lib/clerk-session';
 import type { Database } from './types';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-// Supabase client with Clerk token injection via global session.
-// Clerk's ClerkAuthContext exposes window.__clerk_session for non-React code.
+// Supabase client with Clerk token injection via typed session bridge.
 // RLS policies use auth.jwt() ->> 'sub' to identify Clerk users.
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -14,9 +14,10 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     detectSessionInUrl: false,
   },
   async accessToken() {
-    const session = (window as any).__clerk_session;
+    const session = getClerkSession();
     if (!session) {
-      console.warn("Supabase accessToken: no Clerk session available — RLS queries will use anon role");
+      // Session not yet initialized — expected during first render before ClerkAuthContext mounts.
+      // Callers should guard on auth state before making RLS-dependent queries.
       return null;
     }
     try {
