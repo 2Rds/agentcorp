@@ -8,6 +8,9 @@ export function useOrganization() {
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const retryRef = useRef(0);
+  // Use a ref for supabase to avoid re-triggering the effect when the client reference changes
+  const supabaseRef = useRef(supabase);
+  supabaseRef.current = supabase;
 
   // Look up Supabase UUID for the active Clerk organization
   useEffect(() => {
@@ -26,7 +29,7 @@ export function useOrganization() {
     const lookupOrgId = async () => {
       if (cancelled) return;
       setLoading(true);
-      const { data, error } = await supabase
+      const { data, error } = await supabaseRef.current
         .from("organizations")
         .select("id")
         .eq("clerk_org_id", activeOrganization.id)
@@ -57,7 +60,7 @@ export function useOrganization() {
       cancelled = true;
       if (timerHandle) clearTimeout(timerHandle);
     };
-  }, [activeOrganization, isOrgLoaded, supabase]);
+  }, [activeOrganization, isOrgLoaded]);
 
   const createOrganization = useCallback(async (name: string) => {
     if (!orgList?.createOrganization || !orgList?.setActive) {

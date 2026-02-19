@@ -13,13 +13,14 @@ export interface Message {
 export function useAgentThread() {
   const { user } = useAuth();
   const { orgId } = useOrganization();
+  const userId = user?.id ?? null;
   const [threadId, setThreadId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(true);
 
   // Fetch or create the single thread for this org
   useEffect(() => {
-    if (!orgId || !user) {
+    if (!orgId || !userId) {
       setThreadId(null);
       setMessages([]);
       setLoadingMessages(false);
@@ -48,7 +49,7 @@ export function useAgentThread() {
         // Auto-create the single thread
         const { data: created, error } = await supabase
           .from("conversations")
-          .insert({ organization_id: orgId, title: "Agent Thread", created_by: user.id })
+          .insert({ organization_id: orgId, title: "Agent Thread", created_by: userId })
           .select("id")
           .single();
         if (error || cancelled) return;
@@ -73,7 +74,7 @@ export function useAgentThread() {
 
     init();
     return () => { cancelled = true; };
-  }, [orgId, user]);
+  }, [orgId, userId]);
 
   const addMessage = useCallback(async (role: "user" | "assistant", content: string) => {
     if (!threadId) return null;
