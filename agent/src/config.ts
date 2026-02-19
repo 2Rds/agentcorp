@@ -54,6 +54,19 @@ export const config = {
   googleRefreshToken: optional("GOOGLE_REFRESH_TOKEN"),
   googleSheetsEnabled: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET && !!process.env.GOOGLE_REFRESH_TOKEN,
 
+  // Financial system integrations (all optional — each enabled when client ID/secret are set)
+  quickbooksClientId: optional("QUICKBOOKS_CLIENT_ID"),
+  quickbooksClientSecret: optional("QUICKBOOKS_CLIENT_SECRET"),
+  xeroClientId: optional("XERO_CLIENT_ID"),
+  xeroClientSecret: optional("XERO_CLIENT_SECRET"),
+  stripeClientId: optional("STRIPE_CLIENT_ID"),
+  stripeClientSecret: optional("STRIPE_CLIENT_SECRET"),
+  integrationEncryptionKey: optional("INTEGRATION_ENCRYPTION_KEY"),
+
+  quickbooksEnabled: !!process.env.QUICKBOOKS_CLIENT_ID && !!process.env.QUICKBOOKS_CLIENT_SECRET,
+  xeroEnabled: !!process.env.XERO_CLIENT_ID && !!process.env.XERO_CLIENT_SECRET,
+  stripeIntegrationEnabled: !!process.env.STRIPE_CLIENT_ID && !!process.env.STRIPE_CLIENT_SECRET,
+
   // Gemini vision uses OpenRouter now; Kimi uses OpenRouter. Always available.
   useGeminiVision: true,
   useKimi: true,

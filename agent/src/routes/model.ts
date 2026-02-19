@@ -6,6 +6,7 @@ import {
   isGoogleSheetsEnabled,
   getSheetNames,
 } from "../lib/google-sheets-client.js";
+import { convertXlsxToGoogleSheet } from "../lib/xlsx-to-sheets.js";
 
 const router = Router();
 
@@ -160,6 +161,91 @@ router.post("/api/model/delete-sheet", authMiddleware, async (req: Request, res:
   } catch (err: any) {
     console.error("Delete sheet error:", err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * POST /api/model/upload-xlsx
+ * Upload a custom .xlsx file and convert it to a Google Sheet.
+ * Body: { organizationId, storagePath, fileName }
+ */
+router.post("/api/model/upload-xlsx", authMiddleware, async (req: Request, res: Response) => {
+  const { organizationId } = req as AuthenticatedRequest;
+  const { storagePath, fileName } = req.body;
+
+  if (!isGoogleSheetsEnabled()) {
+    res.status(503).json({ error: "Google Sheets integration is not configured" });
+    return;
+  }
+
+  if (!storagePath || !fileName) {
+    res.status(400).json({ error: "storagePath and fileName are required" });
+    return;
+  }
+
+  try {
+    // Check if a sheet already exists for this org
+    const { data: existing } = await supabaseAdmin
+      .from("model_sheets")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .limit(1)
+      .single();
+
+    if (existing) {
+      res.status(409).json({ error: "A model sheet already exists. Delete it first to upload a new one." });
+      return;
+    }
+
+    // Download file from Supabase Storage
+    const { data: fileData, error: downloadError } = await supabaseAdmin
+      .storage
+      .from("agent-documents")
+      .download(storagePath);
+
+    if (downloadError || !fileData) {
+      res.status(400).json({ error: `Failed to download file: ${downloadError?.message ?? "not found"}` });
+      return;
+    }
+
+    // Check file size (5MB limit)
+    const buffer = Buffer.from(await fileData.arrayBuffer());
+    if (buffer.length > 5 * 1024 * 1024) {
+      res.status(413).json({ error: "File exceeds 5MB limit" });
+      return;
+    }
+
+    const title = `${fileName.replace(/\.(xlsx|xls)$/i, "")} — CFO Agent`;
+    const result = await convertXlsxToGoogleSheet(buffer, title);
+
+    // Store the mapping
+    const { error: insertError } = await supabaseAdmin
+      .from("model_sheets")
+      .insert({
+        organization_id: organizationId,
+        spreadsheet_id: result.spreadsheetId,
+        sheet_url: result.url,
+        template_id: "custom-upload",
+        template_name: fileName,
+      });
+
+    if (insertError) {
+      console.error("Failed to store sheet mapping:", insertError);
+      res.status(500).json({ error: "Sheet was created but failed to save mapping." });
+      return;
+    }
+
+    res.json({
+      spreadsheetId: result.spreadsheetId,
+      url: result.url,
+      templateId: "custom-upload",
+      sheetsWritten: result.sheetsWritten,
+      cellsWritten: result.cellsWritten,
+      alreadyExists: false,
+    });
+  } catch (err: any) {
+    console.error("Upload xlsx error:", err);
+    res.status(500).json({ error: err.message ?? "Failed to convert xlsx" });
   }
 });
 

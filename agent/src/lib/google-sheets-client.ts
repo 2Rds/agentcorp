@@ -152,6 +152,47 @@ export async function getSheetNames(
 }
 
 /**
+ * Create a blank spreadsheet with named tabs and link-sharing enabled.
+ * Used for custom .xlsx uploads converted to Google Sheets.
+ */
+export async function createBlankSpreadsheet(
+  title: string,
+  sheetNames: string[]
+): Promise<{ spreadsheetId: string; url: string } | null> {
+  const sheets = getSheets();
+  const drive = getDrive();
+  if (!sheets || !drive) return null;
+
+  const res = await sheets.spreadsheets.create({
+    requestBody: {
+      properties: { title },
+      sheets: sheetNames.map((name, i) => ({
+        properties: { title: name, index: i },
+      })),
+    },
+  });
+
+  const spreadsheetId = res.data.spreadsheetId;
+  if (!spreadsheetId) {
+    throw new Error("Google Sheets API returned no spreadsheet ID after create");
+  }
+
+  // Make accessible to anyone with the link (read-only)
+  await drive.permissions.create({
+    fileId: spreadsheetId,
+    requestBody: {
+      role: "reader",
+      type: "anyone",
+    },
+  });
+
+  return {
+    spreadsheetId,
+    url: `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`,
+  };
+}
+
+/**
  * Check if Google Sheets integration is available.
  */
 export function isGoogleSheetsEnabled(): boolean {

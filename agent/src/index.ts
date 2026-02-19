@@ -11,15 +11,17 @@ import knowledgeRouter from "./routes/knowledge.js";
 import dataroomRouter from "./routes/dataroom.js";
 import webhooksRouter from "./routes/webhooks.js";
 import modelRouter from "./routes/model.js";
+import { integrationsCallbackRouter, integrationsRouter } from "./routes/integrations.js";
 
 const app = express();
 
 app.use(corsMiddleware);
 app.use(express.json({ limit: "1mb" }));
 
-// Health + dataroom before auth (public endpoints)
+// Health + dataroom + OAuth callbacks before auth (public endpoints)
 app.use(healthRouter);
 app.use(dataroomRouter);
+app.use(integrationsCallbackRouter);
 
 // Clerk auth for all remaining routes
 app.use(clerkMiddleware());
@@ -27,6 +29,7 @@ app.use(chatRouter);
 app.use(knowledgeRouter);
 app.use(webhooksRouter);
 app.use(modelRouter);
+app.use(integrationsRouter);
 
 app.listen(config.port, async () => {
   console.log(`CFO Agent server listening on port ${config.port}`);

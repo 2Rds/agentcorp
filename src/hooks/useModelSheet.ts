@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { getClerkSession } from "@/lib/clerk-session";
 
 interface ModelSheet {
@@ -19,6 +20,7 @@ interface UseModelSheetReturn {
   error: string | null;
   googleSheetsEnabled: boolean | null;
   createSheet: (templateSheetId: string, templateName: string) => Promise<CreateSheetResult>;
+  uploadXlsx: (file: File) => Promise<CreateSheetResult>;
   deleteSheet: () => Promise<void>;
 }
 
@@ -123,6 +125,63 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
     [orgId]
   );
 
+  const uploadXlsx = useCallback(
+    async (file: File): Promise<CreateSheetResult> => {
+      if (!orgId) return { ok: false, error: "No organization selected" };
+      if (!agentUrl) return { ok: false, error: "Agent server URL not configured" };
+      setError(null);
+
+      try {
+        // Upload to Supabase Storage
+        const storagePath = `${orgId}/model-uploads/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from("agent-documents")
+          .upload(storagePath, file);
+
+        if (uploadError) {
+          const msg = `Upload failed: ${uploadError.message}`;
+          setError(msg);
+          return { ok: false, error: msg };
+        }
+
+        // Call agent to convert to Google Sheet
+        const headers = await getAuthHeaders();
+        const res = await fetch(`${agentUrl}/api/model/upload-xlsx`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            organizationId: orgId,
+            storagePath,
+            fileName: file.name,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+          const msg = err.error ?? "Failed to convert xlsx";
+          setError(msg);
+          return { ok: false, error: msg };
+        }
+
+        const data = await res.json();
+        const newSheet: ModelSheet = {
+          spreadsheetId: data.spreadsheetId,
+          url: data.url,
+          templateId: "custom-upload",
+          templateName: file.name,
+          createdAt: new Date().toISOString(),
+        };
+        setSheet(newSheet);
+        return { ok: true, sheet: newSheet };
+      } catch (err: any) {
+        const msg = err.message || "Unknown error";
+        setError(msg);
+        return { ok: false, error: msg };
+      }
+    },
+    [orgId]
+  );
+
   const deleteSheet = useCallback(async () => {
     if (!orgId || !agentUrl) return;
     try {
@@ -142,5 +201,5 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
     }
   }, [orgId]);
 
-  return { sheet, loading, error, googleSheetsEnabled, createSheet, deleteSheet };
+  return { sheet, loading, error, googleSheetsEnabled, createSheet, uploadXlsx, deleteSheet };
 }

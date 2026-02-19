@@ -30,10 +30,11 @@ export default function FinancialModel() {
   const { orgId } = useOrganization();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { sheet, loading: sheetLoading, createSheet, deleteSheet } = useModelSheet(orgId);
+  const { sheet, loading: sheetLoading, createSheet, uploadXlsx, deleteSheet } = useModelSheet(orgId);
   const [scenario, setScenario] = useState("base");
   const [activeTab, setActiveTab] = useState("all");
   const [isCreating, setIsCreating] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [viewMode, setViewMode] = useState<"sheet" | "grid">("sheet");
 
   // Supabase data for the grid view
@@ -54,6 +55,19 @@ export default function FinancialModel() {
       });
     }
     setIsCreating(false);
+  };
+
+  const handleXlsxUpload = async (file: File) => {
+    setIsUploading(true);
+    const result = await uploadXlsx(file);
+    if (!result.ok) {
+      toast({
+        title: "Failed to upload spreadsheet",
+        description: result.error,
+        variant: "destructive",
+      });
+    }
+    setIsUploading(false);
   };
 
   // Loading state
@@ -77,7 +91,12 @@ export default function FinancialModel() {
           <h1 className="text-lg font-semibold">Financial Model</h1>
         </div>
 
-        <TemplateSelector onSelect={handleTemplateSelect} isCreating={isCreating} />
+        <TemplateSelector
+          onSelect={handleTemplateSelect}
+          onUploadXlsx={handleXlsxUpload}
+          isCreating={isCreating}
+          isUploading={isUploading}
+        />
       </div>
     );
   }
