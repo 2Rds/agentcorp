@@ -47,8 +47,8 @@ const App = () => (
         <ClerkAuthProvider>
           <Routes>
             <Route path="/dataroom/:slug" element={<DataRoom />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/sign-up" element={<SignUp />} />
+            <Route path="/auth/*" element={<Auth />} />
+            <Route path="/sign-up/*" element={<SignUp />} />
             <Route
               element={
                 <ClerkProtectedRoute>
