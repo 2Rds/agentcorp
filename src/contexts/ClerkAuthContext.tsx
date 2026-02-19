@@ -125,6 +125,21 @@ export const ClerkAuthProvider = ({ children }: { children: ReactNode }) => {
     [organization, membership],
   );
 
+  // Auto-select first organization if user has orgs but none is active (e.g. new session on different subdomain)
+  useEffect(() => {
+    if (
+      isSignedIn &&
+      orgLoaded &&
+      listLoaded &&
+      !organization &&
+      organizationList &&
+      organizationList.length > 0 &&
+      setActive
+    ) {
+      setActive({ organization: organizationList[0].organization.id });
+    }
+  }, [isSignedIn, orgLoaded, listLoaded, organization, organizationList, setActive]);
+
   const value: ClerkAuthContextType = {
     userId: user?.id ?? null,
     isLoaded,
