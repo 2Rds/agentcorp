@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useClerkAuth } from "@/contexts/ClerkAuthContext";
 import { useOrganizationList } from "@clerk/clerk-react";
-import { supabase } from "@/integrations/supabase/client";
 
 export function useOrganization() {
-  const { activeOrganization, isOrgLoaded } = useClerkAuth();
+  const { activeOrganization, isOrgLoaded, supabase } = useClerkAuth();
   const orgList = useOrganizationList({ userMemberships: { infinite: true } });
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,7 +57,7 @@ export function useOrganization() {
       cancelled = true;
       if (timerHandle) clearTimeout(timerHandle);
     };
-  }, [activeOrganization, isOrgLoaded]);
+  }, [activeOrganization, isOrgLoaded, supabase]);
 
   const createOrganization = useCallback(async (name: string) => {
     if (!orgList?.createOrganization || !orgList?.setActive) {
