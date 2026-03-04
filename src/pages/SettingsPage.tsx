@@ -4,7 +4,7 @@ import { Settings, Building2, Plug } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useOrganization } from "@/hooks/useOrganization";
-import { useClerkAuth } from "@/contexts/ClerkAuthContext";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useToast } from "@/hooks/use-toast";
 import { GeneralTab } from "@/components/settings/GeneralTab";
@@ -12,7 +12,7 @@ import { IntegrationsTab } from "@/components/settings/IntegrationsTab";
 
 export default function SettingsPage() {
   const { orgId } = useOrganization();
-  const { activeOrganization } = useClerkAuth();
+  const { activeOrganization } = useAuthContext();
   const { integrations, loading, connectOAuth, connectApiKey, disconnect, sync } = useIntegrations(orgId);
   const { toast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();

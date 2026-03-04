@@ -1,76 +1,53 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useClerkAuth } from "@/contexts/ClerkAuthContext";
-import { useOrganizationList } from "@clerk/clerk-react";
+import { useCallback } from "react";
+import { useAuthContext } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 
 export function useOrganization() {
-  const { activeOrganization, isOrgLoaded, supabase } = useClerkAuth();
-  const orgList = useOrganizationList({ userMemberships: { infinite: true } });
-  const [orgId, setOrgId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const retryRef = useRef(0);
-  // Use a ref for supabase to avoid re-triggering the effect when the client reference changes
-  const supabaseRef = useRef(supabase);
-  supabaseRef.current = supabase;
-
-  // Look up Supabase UUID for the active Clerk organization
-  useEffect(() => {
-    if (!isOrgLoaded) return;
-
-    if (!activeOrganization) {
-      setOrgId(null);
-      setLoading(false);
-      retryRef.current = 0;
-      return;
-    }
-
-    let timerHandle: ReturnType<typeof setTimeout> | null = null;
-    let cancelled = false;
-
-    const lookupOrgId = async () => {
-      if (cancelled) return;
-      setLoading(true);
-      const { data, error } = await supabaseRef.current
-        .from("organizations")
-        .select("id")
-        .eq("clerk_org_id", activeOrganization.id)
-        .single();
-
-      if (cancelled) return;
-
-      if (data?.id) {
-        setOrgId(data.id);
-        setLoading(false);
-        retryRef.current = 0;
-      } else if (retryRef.current < 5) {
-        // Webhook may not have fired yet — retry with backoff
-        if (error) console.warn(`[useOrganization] Lookup attempt ${retryRef.current + 1}/5 failed:`, error.message);
-        retryRef.current += 1;
-        timerHandle = setTimeout(lookupOrgId, 1000);
-      } else {
-        console.error("[useOrganization] Failed to resolve Clerk org to Supabase UUID after 5 retries:", activeOrganization.id);
-        setOrgId(null);
-        setLoading(false);
-        retryRef.current = 0;
-      }
-    };
-
-    lookupOrgId();
-
-    return () => {
-      cancelled = true;
-      if (timerHandle) clearTimeout(timerHandle);
-    };
-  }, [activeOrganization, isOrgLoaded]);
+  const { activeOrganization, orgLoading, userId, refreshOrg } = useAuthContext();
 
   const createOrganization = useCallback(async (name: string) => {
-    if (!orgList?.createOrganization || !orgList?.setActive) {
-      throw new Error("Organization features not loaded");
-    }
-    const org = await orgList.createOrganization({ name });
-    await orgList.setActive({ organization: org.id });
-    // Clerk webhook will create the Supabase record; useEffect picks it up
-    return org.id;
-  }, [orgList]);
+    if (!userId) throw new Error("Not authenticated");
 
-  return { orgId, loading, createOrganization };
+    // Create the organization
+    const { data: org, error: orgError } = await supabase
+      .from("organizations")
+      .insert({ name })
+      .select("id")
+      .single();
+
+    if (orgError || !org) throw new Error(orgError?.message || "Failed to create organization");
+
+    // Assign user as owner — rollback org on failure
+    const { error: roleError } = await supabase
+      .from("user_roles")
+      .insert({ user_id: userId, organization_id: org.id, role: "owner" });
+
+    if (roleError) {
+      await supabase.from("organizations").delete().eq("id", org.id);
+      throw new Error(roleError.message);
+    }
+
+    // Link profile to org — rollback role + org on failure
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ organization_id: org.id })
+      .eq("user_id", userId);
+
+    if (profileError) {
+      await supabase.from("user_roles").delete().eq("user_id", userId).eq("organization_id", org.id);
+      await supabase.from("organizations").delete().eq("id", org.id);
+      throw new Error(profileError.message);
+    }
+
+    // Refresh the auth context to pick up the new org
+    await refreshOrg();
+
+    return org.id;
+  }, [userId, refreshOrg]);
+
+  return {
+    orgId: activeOrganization?.id ?? null,
+    loading: orgLoading,
+    createOrganization,
+  };
 }

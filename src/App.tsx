@@ -3,8 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { ClerkAuthProvider } from "@/contexts/ClerkAuthContext";
-import { ClerkProtectedRoute } from "@/components/auth/ClerkProtectedRoute";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { useOrganization } from "@/hooks/useOrganization";
 import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
@@ -44,16 +44,16 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <ClerkAuthProvider>
+        <AuthProvider>
           <Routes>
             <Route path="/dataroom/:slug" element={<DataRoom />} />
             <Route path="/auth/*" element={<Auth />} />
             <Route path="/sign-up/*" element={<SignUp />} />
             <Route
               element={
-                <ClerkProtectedRoute>
+                <ProtectedRoute>
                   <OrgGate />
-                </ClerkProtectedRoute>
+                </ProtectedRoute>
               }
             >
               <Route path="/" element={<Chat />} />
@@ -66,7 +66,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </ClerkAuthProvider>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

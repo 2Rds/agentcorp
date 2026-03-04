@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { getClerkSession } from "@/lib/clerk-session";
+import { supabase } from "@/integrations/supabase/client";
 
 export type IntegrationStatusValue = "active" | "disconnected" | "expired" | "not_connected";
 
@@ -35,13 +35,11 @@ interface UseIntegrationsReturn {
 const agentUrl = import.meta.env.VITE_AGENT_URL;
 
 async function getAuthHeaders(): Promise<{ "Content-Type": string; Authorization: string }> {
-  const session = getClerkSession();
+  const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated");
-  const token = await session.getToken();
-  if (!token) throw new Error("Session expired");
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+    Authorization: `Bearer ${session.access_token}`,
   };
 }
 

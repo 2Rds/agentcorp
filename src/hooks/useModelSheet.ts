@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getClerkSession } from "@/lib/clerk-session";
 
 interface ModelSheet {
   spreadsheetId: string;
@@ -27,13 +26,11 @@ interface UseModelSheetReturn {
 const agentUrl = import.meta.env.VITE_AGENT_URL;
 
 async function getAuthHeaders(): Promise<{ "Content-Type": string; Authorization: string }> {
-  const session = getClerkSession();
+  const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("Not authenticated — please sign in again");
-  const token = await session.getToken();
-  if (!token) throw new Error("Session expired — please sign in again");
   return {
     "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
+    Authorization: `Bearer ${session.access_token}`,
   };
 }
 

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/useOrganization";
 import { useAuth } from "@/hooks/useAuth";
-import { getClerkSession } from "@/lib/clerk-session";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { KnowledgeGraph } from "@/components/knowledge/KnowledgeGraph";
 import { KnowledgeDocuments } from "@/components/knowledge/KnowledgeDocuments";
@@ -75,9 +74,9 @@ export default function Knowledge() {
       setLoading(true);
 
       const agentUrl = import.meta.env.VITE_AGENT_URL;
-      const session = getClerkSession();
-      const token = session ? await session.getToken() : null;
-      if (!token) console.warn("No Clerk session token — agent requests will fail");
+      const { data: { session: authSession } } = await supabase.auth.getSession();
+      const token = authSession?.access_token ?? null;
+      if (!token) console.warn("No auth session — agent requests will fail");
 
       // Try agent server knowledge graph endpoint
       let fetchedFromAgent = false;

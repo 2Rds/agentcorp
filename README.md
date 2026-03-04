@@ -1,89 +1,32 @@
-# BlockDrive CFO v1.0.0
+# Chief Financial Agent v1.0.0
 
-AI-powered CFO platform for seed-stage startups. Natural language financial modeling, cap table management, investor data rooms, document intelligence, and persistent organizational memory.
+AI-powered CFO platform for seed-stage startups. Streaming AI chat with financial modeling, cap table management, investor data rooms, document intelligence, and persistent organizational memory.
 
 **Live:** [cfo.blockdrive.co](https://cfo.blockdrive.co)
 
-## Architecture
-
-Two-tier system: a React frontend deployed to Vercel, and an Express agent server powered by the Claude Agent SDK with multi-model orchestration and persistent memory.
-
-### Multi-Model Intelligence
-
-| Model | Provider | Role |
-|-------|----------|------|
-| Claude Opus 4.6 | Anthropic (direct) | Primary reasoning, tool orchestration, streaming chat |
-| Kimi K2.5 | OpenRouter | Structured data generation (financial rows, cap table, SQL) |
-| Gemini 3 Flash | OpenRouter | Document vision, embeddings, RAG |
-| Gemini 2.5 Flash Lite | OpenRouter | Lightweight tasks at minimal cost |
-| Sonar Pro | OpenRouter | Web research and intelligence gathering |
-| Grok 4 | OpenRouter | Advanced reasoning |
-
-Claude uses the Anthropic API directly (Max plan). All other models route through **OpenRouter** via a single API key — no per-provider SDKs or keys.
-
-### Persistent Memory (Mem0)
-
-Mem0 is the sole knowledge store — no dual-write, no Supabase fallback. The agent builds institutional memory that compounds over every conversation.
-
-- **Graph memory** — Entity relationships auto-extracted (investors → rounds → valuations)
-- **6 custom categories** — `financial_metrics`, `fundraising`, `company_operations`, `strategic_decisions`, `investor_relations`, `financial_model`
-- **Multi-model attribution** — Every memory tagged with `agent_id` (opus-brain, k2-builder, gemini-docs)
-- **Session memory** — Per-conversation context via `run_id`
-- **System prompt enrichment** — Relevant org memories loaded before each query
-- **Feedback mechanism** — Self-healing memory quality (POSITIVE/NEGATIVE/VERY_NEGATIVE)
-- **Comprehensive knowledge depth** — Deep extraction from every interaction
-- **Webhooks** — Real-time memory event notifications
-
-### Frontend
-
-React 18 + TypeScript + Vite. Supabase for auth, database (PostgreSQL), storage, and realtime subscriptions.
-
-| Page | Purpose |
-|------|---------|
-| **Chat** | Streaming AI CFO conversations with tool-use rendering |
-| **Knowledge** | Document uploads, AI extraction, and knowledge graph visualization |
-| **Dashboard** | P&L, burn/runway, cap table, and OpEx charts (Recharts) |
-| **Investors** | DocSend-style shareable links with engagement analytics |
-| **Docs** | Comprehensive platform documentation |
-| **Data Room** | Public investor portal with password/email gating |
-
-### Agent Server (`agent/`)
-
-Express server with the Claude Agent SDK. 23 MCP tools across 8 domains.
-
-**Tools:**
-- Financial model (3): get, upsert (with K2.5 plan generation + memory), delete
-- Derived metrics (1): compute burn, runway, MRR, gross margin
-- Cap table (3): get, upsert (with graph memory), delete
-- Knowledge base (5): search, add, update, delete, rate_quality
-- Investor links (4): CRUD with `enable_data_room` support
-- Documents (2): upload with Gemini vision processing + memory
-- Document RAG (1): `query_documents` via Gemini + pgvector
-- Analytics (1): natural language → SQL → chart suggestion
-- Web fetch (1), headless browser (1), excel export (1)
-
-**Routes:**
-- `POST /api/chat` — Streaming AI chat with memory enrichment
-- `GET /api/knowledge/graph` — Knowledge graph via Mem0 graph API
-- `GET/POST /dataroom/:slug/*` — Public investor data room
-- `POST /api/webhooks/mem0` — Memory event webhooks
-- `GET /health` — Health check
-
 ## Quick Start
+
+### Prerequisites
+
+- Node.js 20+
+- Docker (for Redis)
+- Supabase project with auth enabled
 
 ### Frontend
 
 ```bash
 npm install
-npm run dev          # Starts on port 8080
+npm run dev          # http://localhost:8080
 ```
 
 ### Agent Server
 
 ```bash
 cd agent
+cp .env.example .env   # Fill in API keys
 npm install
-npm run dev          # Starts on port 3001 with hot reload
+docker compose up -d   # Start Redis
+npm run dev            # http://localhost:3001
 ```
 
 ### Environment Variables
@@ -92,35 +35,63 @@ npm run dev          # Starts on port 3001 with hot reload
 ```
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
-VITE_AGENT_URL=http://localhost:3001   # Falls back to edge functions
+VITE_AGENT_URL=http://localhost:3001
 ```
 
 **Agent Server (`agent/.env`):**
 ```
 # Required
-ANTHROPIC_API_KEY=...              # Claude Max plan (direct, not via OpenRouter)
+ANTHROPIC_API_KEY=...              # Claude Opus 4.6 (direct API)
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
-OPENROUTER_API_KEY=...             # All non-Claude models (K2.5, Gemini, Sonar, Grok)
+OPENROUTER_API_KEY=...             # All non-Claude models
 MEM0_API_KEY=...                   # Persistent organizational memory
 
 # Optional
 PORT=3001
 CORS_ORIGINS=http://localhost:8080
+MOONSHOT_API_KEY=...               # Kimi K2.5 direct API
+COHERE_API_KEY=...                 # Rerank v3.5
+REDIS_URL=redis://localhost:6379
+CF_ACCOUNT_ID=...                  # Cloudflare AI Gateway
+CF_GATEWAY_ID=...
+GOOGLE_CLIENT_ID=...               # Google Sheets integration
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REFRESH_TOKEN=...
 ```
+
+## Features
+
+- **AI CFO Chat** — Streaming conversation with Claude Opus 4.6, enriched with org memories and 16 knowledge plugins
+- **Financial Model** — SaaS-template line items (revenue/COGS/OpEx/headcount/funding), scenario toggling (base/best/worst), derived metrics (burn, runway, MRR, gross margin)
+- **Cap Table** — Equity positions with ownership tracking across funding rounds
+- **Investor Portal** — DocSend-style shareable links with password gating, email capture, expiry, and view tracking
+- **Knowledge Base** — Document uploads with Gemini vision processing, semantic search via Redis, and Mem0 graph memory
+- **Google Sheets Integration** — Sync financial model to/from Google Sheets
+- **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching and Cohere reranking
+- **Analytics** — Natural language to SQL queries with chart suggestions
+- **Excel Export** — Multi-tab workbook generation
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui |
-| Charts | Recharts |
-| State | TanStack Query (server), React Context (auth) |
-| Backend | Supabase (PostgreSQL, Auth, Storage, Edge Functions, Realtime) |
-| Agent | Express, Claude Agent SDK, Zod |
-| Multi-model | OpenRouter (Kimi K2.5, Gemini 3 Flash, Sonar Pro, Grok 4) |
-| Memory | Mem0 Platform (graph memory, custom categories, feedback) |
-| Deployment | Vercel (frontend), Docker (agent) |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts |
+| Backend | Supabase (Postgres, Auth, RLS, Edge Functions, Storage) |
+| Agent Server | Express, Claude Agent SDK, 26 MCP tools |
+| Models | Claude Opus 4.6, Kimi K2.5, Gemini 3 Flash/Pro, DeepSeek V3.2, Sonar Pro, Granite 4.0 |
+| Search | Redis 8.4 (vector search, semantic cache, hybrid search) |
+| Memory | Mem0 (graph memory, entity extraction, org-scoped, 6 categories) |
+| Infrastructure | Cloudflare AI Gateway (optional), Docker Compose |
+| Deployment | Vercel (frontend), Docker (agent server) |
+
+## Documentation
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) — System design and data flows
+- [SECURITY.md](SECURITY.md) — Auth, RLS, and security controls
+- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — Roadmap and known limitations
+- [CHANGELOG.md](CHANGELOG.md) — Version history
+- [CLAUDE.md](CLAUDE.md) — Claude Code project instructions
 
 ## Scripts
 
@@ -130,11 +101,10 @@ npm run dev          # Dev server (port 8080)
 npm run build        # Production build
 npm run lint         # ESLint
 npm run test         # Vitest
-npm run test:watch   # Watch mode
 
-# Agent
+# Agent server
 cd agent
-npm run dev          # Dev server with hot reload (tsx watch)
+npm run dev          # Dev server with hot reload (port 3001)
 npm run build        # TypeScript compile
 npm run start        # Production (node dist/)
 ```

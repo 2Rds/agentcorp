@@ -1,5 +1,4 @@
 import express from "express";
-import { clerkMiddleware } from "@clerk/express";
 import { config } from "./config.js";
 import { corsMiddleware } from "./middleware/cors.js";
 import { initializeMem0Project } from "./lib/mem0-setup.js";
@@ -18,13 +17,12 @@ const app = express();
 app.use(corsMiddleware);
 app.use(express.json({ limit: "1mb" }));
 
-// Health + dataroom + OAuth callbacks before auth (public endpoints)
+// Health + dataroom + OAuth callbacks (public endpoints)
 app.use(healthRouter);
 app.use(dataroomRouter);
 app.use(integrationsCallbackRouter);
 
-// Clerk auth for all remaining routes
-app.use(clerkMiddleware());
+// Authenticated routes (auth handled per-route via authMiddleware)
 app.use(chatRouter);
 app.use(knowledgeRouter);
 app.use(webhooksRouter);

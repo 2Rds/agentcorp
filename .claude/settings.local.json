@@ -13,7 +13,9 @@
       "mcp__context7__*",
       "mcp__claude-in-chrome__*",
       "mcp__ide__*",
-      "mcp__mem0__search-memories"
+      "mcp__mem0__search-memories",
+      "mcp__mem0__search_memories",
+      "mcp__mem0__add_memory"
     ],
     "deny": [
       "Bash(rm -rf /*)",
@@ -32,6 +34,17 @@
             "command": "node .claude/hooks/block-protected.mjs",
             "timeout": 10,
             "statusMessage": "Checking protected files..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/release-reminder.sh",
+            "timeout": 10,
+            "statusMessage": "Checking release status..."
           }
         ]
       }

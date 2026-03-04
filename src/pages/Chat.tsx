@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAgentThread } from "@/hooks/useAgentThread";
 import { useOrganization } from "@/hooks/useOrganization";
-import { getClerkSession } from "@/lib/clerk-session";
+import { supabase } from "@/integrations/supabase/client";
 import { ChatMessage } from "@/components/chat/ChatMessage";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -38,10 +38,9 @@ export default function Chat() {
       // Try agent server first, fall back to edge function on network error
       if (agentUrl) {
         try {
-          const session = getClerkSession();
-          if (!session) throw new Error("Not signed in — please refresh and try again");
-          const token = await session.getToken();
-          if (!token) throw new Error("Session expired — please sign in again");
+          const { data: { session: authSession } } = await supabase.auth.getSession();
+          if (!authSession) throw new Error("Not signed in — please refresh and try again");
+          const token = authSession.access_token;
           resp = await fetch(`${agentUrl}/api/chat`, {
             method: "POST",
             headers: {

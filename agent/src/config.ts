@@ -38,10 +38,6 @@ export const config = {
   // Redis (optional — features degrade gracefully without it)
   redisUrl: optional("REDIS_URL"),
 
-  // Clerk auth (@clerk/express reads CLERK_SECRET_KEY from env automatically)
-  clerkSecretKey: optional("CLERK_SECRET_KEY"),
-  clerkPublishableKey: optional("CLERK_PUBLISHABLE_KEY"),
-
   // Cohere (Rerank for plugin resolution + document RAG)
   cohereApiKey: optional("COHERE_API_KEY"),
 

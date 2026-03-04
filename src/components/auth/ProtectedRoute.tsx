@@ -1,12 +1,12 @@
-import { useClerkAuth } from '@/contexts/ClerkAuthContext';
+import { useAuthContext } from '@/contexts/AuthContext';
 import { Navigate, useLocation } from 'react-router-dom';
 
-interface ClerkProtectedRouteProps {
+interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
-export const ClerkProtectedRoute = ({ children }: ClerkProtectedRouteProps) => {
-  const { isLoaded, isSignedIn } = useClerkAuth();
+export const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
+  const { isLoaded, isSignedIn } = useAuthContext();
   const location = useLocation();
 
   if (!isLoaded) {
