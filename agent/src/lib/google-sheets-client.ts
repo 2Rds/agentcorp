@@ -1,17 +1,25 @@
 import { google, sheets_v4, drive_v3 } from "googleapis";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { config } from "../config.js";
 
 let sheetsClient: sheets_v4.Sheets | null = null;
 let driveClient: drive_v3.Drive | null = null;
 
 function getAuth() {
-  if (!config.googleSheetsEnabled) return null;
-  const oauth2 = new google.auth.OAuth2(
-    config.googleClientId,
-    config.googleClientSecret
-  );
-  oauth2.setCredentials({ refresh_token: config.googleRefreshToken });
-  return oauth2;
+  if (!config.googleSheetsEnabled || !config.googleServiceAccountKeyFile) return null;
+  const keyPath = resolve(config.googleServiceAccountKeyFile);
+  const credentials = JSON.parse(readFileSync(keyPath, "utf-8"));
+  // Use JWT for domain-wide delegation (impersonate a Workspace user)
+  return new google.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: [
+      "https://www.googleapis.com/auth/spreadsheets",
+      "https://www.googleapis.com/auth/drive",
+    ],
+    subject: config.googleImpersonateEmail || undefined,
+  });
 }
 
 function getSheets(): sheets_v4.Sheets | null {

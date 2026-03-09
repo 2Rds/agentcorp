@@ -33,7 +33,7 @@ IMPORTANT: Only write to INPUT cells. Never overwrite formula cells. The Assumpt
     },
     async (args) => {
       if (!isGoogleSheetsEnabled()) {
-        return { content: [{ type: "text" as const, text: "Google Sheets integration is not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN in agent/.env" }], isError: true };
+        return { content: [{ type: "text" as const, text: "Google Sheets integration is not configured. Set GOOGLE_SERVICE_ACCOUNT_KEY_FILE in agent/.env" }], isError: true };
       }
 
       // Get the org's sheet ID

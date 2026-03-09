@@ -124,7 +124,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment:**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `MEM0_API_KEY`
-- Optional: `PORT` (default 3001), `CORS_ORIGINS` (comma-separated), `MOONSHOT_API_KEY`, `COHERE_API_KEY` (enables Rerank v3.5), `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN` (enables Provider Keys mode — gateway injects API keys at edge), `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
+- Optional: `PORT` (default 3001), `CORS_ORIGINS` (comma-separated), `MOONSHOT_API_KEY`, `COHERE_API_KEY` (enables Rerank v3.5), `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN` (enables Provider Keys mode — gateway injects API keys at edge), `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (path to service account JSON key for Sheets/Drive)
 
 ### Key Hooks (src/hooks/)
 
