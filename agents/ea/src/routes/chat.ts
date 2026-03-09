@@ -1,7 +1,6 @@
 import { Router, Request, Response } from "express";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
 import { createAgentQuery } from "../agent/ea-agent.js";
-import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 import { extractKnowledge } from "../agent/knowledge-extractor.js";
 
 const router = Router();
@@ -22,35 +21,26 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
   res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
-  let fullAssistantResponse = "";
   const lastUserMessage = messages.filter((m: any) => m.role === "user").pop()?.content ?? "";
 
   try {
-    const agentQuery = await createAgentQuery({
+    const fullResponse = await createAgentQuery({
       messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
       organizationId,
       userId,
       conversationId,
     });
 
-    for await (const message of agentQuery) {
-      const sse = sdkMessageToSSE(message);
-      if (sse) {
-        res.write(sse);
+    // Stream the response as SSE chunks (OpenAI-compatible format)
+    const chunk = {
+      choices: [{ delta: { content: fullResponse } }],
+    };
+    res.write(`data: ${JSON.stringify(chunk)}\n\n`);
+    res.write("data: [DONE]\n\n");
 
-        if (message.type === "stream_event") {
-          const event = message.event as any;
-          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-            fullAssistantResponse += event.delta.text;
-          }
-        }
-      }
-
-      if (message.type === "result") {
-        if (organizationId && lastUserMessage && fullAssistantResponse) {
-          extractKnowledge(lastUserMessage, fullAssistantResponse, organizationId, conversationId);
-        }
-      }
+    // Fire-and-forget knowledge extraction
+    if (organizationId && lastUserMessage && fullResponse) {
+      extractKnowledge(lastUserMessage, fullResponse, organizationId, conversationId);
     }
   } catch (err: any) {
     console.error("Agent error:", err);

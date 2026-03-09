@@ -54,26 +54,13 @@ async function startTelegramBot() {
     try {
       await ctx.replyWithChatAction("typing");
 
-      // Use the EA agent directly
-      const agentQuery = await createAgentQuery({
+      // Use the EA agent directly (returns string)
+      const fullResponse = await createAgentQuery({
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
         organizationId: "telegram-direct",
         userId: `telegram-${chatId}`,
         conversationId: `tg-${chatId}`,
       });
-
-      // Collect full response
-      let fullResponse = "";
-      for await (const message of agentQuery) {
-        if (message.type === "assistant" && typeof message.message?.content === "string") {
-          fullResponse += message.message.content;
-        } else if (message.type === "stream_event") {
-          const event = message as any;
-          if (event.event?.type === "content_block_delta" && event.event?.delta?.text) {
-            fullResponse += event.event.delta.text;
-          }
-        }
-      }
 
       if (fullResponse) {
         messages.push({ role: "assistant", content: fullResponse });

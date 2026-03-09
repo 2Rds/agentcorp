@@ -1,8 +1,10 @@
-import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import { createEaMcpServer } from "../tools/index.js";
+import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { searchOrgMemories, getSessionMemories, searchCrossNamespaceMemories } from "../lib/mem0-client.js";
-import { resolveSkillsForConversation, loadPluginRegistry } from "../lib/plugin-loader.js";
+import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
+import { config } from "../config.js";
+
+const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
 
 export interface AgentCallOptions {
   messages: { role: string; content: string }[];
@@ -92,39 +94,31 @@ async function enrichSystemPrompt(
 }
 
 /**
- * Creates the EA agent query with org-scoped MCP tools and memory-enriched context.
- * Returns an async generator of SDKMessages.
+ * Creates the EA agent query using the Anthropic Messages API directly.
+ * Returns the assistant's text response.
  */
-export async function createAgentQuery(options: AgentCallOptions) {
+export async function createAgentQuery(options: AgentCallOptions): Promise<string> {
   const { messages, organizationId, userId, conversationId } = options;
 
-  const mcpServer = createEaMcpServer(organizationId, userId);
   const lastUserMessage = messages.filter(m => m.role === "user").pop()?.content ?? "";
-
   const systemPrompt = await enrichSystemPrompt(organizationId, lastUserMessage, conversationId);
 
-  // Build a prompt that includes conversation context
-  let prompt: string;
-  if (messages.length <= 1) {
-    prompt = lastUserMessage;
-  } else {
-    const priorMessages = messages.slice(0, -1);
-    const context = priorMessages
-      .map(m => `<${m.role}>${m.content}</${m.role}>`)
-      .join("\n");
-    prompt = `<conversation_history>\n${context}\n</conversation_history>\n\n${lastUserMessage}`;
-  }
+  // Format messages for Anthropic API
+  const apiMessages: Anthropic.MessageParam[] = messages.map((m) => ({
+    role: m.role === "assistant" ? "assistant" : "user",
+    content: m.content,
+  }));
 
-  return query({
-    prompt,
-    options: {
-      systemPrompt,
-      mcpServers: { "ea-tools": mcpServer },
-      includePartialMessages: true,
-      permissionMode: "bypassPermissions",
-      allowDangerouslySkipPermissions: true,
-      model: "claude-opus-4-6",
-      maxTurns: 25,
-    },
+  const response = await anthropic.messages.create({
+    model: "claude-opus-4-6-20250929",
+    max_tokens: 8192,
+    system: systemPrompt,
+    messages: apiMessages,
   });
+
+  // Extract text from response
+  return response.content
+    .filter((block): block is Anthropic.TextBlock => block.type === "text")
+    .map((block) => block.text)
+    .join("\n");
 }
