@@ -110,7 +110,7 @@ export async function createAgentQuery(options: AgentCallOptions): Promise<strin
   }));
 
   const response = await anthropic.messages.create({
-    model: "claude-opus-4-6-20250929",
+    model: "claude-opus-4-6",
     max_tokens: 8192,
     system: systemPrompt,
     messages: apiMessages,
