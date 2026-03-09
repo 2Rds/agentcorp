@@ -1,16 +1,18 @@
-# Chief Financial Agent v1.0.0
+# WaaS — Workforce-as-a-Service
 
-AI-powered CFO platform for seed-stage startups. Streaming AI chat with financial modeling, cap table management, investor data rooms, document intelligence, and persistent organizational memory.
+Cognitive agent orchestration platform for enterprise operations. Namespace-isolated, memory-enriched AI agents that communicate, delegate, and execute across departments.
 
-**Live:** [cfo.blockdrive.co](https://cfo.blockdrive.co)
+**Live:**
+- CFO Dashboard: [cfo.blockdrive.co](https://cfo.blockdrive.co)
+- EA Agent (Alex): DigitalOcean App Platform (Telegram: @alex_executive_assistant_bot)
 
 ## Quick Start
 
 ### Prerequisites
 
 - Node.js 20+
-- Docker (for Redis)
-- Supabase project with auth enabled
+- Docker (for Redis, optional)
+- Supabase project (`eisiohgjfviwxgdyfnsd.supabase.co`)
 
 ### Frontend
 
@@ -19,14 +21,23 @@ npm install
 npm run dev          # http://localhost:8080
 ```
 
-### Agent Server
+### CFO Agent
 
 ```bash
 cd agent
 cp .env.example .env   # Fill in API keys
 npm install
-docker compose up -d   # Start Redis
+docker compose up -d   # Start Redis (optional)
 npm run dev            # http://localhost:3001
+```
+
+### EA Agent
+
+```bash
+cd agents/ea
+cp .env.example .env   # Fill in API keys
+npm install
+npm run dev            # http://localhost:3002
 ```
 
 ### Environment Variables
@@ -38,56 +49,78 @@ VITE_SUPABASE_PUBLISHABLE_KEY=...
 VITE_AGENT_URL=http://localhost:3001
 ```
 
-**Agent Server (`agent/.env`):**
+**CFO Agent (`agent/.env`):**
 ```
-# Required
-ANTHROPIC_API_KEY=...              # Claude Opus 4.6 (direct API)
+ANTHROPIC_API_KEY=...              # Claude Opus 4.6
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
-OPENROUTER_API_KEY=...             # All non-Claude models
-MEM0_API_KEY=...                   # Persistent organizational memory
-
-# Optional
-PORT=3001
-CORS_ORIGINS=http://localhost:8080
-MOONSHOT_API_KEY=...               # Kimi K2.5 direct API
-COHERE_API_KEY=...                 # Rerank v3.5
-REDIS_URL=redis://localhost:6379
-CF_ACCOUNT_ID=...                  # Cloudflare AI Gateway
-CF_GATEWAY_ID=...
-GOOGLE_CLIENT_ID=...               # Google Sheets integration
-GOOGLE_CLIENT_SECRET=...
-GOOGLE_REFRESH_TOKEN=...
+OPENROUTER_API_KEY=...             # Non-Claude models
+MEM0_API_KEY=...                   # Persistent memory
+# Optional: PORT, CORS_ORIGINS, COHERE_API_KEY, REDIS_URL, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE
 ```
+
+**EA Agent (`agents/ea/.env`):**
+```
+ANTHROPIC_API_KEY=...              # Claude Opus 4.6
+SUPABASE_URL=...
+SUPABASE_SERVICE_ROLE_KEY=...
+OPENROUTER_API_KEY=...
+MEM0_API_KEY=...
+# Optional: PORT (3002), TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN, AGENT_MESSAGE_SECRET
+```
+
+## Architecture
+
+```
+waas/
+├── src/                    # React 18 frontend (Vercel)
+├── agent/                  # CFO Agent — Claude Agent SDK, 26 MCP tools (port 3001)
+├── agents/ea/              # EA Agent "Alex" — Anthropic Messages API, 7 tools (port 3002)
+├── packages/shared/        # @waas/shared — types, model registry, namespace, messaging
+├── packages/runtime/       # @waas/runtime — Express agent execution engine
+├── docs/waas/              # Platform architecture docs
+└── supabase/               # Migrations + edge functions
+```
+
+## Agents
+
+| Agent | Role | Runtime | Status |
+|-------|------|---------|--------|
+| **Alex** (EA) | Executive Assistant — scheduling, comms, cross-dept coordination | Anthropic Messages API + tool loop | **Deployed** (DO) |
+| **CFO** | Financial modeling, cap table, investor data rooms, analytics | Claude Agent SDK + 26 MCP tools | **Deployed** (DO) |
+| COA, CMA, IR, Legal, Sales | Planned department agents | @waas/runtime | Planned |
 
 ## Features
 
-- **AI CFO Chat** — Streaming conversation with Claude Opus 4.6, enriched with org memories and 16 knowledge plugins
-- **Financial Model** — SaaS-template line items (revenue/COGS/OpEx/headcount/funding), scenario toggling (base/best/worst), derived metrics (burn, runway, MRR, gross margin)
-- **Cap Table** — Equity positions with ownership tracking across funding rounds
-- **Investor Portal** — DocSend-style shareable links with password gating, email capture, expiry, and view tracking
-- **Knowledge Base** — Document uploads with Gemini vision processing, semantic search via Redis, and Mem0 graph memory
-- **Google Sheets Integration** — Sync financial model to/from Google Sheets
-- **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching and Cohere reranking
-- **Analytics** — Natural language to SQL queries with chart suggestions
-- **Excel Export** — Multi-tab workbook generation
+- **AI CFO Chat** — Streaming Claude Opus 4.6 with org memories and 16 knowledge plugins
+- **Executive Assistant** — Autonomous task management, meeting notes, cross-department queries, Telegram interface
+- **Financial Model** — SaaS-template with scenario toggling, derived metrics (burn, runway, MRR)
+- **Cap Table** — Equity tracking across funding rounds
+- **Investor Portal** — DocSend-style links with password gating and analytics
+- **Knowledge Base** — Document uploads with Gemini vision, semantic search, graph memory
+- **Google Sheets** — Model sync via service account with domain-wide delegation
+- **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching
+- **Inter-Agent Messaging** — Redis inbox + Telegram bot-to-bot transport
+- **Namespace Isolation** — Scoped Redis + mem0 per department, fail-closed enforcement
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts |
-| Backend | Supabase (Postgres, Auth, RLS, Edge Functions, Storage) |
-| Agent Server | Express, Claude Agent SDK, 26 MCP tools |
-| Models | Claude Opus 4.6, Kimi K2.5, Gemini 3 Flash/Pro, DeepSeek V3.2, Sonar Pro, Granite 4.0 |
-| Search | Redis 8.4 (vector search, semantic cache, hybrid search) |
-| Memory | Mem0 (graph memory, entity extraction, org-scoped, 6 categories) |
-| Infrastructure | Cloudflare AI Gateway (optional), Docker Compose |
-| Deployment | Vercel (frontend), Docker (agent server) |
+| Backend | Supabase (Postgres, Auth, RLS, Edge Functions) |
+| CFO Agent | Express, Claude Agent SDK, 26 MCP tools |
+| EA Agent | Express, Anthropic Messages API, 7 native tools, grammy (Telegram) |
+| Platform | @waas/shared (types), @waas/runtime (execution engine) |
+| Models | Claude Opus 4.6, Kimi K2.5, Gemini 3 Flash/Pro, DeepSeek V3.2, Sonar Pro |
+| Search | Redis 8.4 (vector search, semantic cache) |
+| Memory | Mem0 (graph memory, org-scoped, cross-namespace read for EA) |
+| Deployment | Vercel (frontend), DigitalOcean App Platform (agents), n8n (automation) |
 
 ## Documentation
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — System design and data flows
+- [docs/waas/](docs/waas/) — WaaS platform architecture (packages, namespace, messaging)
 - [SECURITY.md](SECURITY.md) — Auth, RLS, and security controls
 - [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) — Roadmap and known limitations
 - [CHANGELOG.md](CHANGELOG.md) — Version history
@@ -97,16 +130,19 @@ GOOGLE_REFRESH_TOKEN=...
 
 ```bash
 # Frontend
-npm run dev          # Dev server (port 8080)
-npm run build        # Production build
-npm run lint         # ESLint
-npm run test         # Vitest
+npm run dev              # Dev server (port 8080)
+npm run build            # Production build
+npm run lint             # ESLint
+npm run test             # Vitest
 
-# Agent server
-cd agent
-npm run dev          # Dev server with hot reload (port 3001)
-npm run build        # TypeScript compile
-npm run start        # Production (node dist/)
+# CFO Agent
+cd agent && npm run dev  # Hot reload (port 3001)
+
+# EA Agent
+cd agents/ea && npm run dev  # Hot reload (port 3002)
+
+# WaaS packages
+npm run build:packages   # Build @waas/shared + @waas/runtime
 ```
 
 ## License
