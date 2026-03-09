@@ -1,0 +1,36 @@
+{
+  "name": "@waas/shared",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Shared types, model router, namespace isolation, and messaging for WaaS cognitive agents",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./types": {
+      "import": "./dist/types.js",
+      "types": "./dist/types.d.ts"
+    },
+    "./models": {
+      "import": "./dist/models/index.js",
+      "types": "./dist/models/index.d.ts"
+    },
+    "./namespace": {
+      "import": "./dist/namespace/index.js",
+      "types": "./dist/namespace/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.19.5",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,42 @@
+/**
+ * Health Check Route
+ *
+ * Standard /health endpoint for every agent. Returns agent identity,
+ * uptime, and service status (Redis, mem0, Telegram).
+ */
+
+import { Router } from "express";
+import { isRedisAvailable } from "../lib/redis-client.js";
+
+export interface HealthDeps {
+  agentId: string;
+  agentName: string;
+  version: string;
+  hasMem0: boolean;
+  hasTelegram: boolean;
+}
+
+export function createHealthRouter(deps: HealthDeps): Router {
+  const router = Router();
+  const startedAt = new Date().toISOString();
+
+  router.get("/health", (_req, res) => {
+    res.json({
+      status: "ok",
+      agent: {
+        id: deps.agentId,
+        name: deps.agentName,
+        version: deps.version,
+      },
+      services: {
+        redis: isRedisAvailable(),
+        mem0: deps.hasMem0,
+        telegram: deps.hasTelegram,
+      },
+      startedAt,
+      uptime: process.uptime(),
+    });
+  });
+
+  return router;
+}
