@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
 import { searchOrgMemories, getSessionMemories, searchCrossNamespaceMemories } from "../lib/mem0-client.js";
 import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
+import { createEaTools } from "../tools/bridge.js";
 import { config } from "../config.js";
 
 const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
@@ -25,8 +26,6 @@ async function enrichSystemPrompt(
   let enriched = SYSTEM_PROMPT;
 
   try {
-    // Search EA-specific memories, cross-namespace memories, session memories,
-    // and resolve skills -- all in parallel
     const [eaMemoriesResult, crossMemoriesResult, sessionResult, skillsResult] = await Promise.allSettled([
       searchOrgMemories(lastUserMessage, organizationId, {
         agentId: "blockdrive-ea",
@@ -48,13 +47,11 @@ async function enrichSystemPrompt(
     const sessionMemories = sessionResult.status === "fulfilled" ? sessionResult.value : [];
     const matchedSkills = skillsResult.status === "fulfilled" ? skillsResult.value : [];
 
-    // Log failures for debugging
     if (eaMemoriesResult.status === "rejected") console.error("EA memory search failed:", eaMemoriesResult.reason);
     if (crossMemoriesResult.status === "rejected") console.error("Cross-namespace memory search failed:", crossMemoriesResult.reason);
     if (sessionResult.status === "rejected") console.error("Session memory failed:", sessionResult.reason);
     if (skillsResult.status === "rejected") console.error("Skill resolution failed:", skillsResult.reason);
 
-    // Deduplicate cross-namespace results (EA's own memories may overlap)
     const eaIds = new Set(eaMemories.map(m => m.id));
     const uniqueCrossMemories = crossMemories.filter(m => !eaIds.has(m.id));
 
@@ -63,62 +60,119 @@ async function enrichSystemPrompt(
         const cat = m.categories?.length ? ` [${m.categories.join(", ")}]` : "";
         return `- ${m.memory}${cat}`;
       });
-      enriched += `\n\n## EA Knowledge (from memory)\nThe following facts are known from your previous conversations:\n${memoryLines.join("\n")}`;
+      enriched += `\n\n## EA Knowledge (from memory)\n${memoryLines.join("\n")}`;
     }
 
     if (uniqueCrossMemories.length > 0) {
       const crossLines = uniqueCrossMemories.map(m => {
         const agent = m.agent_id ? ` [via ${m.agent_id}]` : "";
-        const cat = m.categories?.length ? ` [${m.categories.join(", ")}]` : "";
-        return `- ${m.memory}${agent}${cat}`;
+        return `- ${m.memory}${agent}`;
       });
-      enriched += `\n\n## Cross-Department Knowledge\nRelevant information from other departments:\n${crossLines.join("\n")}`;
+      enriched += `\n\n## Cross-Department Knowledge\n${crossLines.join("\n")}`;
     }
 
     if (sessionMemories.length > 0) {
       const sessionLines = sessionMemories.map(m => `- ${m.memory}`);
-      enriched += `\n\n## Current Session Context\nFrom earlier in this conversation:\n${sessionLines.join("\n")}`;
+      enriched += `\n\n## Current Session Context\n${sessionLines.join("\n")}`;
     }
 
     if (matchedSkills.length > 0) {
-      const skillSections = matchedSkills.map(s =>
-        `### ${s.name}\n${s.content}`
-      );
-      enriched += `\n\n## Domain Knowledge\nThe following specialized knowledge is relevant to this query:\n\n${skillSections.join("\n\n")}`;
+      const skillSections = matchedSkills.map(s => `### ${s.name}\n${s.content}`);
+      enriched += `\n\n## Domain Knowledge\n${skillSections.join("\n\n")}`;
     }
   } catch (e) {
-    console.error("Failed to enrich system prompt with memories/skills:", e);
+    console.error("Failed to enrich system prompt:", e);
   }
 
   return enriched;
 }
 
 /**
- * Creates the EA agent query using the Anthropic Messages API directly.
- * Returns the assistant's text response.
+ * Agentic tool use loop — calls Claude, executes tool calls, feeds results back,
+ * repeats until Claude produces a final text response (up to maxTurns).
  */
 export async function createAgentQuery(options: AgentCallOptions): Promise<string> {
   const { messages, organizationId, userId, conversationId } = options;
+  const maxTurns = 15;
 
   const lastUserMessage = messages.filter(m => m.role === "user").pop()?.content ?? "";
   const systemPrompt = await enrichSystemPrompt(organizationId, lastUserMessage, conversationId);
 
-  // Format messages for Anthropic API
+  // Build tools
+  const { toolDefs, handlers } = createEaTools(organizationId, userId);
+
+  // Build conversation messages
   const apiMessages: Anthropic.MessageParam[] = messages.map((m) => ({
-    role: m.role === "assistant" ? "assistant" : "user",
+    role: m.role === "assistant" ? "assistant" as const : "user" as const,
     content: m.content,
   }));
 
-  const response = await anthropic.messages.create({
-    model: "claude-opus-4-6",
-    max_tokens: 8192,
-    system: systemPrompt,
-    messages: apiMessages,
-  });
+  for (let turn = 0; turn < maxTurns; turn++) {
+    const response = await anthropic.messages.create({
+      model: "claude-opus-4-6",
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: apiMessages,
+      tools: toolDefs,
+    });
 
-  // Extract text from response
-  return response.content
-    .filter((block): block is Anthropic.TextBlock => block.type === "text")
-    .map((block) => block.text)
-    .join("\n");
+    // If stop reason is "end_turn" or no tool use — return the text
+    if (response.stop_reason === "end_turn" || response.stop_reason !== "tool_use") {
+      return response.content
+        .filter((block): block is Anthropic.TextBlock => block.type === "text")
+        .map((block) => block.text)
+        .join("\n");
+    }
+
+    // There are tool_use blocks — execute them
+    const toolUseBlocks = response.content.filter(
+      (block): block is Anthropic.ToolUseBlock => block.type === "tool_use"
+    );
+
+    // Add assistant message with full content (text + tool_use blocks)
+    apiMessages.push({ role: "assistant", content: response.content });
+
+    // Execute each tool and collect results
+    const toolResults: Anthropic.ToolResultBlockParam[] = [];
+    for (const toolUse of toolUseBlocks) {
+      const handler = handlers.get(toolUse.name);
+      if (!handler) {
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: `Error: Unknown tool "${toolUse.name}"`,
+          is_error: true,
+        });
+        continue;
+      }
+
+      try {
+        console.log(`Tool call: ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 200)})`);
+        const result = await handler(toolUse.input as Record<string, unknown>);
+        const text = result.content
+          .filter((c: any) => c.type === "text")
+          .map((c: any) => c.text)
+          .join("\n");
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: text,
+          is_error: result.isError || false,
+        });
+      } catch (err: any) {
+        console.error(`Tool ${toolUse.name} error:`, err);
+        toolResults.push({
+          type: "tool_result",
+          tool_use_id: toolUse.id,
+          content: `Error executing ${toolUse.name}: ${err.message}`,
+          is_error: true,
+        });
+      }
+    }
+
+    // Add tool results as user message
+    apiMessages.push({ role: "user", content: toolResults });
+  }
+
+  return "I've reached my maximum number of tool execution steps. Please try a simpler request.";
 }
