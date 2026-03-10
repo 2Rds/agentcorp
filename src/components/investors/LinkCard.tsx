@@ -19,7 +19,7 @@ export function LinkCard({ analytics, onSelect, selected }: LinkCardProps) {
   const { updateLink, deleteLink } = useInvestorLinks();
   const [copying, setCopying] = useState(false);
 
-  const shareUrl = `${window.location.origin}/share/${link.slug}`;
+  const shareUrl = `${window.location.origin}/dataroom/${link.slug}`;
   const isExpired = link.expires_at && new Date(link.expires_at) < new Date();
 
   const copyLink = async () => {

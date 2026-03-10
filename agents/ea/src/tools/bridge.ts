@@ -9,6 +9,8 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "../lib/supabase.js";
 import { searchOrgMemories, addOrgMemory, searchCrossNamespaceMemories } from "../lib/mem0-client.js";
 import { chatCompletion } from "../lib/model-router.js";
+import { config } from "../config.js";
+import * as notion from "../lib/notion-client.js";
 
 type ToolHandler = (args: Record<string, any>) => Promise<string>;
 
@@ -212,6 +214,132 @@ function createTools(orgId: string, _userId: string): ToolEntry[] {
         } catch (e: any) { return `Search error: ${e.message}`; }
       },
     },
+
+    // ─── Notion Tools (conditional — only if NOTION_API_KEY is set) ──
+    ...(config.notionEnabled ? [
+      {
+        def: {
+          name: "search_notion",
+          description: "Search the Notion workspace by query. Returns matching pages with titles, IDs, and last-edited timestamps.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              query: { type: "string", description: "Search query" },
+              page_size: { type: "number", description: "Max results (default 10)" },
+            },
+            required: ["query"],
+          },
+        },
+        handler: async (args: Record<string, any>) => {
+          try {
+            const results = await notion.searchPages(args.query, args.page_size || 10);
+            if (!results.length) return "No matching Notion pages found.";
+            return results.map((page: any) => {
+              const title = page.properties?.Name?.title?.[0]?.plain_text
+                ?? page.properties?.title?.title?.[0]?.plain_text
+                ?? "(untitled)";
+              return `- **${title}** (id: ${page.id}, edited: ${page.last_edited_time ?? "unknown"})`;
+            }).join("\n");
+          } catch (e: any) { return `Notion search error: ${e.message}`; }
+        },
+      },
+      {
+        def: {
+          name: "read_notion_page",
+          description: "Read a Notion page's content by ID. Returns the page properties and body content as text.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              page_id: { type: "string", description: "Notion page ID" },
+            },
+            required: ["page_id"],
+          },
+        },
+        handler: async (args: Record<string, any>) => {
+          try {
+            const [page, blocks] = await Promise.allSettled([
+              notion.getPage(args.page_id),
+              notion.getBlockChildren(args.page_id),
+            ]);
+
+            const parts: string[] = [];
+            if (page.status === "fulfilled") {
+              parts.push("## Properties\n" + notion.formatPageProperties(page.value));
+            }
+            if (blocks.status === "fulfilled") {
+              parts.push("## Content\n" + notion.formatBlocks(blocks.value));
+            }
+            return parts.join("\n\n") || "Page found but no readable content.";
+          } catch (e: any) { return `Error reading page: ${e.message}`; }
+        },
+      },
+      {
+        def: {
+          name: "create_notion_page",
+          description: "Create a new page in a Notion database or as a child of an existing page. For databases, provide properties matching the schema. For child pages, provide a parent page ID and title.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              parent_id: { type: "string", description: "Parent database ID or page ID" },
+              parent_type: { type: "string", enum: ["database_id", "page_id"], description: "Type of parent (default: database_id)" },
+              properties: { type: "string", description: "JSON object of page properties" },
+              content: { type: "string", description: "Page body content as plain text (optional)" },
+            },
+            required: ["parent_id", "properties"],
+          },
+        },
+        handler: async (args: Record<string, any>) => {
+          try {
+            const properties = JSON.parse(args.properties);
+            const children = args.content ? [{
+              object: "block",
+              type: "paragraph",
+              paragraph: { rich_text: [{ type: "text", text: { content: args.content } }] },
+            }] : undefined;
+            const parentType = args.parent_type || "database_id";
+            const page = await notion.createPage(args.parent_id, properties, children, parentType);
+            return `Page created: ${(page as any).url ?? page.id}`;
+          } catch (e: any) { return `Error creating page: ${e.message}`; }
+        },
+      },
+      {
+        def: {
+          name: "update_notion_page",
+          description: "Update an existing Notion page's properties or append content to it.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              page_id: { type: "string", description: "Notion page ID to update" },
+              properties: { type: "string", description: "JSON object of properties to update (optional)" },
+              append_content: { type: "string", description: "Text content to append to the page body (optional)" },
+            },
+            required: ["page_id"],
+          },
+        },
+        handler: async (args: Record<string, any>) => {
+          try {
+            const results: string[] = [];
+
+            if (args.properties) {
+              const properties = JSON.parse(args.properties);
+              await notion.updatePage(args.page_id, properties);
+              results.push("Properties updated.");
+            }
+
+            if (args.append_content) {
+              await notion.appendBlockChildren(args.page_id, [{
+                object: "block",
+                type: "paragraph",
+                paragraph: { rich_text: [{ type: "text", text: { content: args.append_content } }] },
+              }]);
+              results.push("Content appended.");
+            }
+
+            return results.join(" ") || "No changes specified.";
+          } catch (e: any) { return `Error updating page: ${e.message}`; }
+        },
+      },
+    ] as ToolEntry[] : []),
   ];
 }
 

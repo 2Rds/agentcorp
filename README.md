@@ -56,7 +56,7 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENROUTER_API_KEY=...             # Non-Claude models
 MEM0_API_KEY=...                   # Persistent memory
-# Optional: PORT, CORS_ORIGINS, COHERE_API_KEY, REDIS_URL, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE
+# Optional: PORT, CORS_ORIGINS, COHERE_API_KEY, REDIS_URL, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, NOTION_API_KEY
 ```
 
 **EA Agent (`agents/ea/.env`):**
@@ -66,7 +66,7 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENROUTER_API_KEY=...
 MEM0_API_KEY=...
-# Optional: PORT (3002), TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN, AGENT_MESSAGE_SECRET
+# Optional: PORT (3002), TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN, AGENT_MESSAGE_SECRET, NOTION_API_KEY
 ```
 
 ## Architecture
@@ -74,8 +74,8 @@ MEM0_API_KEY=...
 ```
 waas/
 ├── src/                    # React 18 frontend (Vercel)
-├── agent/                  # CFO Agent — Claude Agent SDK, 26 MCP tools (port 3001)
-├── agents/ea/              # EA Agent "Alex" — Anthropic Messages API, 7 tools (port 3002)
+├── agent/                  # CFO Agent — Claude Agent SDK, 31 MCP tools (port 3001)
+├── agents/ea/              # EA Agent "Alex" — Anthropic Messages API, 11 tools (port 3002)
 ├── packages/shared/        # @waas/shared — types, model registry, namespace, messaging
 ├── packages/runtime/       # @waas/runtime — Express agent execution engine
 ├── docs/waas/              # Platform architecture docs
@@ -98,6 +98,8 @@ waas/
 - **Cap Table** — Equity tracking across funding rounds
 - **Investor Portal** — DocSend-style links with password gating and analytics
 - **Knowledge Base** — Document uploads with Gemini vision, semantic search, graph memory
+- **Notion Integration** — Read/write access to Notion databases (Decision Log, Project Hub, Investor Pipeline) with scope enforcement
+- **PDF Generation** — Branded investor documents (exec summaries, metrics one-pagers) via Playwright HTML→PDF
 - **Google Sheets** — Model sync via service account with domain-wide delegation
 - **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching
 - **Inter-Agent Messaging** — Redis inbox + Telegram bot-to-bot transport
@@ -109,8 +111,8 @@ waas/
 |-------|-----------|
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts |
 | Backend | Supabase (Postgres, Auth, RLS, Edge Functions) |
-| CFO Agent | Express, Claude Agent SDK, 26 MCP tools |
-| EA Agent | Express, Anthropic Messages API, 7 native tools, grammy (Telegram) |
+| CFO Agent | Express, Claude Agent SDK, 31 MCP tools (incl. Notion + PDF) |
+| EA Agent | Express, Anthropic Messages API, 11 native tools, grammy (Telegram) |
 | Platform | @waas/shared (types), @waas/runtime (execution engine) |
 | Models | Claude Opus 4.6, Kimi K2.5, Gemini 3 Flash/Pro, DeepSeek V3.2, Sonar Pro |
 | Search | Redis 8.4 (vector search, semantic cache) |

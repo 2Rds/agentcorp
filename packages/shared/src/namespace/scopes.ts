@@ -10,10 +10,10 @@
 
 import type { ToolScope } from "../types.js";
 
-// Notion Database IDs (from docs/notion-workspace-blueprint.md)
+// Notion Database IDs (from BlockDrive HQ workspace, verified in memory/context/company.md)
 const NOTION_INVESTOR_PIPELINE = "b6b305990a8a438d921867d1a8628f31";
-const NOTION_DECISION_LOG = "f941e0b77cf3435f81f3052dd6209548";
-const NOTION_PROJECT_HUB = "40776caafbe7451c94491e2640835fcb";
+const NOTION_DECISION_LOG = "492613a71ab443eba53553f086375d0d";
+const NOTION_PROJECT_HUB = "4fa32110ae2b43b6839c1d25e84111fe";
 
 // ─── Executive Tier (cross-namespace read) ──────────────────────────────────
 

@@ -11,6 +11,8 @@ import { headlessBrowserTools } from "./headless-browser.js";
 import { excelExportTools } from "./excel-export.js";
 import { analyticsTools } from "./analytics.js";
 import { googleSheetsTools } from "./google-sheets-tools.js";
+import { notionTools } from "./notion-tools.js";
+import { pdfExportTools } from "./pdf-export.js";
 
 export function createCfoMcpServer(orgId: string, userId: string) {
   return createSdkMcpServer({
@@ -29,6 +31,8 @@ export function createCfoMcpServer(orgId: string, userId: string) {
       ...excelExportTools(orgId),
       ...analyticsTools(orgId),
       ...googleSheetsTools(orgId),
+      ...notionTools(orgId),
+      ...pdfExportTools(orgId),
     ],
   });
 }

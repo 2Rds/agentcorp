@@ -130,14 +130,32 @@ The agent server uses the Supabase service role key (bypasses RLS) for:
 
 The service role key is never exposed to the frontend. The frontend uses the anon/publishable key exclusively.
 
+## Namespace Isolation (Agent-to-Agent)
+
+Each agent operates within a defined `ToolScope` that controls access to Redis, mem0, Supabase tables, and Notion databases. Enforcement is fail-closed via `ScopeEnforcer` (`@waas/shared/namespace`).
+
+| Agent | Redis | Mem0 | Notion | Cross-Namespace |
+|-------|-------|------|--------|-----------------|
+| EA (Alex) | `blockdrive:ea:` RW, `blockdrive:` R | Own RW, `*` R | Decision Log RW, Project Hub RW, Pipeline R | Executive read all |
+| CFA (Morgan) | `blockdrive:cfa:` RW | Own RW | Pipeline RW, Decision Log RW, Project Hub R | None |
+
+CFO agent inlines CFA_SCOPE Notion access rules directly in `notion-client.ts` (the CFO agent package is not a workspace member and cannot import from `@waas/shared`). EA agent has executive-tier cross-namespace read access to all department memories.
+
+### Telegram Bot Security
+
+EA agent's Telegram bot transport enforces:
+- `TELEGRAM_CHAT_ID` whitelist — only authorized chat IDs can interact
+- 20-message conversation history limit per chat
+
 ## API Key Management
 
 | Key | Scope | Storage |
 |-----|-------|---------|
-| `ANTHROPIC_API_KEY` | Agent server only | `agent/.env` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Agent server only | `agent/.env` |
-| `OPENROUTER_API_KEY` | Agent server only | `agent/.env` |
-| `MEM0_API_KEY` | Agent server only | `agent/.env` |
+| `ANTHROPIC_API_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
+| `OPENROUTER_API_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
+| `MEM0_API_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
+| `NOTION_API_KEY` | Both agent servers (optional) | `agent/.env`, `agents/ea/.env` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Frontend (public) | `.env` |
 
 Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the gateway to inject API keys at the edge — keys never leave the server.

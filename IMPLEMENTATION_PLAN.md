@@ -2,6 +2,27 @@
 
 ## Current Status
 
+### Completed — v1.1.0 (2026-03-09)
+
+**Notion Integration**
+- [x] Notion client library for CFO agent (`agent/src/lib/notion-client.ts`) with inlined CFA_SCOPE enforcement
+- [x] 4 Notion MCP tools for CFO agent: `query_notion_database`, `create_notion_page`, `update_notion_page`, `append_notion_content`
+- [x] Notion client library for EA agent (`agents/ea/src/lib/notion-client.ts`)
+- [x] 4 Notion tools for EA agent: `search_notion`, `read_notion_page`, `create_notion_page`, `update_notion_page`
+- [x] `NOTION_API_KEY` env var in both agents (conditional — tools only register when set)
+- [x] Notion DB IDs in `scopes.ts` reconciled with workspace (Decision Log, Project Hub, Investor Pipeline)
+
+**PDF Generation**
+- [x] Playwright HTML→PDF generator (`agent/src/lib/pdf-generator.ts`) with branded BlockDrive template
+- [x] Metrics one-pager template (`agent/src/lib/templates/metrics-one-pager.ts`)
+- [x] `generate_investor_document` tool — markdown or structured metrics → PDF → Supabase Storage → signed URL
+
+**Bug Fixes**
+- [x] Investor link URL: `/share/` → `/dataroom/` in LinkCard + LinkDetailPanel
+- [x] Investor agent + documents vision fallback: Sonnet → Opus 4.6
+- [x] EA tool result handling: handlers return `string`, not `{ content, isError }`
+- [x] Stale mem0 user ID in `enforcement.ts`: `project-block-drive-vault` → `project-waas`
+
 ### Completed — CFO Platform (v1.0.0, 2026-03-04)
 
 **Core Platform**
@@ -54,7 +75,7 @@
 - **Client-side metrics only** — Derived metrics computed in browser
 - **Redis optional** — Vector search, semantic cache, plugin matching degrade to fallbacks without it
 - **Mem0 dependency** — Knowledge base entirely Mem0-dependent
-- **EA tool set is minimal** — No calendar integration, no actual email sending, no Slack tools yet
+- **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet
 - **Inter-agent messaging** — Designed in @waas/shared but not wired into EA yet (using Telegram transport only)
 
 ## Technical Debt
@@ -71,6 +92,8 @@
 
 ### Near-term
 
+- [ ] Create "Inside BlockDrive" Notion pages (department pages, agent databases)
+- [ ] Populate investor data room documents in DocSend
 - [ ] Wire EA into @waas/runtime (replace direct Express setup)
 - [ ] Google Calendar integration for EA (scheduling, meeting prep)
 - [ ] Slack integration for EA (channel monitoring, message sending)

@@ -76,7 +76,7 @@ export class ScopeEnforcer {
       // Executive/compliance: can search all agents, no agent_id filter
       return {
         AND: [
-          { user_id: "project-block-drive-vault" },
+          { user_id: "project-waas" },
           ...(additionalFilters ? [additionalFilters] : []),
         ],
       };
@@ -86,7 +86,7 @@ export class ScopeEnforcer {
     const readableIds = this.scope.mem0Namespaces.map(ns => ns.agentId);
     return {
       AND: [
-        { user_id: "project-block-drive-vault" },
+        { user_id: "project-waas" },
         { agent_id: { in: readableIds } },
         ...(additionalFilters ? [additionalFilters] : []),
       ],

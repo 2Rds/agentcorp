@@ -149,15 +149,10 @@ export async function createAgentQuery(options: AgentCallOptions): Promise<strin
       try {
         console.log(`Tool call: ${toolUse.name}(${JSON.stringify(toolUse.input).slice(0, 200)})`);
         const result = await handler(toolUse.input as Record<string, unknown>);
-        const text = result.content
-          .filter((c: any) => c.type === "text")
-          .map((c: any) => c.text)
-          .join("\n");
         toolResults.push({
           type: "tool_result",
           tool_use_id: toolUse.id,
-          content: text,
-          is_error: result.isError || false,
+          content: result,
         });
       } catch (err: any) {
         console.error(`Tool ${toolUse.name} error:`, err);

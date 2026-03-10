@@ -1,6 +1,42 @@
 # Changelog
 
-All notable changes to the Chief Financial Agent platform.
+All notable changes to the WaaS platform.
+
+## [v1.1.0] - 2026-03-09
+
+WaaS platform expansion: EA agent deployment, Notion integration for both agents, PDF generation for CFO agent, and multiple bug fixes.
+
+### Added
+
+- WaaS platform packages: `@waas/shared` (agent registry, model registry, namespace scopes, MessageBus, BoardSession) and `@waas/runtime` (Express agent execution engine, auth middleware, Telegram transport)
+- EA Agent "Alex" — Anthropic Messages API with agentic tool loop (15 turns max), 7 native tools (knowledge search/save, tasks, meeting notes, email drafts, web search), cross-namespace mem0 read access
+- Telegram bot transport for EA agent (`@alex_executive_assistant_bot`)
+- Google service account auth for Sheets integration (domain-wide delegation)
+- Atomic org creation RPC (`create_organization`) — single transaction for org + role + profile
+- Notion API integration for CFO agent: 4 tools (`query_notion_database`, `create_notion_page`, `update_notion_page`, `append_notion_content`) with CFA_SCOPE enforcement
+- Notion API integration for EA agent: 4 conditional tools (`search_notion`, `read_notion_page`, `create_notion_page`, `update_notion_page`) with executive-tier access
+- PDF generation tool for CFO agent (`generate_investor_document`) — Playwright HTML→PDF with branded BlockDrive template, uploads to Supabase Storage with signed URL
+- Metrics one-pager template for structured financial data → HTML rendering
+- Notion config (`NOTION_API_KEY`) as optional env var for both agents
+- EA database tables: `ea_tasks`, `ea_meeting_notes`, `ea_communications_log`
+- Enrichment pipeline for EA: parallel mem0 + cross-namespace + session + skills loading
+
+### Changed
+
+- CFO agent now has 31 tools (26 → 31 with Notion + PDF), EA has 11 tools (7 → 11 with Notion) when Notion is enabled
+- Comprehensive documentation update for WaaS platform + EA agent
+
+### Fixed
+
+- Investor link URL bug: `/share/:slug` → `/dataroom/:slug` (LinkCard + LinkDetailPanel)
+- Investor agent model: Sonnet → Opus 4.6 (policy compliance)
+- Documents vision fallback model: Sonnet → Opus 4.6 (policy compliance)
+- Notion DB IDs in `scopes.ts` reconciled with workspace (Decision Log + Project Hub)
+- EA Dockerfile COPY syntax for DigitalOcean App Platform build
+- EA switched from Agent SDK to Anthropic Messages API (better tool loop control)
+- `claude-opus-4-6` model ID (without date suffix)
+- EA agent tool result handling: handlers return `string`, not `{ content, isError }`
+- Stale mem0 user ID in `enforcement.ts`: `project-block-drive-vault` → `project-waas`
 
 ## [v1.0.0] - 2026-03-04
 

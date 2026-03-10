@@ -12,7 +12,7 @@ interface LinkDetailPanelProps {
 
 export function LinkDetailPanel({ analytics }: LinkDetailPanelProps) {
   const { link, views, totalViews, uniqueViewers, avgDuration, avgCompletion, lastViewedAt } = analytics;
-  const shareUrl = `${window.location.origin}/share/${link.slug}`;
+  const shareUrl = `${window.location.origin}/dataroom/${link.slug}`;
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(shareUrl);

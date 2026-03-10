@@ -64,6 +64,10 @@ export const config = {
   xeroEnabled: !!process.env.XERO_CLIENT_ID && !!process.env.XERO_CLIENT_SECRET,
   stripeIntegrationEnabled: !!process.env.STRIPE_CLIENT_ID && !!process.env.STRIPE_CLIENT_SECRET,
 
+  // Notion integration (optional — enables agent Notion tools when configured)
+  notionApiKey: optional("NOTION_API_KEY"),
+  notionEnabled: !!process.env.NOTION_API_KEY,
+
   // Gemini vision uses OpenRouter now; Kimi uses OpenRouter. Always available.
   useGeminiVision: true,
   useKimi: true,

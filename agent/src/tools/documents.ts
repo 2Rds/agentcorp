@@ -33,7 +33,7 @@ async function callClaudeVision(
     method: "POST",
     headers: getAnthropicHeaders(),
     body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-opus-4-6",
       max_tokens: 4096,
       messages: [{
         role: "user",

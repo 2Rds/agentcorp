@@ -80,7 +80,7 @@ Tests use Vitest with jsdom. Test files live alongside source using `*.test.ts` 
 ### Three-Tier System
 
 1. **React 18 Frontend** — Vite + shadcn/ui + Tailwind, deployed to Vercel at `cfo.blockdrive.co`
-2. **CFO Agent** (`agent/`) — Express + Claude Agent SDK, 26 MCP tools, multi-model orchestration
+2. **CFO Agent** (`agent/`) — Express + Claude Agent SDK, 31 MCP tools, multi-model orchestration
 3. **EA Agent** (`agents/ea/`) — Express + Anthropic Messages API (direct), native tool loop, Telegram bot
 
 Backend: Supabase (Postgres, Auth, RLS, Edge Functions). Memory: Mem0 (org-scoped persistent memory with graph).
@@ -111,12 +111,12 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Key directories:**
 - `agent/src/agent/` — Agent configurations (`cfo-agent.ts`, `investor-agent.ts`, `knowledge-extractor.ts`, `system-prompt.ts`)
-- `agent/src/tools/` — 26 MCP tools across 9 domains, all org-scoped via closure
-- `agent/src/lib/` — Multi-model clients (`model-router.ts`, `gemini-client.ts`, `mem0-client.ts`, `google-sheets-client.ts`), infrastructure (`redis-client.ts`, `semantic-cache.ts`, `plugin-loader.ts`)
+- `agent/src/tools/` — 31 MCP tools across 11 domains, all org-scoped via closure
+- `agent/src/lib/` — Multi-model clients (`model-router.ts`, `gemini-client.ts`, `mem0-client.ts`, `google-sheets-client.ts`, `notion-client.ts`), infrastructure (`redis-client.ts`, `semantic-cache.ts`, `plugin-loader.ts`, `pdf-generator.ts`), templates (`templates/metrics-one-pager.ts`)
 - `agent/src/routes/` — Express routes (`chat.ts`, `model.ts`, `dataroom.ts`, `knowledge.ts`, `health.ts`, `webhooks.ts`)
 - `agent/src/middleware/` — Auth (Supabase `getUser()` token verification with 5-min TTL cache + org membership check)
 
-**Tools (26 total):**
+**Tools (31 total):**
 - financial-model (3): get, upsert (K2.5 plan generation + memory), delete
 - derived-metrics (1): compute burn, runway, MRR, gross margin
 - cap-table (3): get, upsert (graph memory for fundraising), delete
@@ -126,6 +126,8 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - document-rag (1): `query_documents` via Redis hybrid search
 - google-sheets (3): populate_model_sheet, read_model_sheet, get_model_sheet_info — uses **service account with domain-wide delegation** (`GOOGLE_SERVICE_ACCOUNT_KEY_FILE` env var)
 - analytics (1): `run_analytics_query` — natural language → SQL → chart suggestion
+- notion (4): query_notion_database, create/update/append — CFA_SCOPE enforced, conditional on `NOTION_API_KEY`
+- pdf-export (1): `generate_investor_document` — markdown/metrics → Playwright PDF → Supabase Storage signed URL
 - web-fetch (1), headless-browser (1), excel-export (1)
 
 **Routes:**
@@ -139,7 +141,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment:**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `MEM0_API_KEY`
-- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `MOONSHOT_API_KEY`, `COHERE_API_KEY`, `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (path to service account JSON key for Sheets/Drive)
+- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `MOONSHOT_API_KEY`, `COHERE_API_KEY`, `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (path to service account JSON key for Sheets/Drive), `NOTION_API_KEY` (enables Notion tools)
 
 ### EA Agent (`agents/ea/src/`)
 
@@ -149,7 +151,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **System prompt** defines Alex's role, personality, autonomous operations, escalation rules ($500+ budget, legal, hiring, investor terms, public statements, strategic pivots, access grants), and tool usage patterns.
 
-**Tools (7, defined natively in `bridge.ts`):**
+**Tools (11, defined natively in `bridge.ts`):**
 - `search_knowledge` — Cross-namespace mem0 search (executive read access to all departments)
 - `save_knowledge` — Persist facts/decisions to mem0 (9 categories: scheduling, communications, contacts, etc.)
 - `create_task` — Create tasks in `ea_tasks` table
@@ -157,6 +159,10 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `save_meeting_notes` — Structured meeting notes with action items in `ea_meeting_notes`
 - `draft_email` — Email drafts stored in `ea_communications_log`
 - `web_search` — Real-time web search via Perplexity Sonar (OpenRouter)
+- `search_notion` — Search Notion workspace by query (conditional on `NOTION_API_KEY`)
+- `read_notion_page` — Read page content and properties by ID
+- `create_notion_page` — Create in database or as child page
+- `update_notion_page` — Update properties and/or append content
 
 **Transport:** Telegram bot (`@alex_executive_assistant_bot`) via grammy. Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
 
@@ -173,7 +179,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment (see `agents/ea/.env.example`):**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MEM0_API_KEY`, `OPENROUTER_API_KEY`
-- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID`, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`
+- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID`, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools)
 
 ### WaaS Platform Packages
 
@@ -257,6 +263,9 @@ Deno runtime. Used as fallback when agent server is unreachable.
 - **Inter-agent messaging**: MessageBus via Redis LISTs + Telegram bot-to-bot DMs (transitioning to CF Queues).
 - **Provider Keys mode**: When `CF_AIG_TOKEN` is set, Cloudflare AI Gateway injects API keys at edge — provider keys become optional.
 - **Google Sheets**: Switched from OAuth 2.0 to service account with domain-wide delegation (`GOOGLE_SERVICE_ACCOUNT_KEY_FILE`). Service account JSON must never be committed (gitignored).
+- **Notion scope enforcement** (CFO): CFA_SCOPE Notion access rules inlined in `agent/src/lib/notion-client.ts` (agent package is outside npm workspaces, cannot import `@waas/shared`). EA agent has executive-tier access without scope enforcement.
+- **Conditional tool loading**: Notion tools only register when `NOTION_API_KEY` is set (`config.notionEnabled`). Both agents check this at tool factory time.
+- **PDF generation**: Playwright HTML→PDF with branded template, uploads to Supabase Storage `{orgId}/investor-docs/`, returns 1hr signed URL (matches excel-export pattern).
 
 ## Agent Network
 

@@ -52,6 +52,10 @@ export const config = {
   telegramWebhookSecret: optional("TELEGRAM_WEBHOOK_SECRET"),
   telegramEnabled: !!process.env.TELEGRAM_BOT_TOKEN,
 
+  // Notion integration (optional — enables agent Notion tools when configured)
+  notionApiKey: optional("NOTION_API_KEY"),
+  notionEnabled: !!process.env.NOTION_API_KEY,
+
   // Inter-agent messaging
   agentMessageSecret: optional("AGENT_MESSAGE_SECRET"),
 } as const;

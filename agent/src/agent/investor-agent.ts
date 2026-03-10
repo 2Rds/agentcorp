@@ -46,7 +46,7 @@ export function createInvestorQuery(options: InvestorQueryOptions) {
       includePartialMessages: true,
       permissionMode: "bypassPermissions",
       allowDangerouslySkipPermissions: true,
-      model: "claude-sonnet-4-5-20250929", // Use Sonnet for cost efficiency on investor Q&A
+      model: "claude-opus-4-6",
       maxTurns: 10,
     },
   });

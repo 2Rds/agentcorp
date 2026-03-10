@@ -2,7 +2,7 @@
 
 ## Overview
 
-Two-tier system: a React 18 frontend deployed to Vercel, and an Express agent server powered by the Claude Agent SDK with multi-model orchestration and persistent memory. Supabase provides the database, auth, storage, and edge function fallback layer.
+Three-tier system: a React 18 frontend deployed to Vercel, two Express agent servers (CFO + EA), and Supabase for database, auth, storage, and edge function fallback.
 
 ```
                     ┌─────────────────┐
@@ -13,17 +13,17 @@ Two-tier system: a React 18 frontend deployed to Vercel, and an Express agent se
               ┌──────────────┼──────────────┐
               │              │              │
      ┌────────▼───────┐ ┌───▼──────┐ ┌────▼────────┐
-     │  Agent Server   │ │ Supabase │ │  Edge Fns   │
-     │  (Express/SDK)  │ │ Postgres │ │  (fallback) │
-     └──┬───┬───┬──┬──┘ └──────────┘ └─────────────┘
-        │   │   │  │
-   ┌────┘   │   │  └────┐
-   │        │   │       │
-┌──▼──┐ ┌──▼──┐│  ┌────▼────┐
-│Opus │ │Open ││  │  Redis   │
-│4.6  │ │Route││  │  8.4     │
-│     │ │r    ││  │          │
-└─────┘ └─────┘│  └──────────┘
+     │  CFO Agent      │ │ Supabase │ │  EA Agent    │
+     │  (Agent SDK)    │ │ Postgres │ │  (Messages)  │
+     │  31 MCP tools   │ │          │ │  11 tools    │
+     └──┬───┬───┬──┬──┘ └──────────┘ └──┬───┬──────┘
+        │   │   │  │                     │   │
+   ┌────┘   │   │  └────┐          ┌────┘   └────┐
+   │        │   │       │          │              │
+┌──▼──┐ ┌──▼──┐│  ┌────▼────┐  ┌──▼──┐    ┌─────▼───┐
+│Opus │ │Open ││  │  Redis   │  │Tele │    │  Notion  │
+│4.6  │ │Route││  │  8.4     │  │gram │    │  API     │
+└─────┘ └─────┘│  └──────────┘  └─────┘    └─────────┘
            ┌───▼──┐
            │ Mem0 │
            └──────┘
@@ -88,7 +88,7 @@ Express server using the Claude Agent SDK. Claude Opus 4.6 as the primary reason
 
 All non-Claude models route through OpenRouter via `model-router.ts` using native `fetch`. Optional Cloudflare AI Gateway proxy when `CF_ACCOUNT_ID` + `CF_GATEWAY_ID` are set.
 
-### Tools (26 total across 9 domains)
+### Tools (31 total across 11 domains)
 
 | Domain | Count | Tools |
 |--------|-------|-------|
@@ -101,9 +101,11 @@ All non-Claude models route through OpenRouter via `model-router.ts` using nativ
 | Document RAG | 1 | `query_documents` via Redis hybrid search |
 | Google Sheets | 3 | populate_model_sheet, read_model_sheet, get_model_sheet_info |
 | Analytics | 1 | natural language → SQL → chart suggestion |
+| Notion | 4 | query_notion_database, create/update/append (CFA_SCOPE enforced) |
+| PDF Export | 1 | generate_investor_document (Playwright HTML→PDF → Supabase Storage) |
 | Utilities | 3 | web_fetch, headless_browser, excel_export |
 
-Tools are org-scoped via closure — `orgId` passed to each factory function. Assembled into a single MCP server via `createSdkMcpServer`.
+Tools are org-scoped via closure — `orgId` passed to each factory function. Assembled into a single MCP server via `createSdkMcpServer`. Notion tools are conditional — only registered when `NOTION_API_KEY` is set.
 
 ### Routes
 
@@ -130,6 +132,35 @@ Client POST /api/chat
   → Stream SDK messages as SSE
   → On completion: extract knowledge (fire-and-forget)
 ```
+
+## EA Agent Server (`agents/ea/src/`)
+
+Express server using the Anthropic Messages API directly (not Claude Agent SDK). Claude Opus 4.6 as the primary model with an agentic tool loop (max 15 turns).
+
+### Tools (11 total)
+
+| Domain | Count | Tools |
+|--------|-------|-------|
+| Knowledge | 2 | search_knowledge (cross-namespace), save_knowledge |
+| Tasks | 2 | create_task, list_tasks |
+| Meeting Notes | 1 | save_meeting_notes |
+| Communications | 1 | draft_email |
+| Web Search | 1 | web_search (Perplexity Sonar) |
+| Notion | 4 | search_notion, read_notion_page, create_notion_page, update_notion_page |
+
+Tools are defined as native Anthropic API `Tool` definitions + handler functions in `bridge.ts` (tool bridge pattern). Notion tools are conditional — only registered when `NOTION_API_KEY` is set.
+
+### Transport
+
+Primary interface: Telegram bot (`@alex_executive_assistant_bot`) via grammy. Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
+
+### Enrichment Pipeline
+
+System prompt enriched via `Promise.allSettled` (parallel):
+1. EA-scoped mem0 memories (top 10)
+2. Cross-namespace memories (top 10, all departments)
+3. Session memories (last 10 from conversation)
+4. Matched skills (keyword → vector → dedup)
 
 ## Infrastructure
 
@@ -188,9 +219,14 @@ Supabase PostgreSQL with Row-Level Security. See [SECURITY.md](SECURITY.md) for 
 | `investor_links` / `link_views` | Shareable links + analytics |
 | `model_sheets` | Google Sheets references |
 | `integrations` | Third-party connections |
+| `ea_tasks` | EA task queue |
+| `ea_meeting_notes` | EA meeting notes with action items |
+| `ea_communications_log` | EA email drafts and comms |
 
 ## Deployment
 
 - **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `cfo.blockdrive.co`)
-- **Agent server:** Docker (multi-stage build for TypeScript compilation)
+- **CFO Agent:** DigitalOcean App Platform (Docker, port 3001)
+- **EA Agent:** DigitalOcean App Platform (Docker, port 3002, `/ea` ingress)
 - **Redis:** Docker Compose alongside agent server
+- **n8n:** DigitalOcean Droplet (`n8n.blockdrive.co`)
