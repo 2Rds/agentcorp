@@ -192,7 +192,7 @@ Wraps model calls for deterministic outputs. Caches Kimi, Gemini, DeepSeek respo
 
 ### Knowledge Plugins
 
-16 skills from Anthropic knowledge-work-plugins. 3-stage resolution:
+CFO agent: 31 skills across 6 groups (brand-voice, data, enterprise-search, finance, legal, operations). EA agent: 84 skills across 17 groups (full library). 3-stage resolution:
 
 1. **Keyword pre-filter** — Tokenize query, score against skill keywords
 2. **Redis vector re-rank** — KNN search on `idx:plugins`, filter to keyword candidates

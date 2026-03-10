@@ -92,8 +92,8 @@ waas/
 
 ## Features
 
-- **AI CFO Chat** — Streaming Claude Opus 4.6 with org memories and 16 knowledge plugins
-- **Executive Assistant** — Autonomous task management, meeting notes, cross-department queries, Telegram interface
+- **AI CFO Chat** — Streaming Claude Opus 4.6 with org memories and 31 knowledge plugins
+- **Executive Assistant** — Autonomous task management, meeting notes, cross-department queries, Telegram interface, 84 knowledge plugins
 - **Financial Model** — SaaS-template with scenario toggling, derived metrics (burn, runway, MRR)
 - **Cap Table** — Equity tracking across funding rounds
 - **Investor Portal** — DocSend-style links with password gating and analytics

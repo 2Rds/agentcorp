@@ -130,6 +130,12 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - pdf-export (1): `generate_investor_document` — markdown/metrics → Playwright PDF → Supabase Storage signed URL
 - web-fetch (1), headless-browser (1), excel-export (1)
 
+**Knowledge Plugins (31 skills across 6 groups):**
+- brand-voice (3), data (7), enterprise-search (3), finance (6), legal (6), operations (6)
+- Resolved via enrichment pipeline: keyword pre-filter → Redis vector → Cohere rerank
+- Max 3 skills / 4000 tokens per query
+- Registry: `agent/plugins/registry.json` (built by `npm run build:registry`)
+
 **Routes:**
 - `POST /api/chat` — Streaming AI chat (SSE with memory-enriched system prompt)
 - `GET /api/model/status` — Google Sheets integration status
@@ -163,6 +169,12 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `read_notion_page` — Read page content and properties by ID
 - `create_notion_page` — Create in database or as child page
 - `update_notion_page` — Update properties and/or append content
+
+**Knowledge Plugins (84 skills across 17 groups):**
+- apollo, brand-voice, common-room, customer-support, data, design, engineering, enterprise-search, finance, human-resources, legal, marketing, operations, product-management, productivity, sales, slack-by-salesforce
+- Full knowledge-work-plugins library (EA needs breadth as executive assistant)
+- `tool-mapping.json` maps `~~placeholder` tokens to EA's actual tools
+- Registry: `agents/ea/plugins/registry.json` (built by `npm run build:registry`)
 
 **Transport:** Telegram bot (`@alex_executive_assistant_bot`) via grammy. Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
 

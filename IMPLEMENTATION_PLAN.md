@@ -2,6 +2,14 @@
 
 ## Current Status
 
+### Completed — v1.1.1 (2026-03-09)
+
+**Knowledge-Work-Plugins**
+- [x] Full knowledge-work-plugins library for EA agent: 84 skills across 17 groups
+- [x] Role-relevant plugins for CFO agent: 31 skills across 6 groups (brand-voice, data, enterprise-search, finance, legal, operations)
+- [x] EA `tool-mapping.json` mapping `~~placeholder` tokens to actual tools
+- [x] Plugin registries (`registry.json`) built for both agents
+
 ### Completed — v1.1.0 (2026-03-09)
 
 **Notion Integration**

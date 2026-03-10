@@ -2,6 +2,17 @@
 
 All notable changes to the WaaS platform.
 
+## [v1.1.1] - 2026-03-09
+
+Knowledge-work-plugins integration for both agents — contextual domain skills injected into system prompts via enrichment pipeline.
+
+### Added
+
+- Full knowledge-work-plugins library for EA agent: 84 skills across 17 groups (apollo, brand-voice, common-room, customer-support, data, design, engineering, enterprise-search, finance, human-resources, legal, marketing, operations, product-management, productivity, sales, slack-by-salesforce)
+- Role-relevant knowledge-work-plugins for CFO agent: 31 skills across 6 groups (brand-voice, data, enterprise-search, finance, legal, operations)
+- EA agent `tool-mapping.json` mapping `~~placeholder` tokens to EA's actual tools (search_knowledge, search_notion, draft_email, list_tasks)
+- Plugin build scripts (`build-registry.ts`) and `registry.json` for both agents
+
 ## [v1.1.0] - 2026-03-09
 
 WaaS platform expansion: EA agent deployment, Notion integration for both agents, PDF generation for CFO agent, and multiple bug fixes.

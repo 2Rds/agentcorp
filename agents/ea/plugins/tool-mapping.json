@@ -1,0 +1,42 @@
+{
+  "~~data_warehouse": {
+    "tool": "search_knowledge",
+    "description": "Searches org knowledge base with cross-namespace access"
+  },
+  "~~cloud_storage": {
+    "tool": "search_notion",
+    "description": "Searches the Notion workspace for relevant pages"
+  },
+  "~~knowledge_base": {
+    "tool": "search_knowledge",
+    "description": "Searches the org knowledge base across all departments"
+  },
+  "~~erp": {
+    "tool": "search_knowledge",
+    "description": "Searches financial knowledge (EA has read access to CFA namespace)"
+  },
+  "~~chat": {
+    "tool": null,
+    "note": "Slack integration not yet connected"
+  },
+  "~~email": {
+    "tool": "draft_email",
+    "description": "Drafts an email (does not send)"
+  },
+  "~~crm": {
+    "tool": null,
+    "note": "CRM integration not connected"
+  },
+  "~~ticketing_system": {
+    "tool": "list_tasks",
+    "description": "Lists tasks from the EA task queue"
+  },
+  "~~wiki": {
+    "tool": "search_knowledge",
+    "description": "Searches the org knowledge base"
+  },
+  "~~project_management": {
+    "tool": "search_notion",
+    "description": "Searches Notion for project pages and databases"
+  }
+}
