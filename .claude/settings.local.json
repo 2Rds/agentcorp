@@ -15,7 +15,10 @@
       "mcp__ide__*",
       "mcp__mem0__search-memories",
       "mcp__mem0__search_memories",
-      "mcp__mem0__add_memory"
+      "mcp__mem0__add_memory",
+      "mcp__mem0__add-memory",
+      "mcp__claude_ai_Notion__notion-search",
+      "mcp__claude_ai_Notion__notion-fetch"
     ],
     "deny": [
       "Bash(rm -rf /*)",
@@ -24,6 +27,10 @@
       "Bash(git clean -f:*)"
     ]
   },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "mem0"
+  ],
   "hooks": {
     "PreToolUse": [
       {

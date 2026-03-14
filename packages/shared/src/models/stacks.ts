@@ -56,10 +56,10 @@ export const IR_STACK: ModelStack = {
   reranker: COHERE_RERANK,
 };
 
-/** Chief Marketing Agent — content creation, trend research */
+/** Chief Marketing Agent — content creation, trend research, X/Twitter */
 export const CMA_STACK: ModelStack = {
   primary: OPUS,
-  support: [GEMINI, SONAR],               // Content + trend research
+  support: [GEMINI, SONAR, GROK_FAST],    // Content + trend research + X/Twitter via Grok
   embedding: COHERE_EMBED,
 };
 
@@ -68,6 +68,7 @@ export const COMPLIANCE_STACK: ModelStack = {
   primary: OPUS,
   support: [GRANITE, COMMAND_A],           // ISO 42001 compliance + legal doc RAG
   embedding: COHERE_EMBED,
+  reranker: COHERE_RERANK,                 // Audit-read-all generates noisy cross-namespace results
 };
 
 /** Legal Counsel — contract analysis, legal research */

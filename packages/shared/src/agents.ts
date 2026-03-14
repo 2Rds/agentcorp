@@ -9,8 +9,14 @@
  */
 
 import type { AgentConfig } from "./types.js";
-import { EA_STACK, COA_STACK, CFA_STACK, IR_STACK } from "./models/stacks.js";
-import { EA_SCOPE, COA_SCOPE, CFA_SCOPE, IR_SCOPE } from "./namespace/scopes.js";
+import {
+  EA_STACK, COA_STACK, CFA_STACK, IR_STACK,
+  CMA_STACK, COMPLIANCE_STACK, LEGAL_STACK, SALES_STACK,
+} from "./models/stacks.js";
+import {
+  EA_SCOPE, COA_SCOPE, CFA_SCOPE, IR_SCOPE,
+  CMA_SCOPE, COMPLIANCE_SCOPE, LEGAL_SCOPE, SALES_SCOPE,
+} from "./namespace/scopes.js";
 import { AGENT_PLUGINS } from "./plugins.js";
 
 // ─── Agent Configs (deployment order) ───────────────────────────────────────
@@ -97,6 +103,78 @@ export const IR_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-ir"]!,
 };
 
+/** Chief Marketing Agent — content, campaigns, brand, X/Twitter */
+export const CMA_CONFIG: AgentConfig = {
+  id: "blockdrive-cma",
+  name: "Chief Marketing Agent",
+  title: "Chief Marketing Agent",
+  tier: "department-head",
+  reportsTo: "blockdrive-coa",
+  namespace: "cma",
+  modelStack: CMA_STACK,
+  scope: CMA_SCOPE,
+  channels: [
+    { type: "web", channelId: "cma-dashboard", canSend: true },
+    { type: "telegram", channelId: "blockdrive_cma_bot", canSend: true },
+    { type: "slack", channelId: "blockdrive-cma", canSend: true },
+  ],
+  plugins: AGENT_PLUGINS["blockdrive-cma"]!,
+};
+
+/** Chief Compliance Officer — regulatory, governance, audit */
+export const COMPLIANCE_CONFIG: AgentConfig = {
+  id: "blockdrive-compliance",
+  name: "Chief Compliance Officer",
+  title: "Chief Compliance Officer",
+  tier: "department-head",
+  reportsTo: "blockdrive-coa",
+  namespace: "compliance",
+  modelStack: COMPLIANCE_STACK,
+  scope: COMPLIANCE_SCOPE,
+  channels: [
+    { type: "web", channelId: "compliance-dashboard", canSend: true },
+    { type: "telegram", channelId: "blockdrive_compliance_bot", canSend: true },
+    { type: "slack", channelId: "blockdrive-compliance", canSend: true },
+  ],
+  plugins: AGENT_PLUGINS["blockdrive-compliance"]!,
+};
+
+/** Legal Counsel — contracts, IP, regulatory filings */
+export const LEGAL_CONFIG: AgentConfig = {
+  id: "blockdrive-legal",
+  name: "Legal Counsel",
+  title: "Legal Counsel",
+  tier: "department-head",
+  reportsTo: "blockdrive-coa",
+  namespace: "legal",
+  modelStack: LEGAL_STACK,
+  scope: LEGAL_SCOPE,
+  channels: [
+    { type: "web", channelId: "legal-dashboard", canSend: true },
+    { type: "telegram", channelId: "blockdrive_legal_bot", canSend: true },
+    { type: "slack", channelId: "blockdrive-legal", canSend: true },
+  ],
+  plugins: AGENT_PLUGINS["blockdrive-legal"]!,
+};
+
+/** Head of Sales — pipeline, prospecting, proposals */
+export const SALES_CONFIG: AgentConfig = {
+  id: "blockdrive-sales",
+  name: "Head of Sales",
+  title: "Head of Sales",
+  tier: "department-head",
+  reportsTo: "blockdrive-coa",
+  namespace: "sales",
+  modelStack: SALES_STACK,
+  scope: SALES_SCOPE,
+  channels: [
+    { type: "web", channelId: "sales-dashboard", canSend: true },
+    { type: "telegram", channelId: "blockdrive_sales_bot", canSend: true },
+    { type: "slack", channelId: "blockdrive-sales", canSend: true },
+  ],
+  plugins: AGENT_PLUGINS["blockdrive-sales"]!,
+};
+
 // ─── Agent Registry ─────────────────────────────────────────────────────────
 
 /** All configured agents, indexed by ID */
@@ -105,7 +183,10 @@ export const AGENT_REGISTRY: Record<string, AgentConfig> = {
   "blockdrive-coa": COA_CONFIG,
   "blockdrive-cfa": CFA_CONFIG,
   "blockdrive-ir": IR_CONFIG,
-  // Future: blockdrive-cma, blockdrive-compliance, blockdrive-legal, blockdrive-sales
+  "blockdrive-cma": CMA_CONFIG,
+  "blockdrive-compliance": COMPLIANCE_CONFIG,
+  "blockdrive-legal": LEGAL_CONFIG,
+  "blockdrive-sales": SALES_CONFIG,
 };
 
 /** Get an agent's configuration or throw */

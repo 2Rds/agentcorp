@@ -52,6 +52,7 @@ export type { RedisClient } from "./namespace/index.js";
 export {
   AGENT_REGISTRY,
   EA_CONFIG, COA_CONFIG, CFA_CONFIG, IR_CONFIG,
+  CMA_CONFIG, COMPLIANCE_CONFIG, LEGAL_CONFIG, SALES_CONFIG,
   getAgentConfig, getDirectReports, getChainOfCommand,
 } from "./agents.js";
 

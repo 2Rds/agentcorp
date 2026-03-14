@@ -19,7 +19,7 @@ import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 export function sdkMessageToSSE(message: SDKMessage): string | null {
   // Streaming partial messages (token-by-token)
   if (message.type === "stream_event") {
-    const event = message.event as Record<string, unknown>;
+    const event = message.event as unknown as Record<string, unknown>;
     if (event.type === "content_block_delta") {
       const delta = event.delta as Record<string, unknown> | undefined;
       if (delta?.type === "text_delta" && typeof delta.text === "string") {

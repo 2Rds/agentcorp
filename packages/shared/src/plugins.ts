@@ -73,6 +73,8 @@ export const AGENT_PLUGINS: Record<string, PluginName[]> = {
     "engineering",            // System design awareness, incident routing
     "human-resources",        // Org planning, people analytics
     "data",                   // Dashboard construction for workforce analytics
+    "finance",                // Budget oversight, financial awareness across departments
+    "customer-support",       // Customer operations visibility for cross-dept coordination
     "slack-by-salesforce",    // Slack workspace management
   ],
 
@@ -103,6 +105,8 @@ export const AGENT_PLUGINS: Record<string, PluginName[]> = {
     "design",                 // Design critique, UX writing, accessibility
     "enterprise-search",      // Trend and competitive research synthesis
     "data",                   // Performance analytics, dashboards
+    "sales",                  // Competitive intel, sales enablement content
+    "product-management",     // Product launch content, feature awareness
     "slack-by-salesforce",
   ],
 
@@ -112,6 +116,8 @@ export const AGENT_PLUGINS: Record<string, PluginName[]> = {
     "operations",             // Risk assessment, compliance tracking, process documentation
     "finance",                // Audit support, SOX testing awareness
     "enterprise-search",      // Cross-department compliance search
+    "human-resources",        // Labor compliance, employment law, org policy
+    "data",                   // GDPR/data governance, data quality auditing
     "slack-by-salesforce",
   ],
 
@@ -120,6 +126,9 @@ export const AGENT_PLUGINS: Record<string, PluginName[]> = {
     "legal",                  // Full legal suite: contract review, NDA triage, compliance, risk assessment
     "enterprise-search",      // Legal research synthesis
     "operations",             // Vendor management (contract lifecycle)
+    "finance",                // Financial contracts, investment agreement terms
+    "human-resources",        // Employment law, labor agreements, HR policy
+    "data",                   // Privacy regulations, data governance compliance
     "slack-by-salesforce",
   ],
 
@@ -131,6 +140,8 @@ export const AGENT_PLUGINS: Record<string, PluginName[]> = {
     "marketing",              // Competitive analysis, content assets for sales enablement
     "enterprise-search",      // Prospect research synthesis
     "customer-support",       // Customer research (understanding existing customers for upsell)
+    "product-management",     // Product knowledge for pitches, feature awareness
+    "data",                   // Pipeline analytics, data-driven forecasting
     "slack-by-salesforce",
   ],
 
