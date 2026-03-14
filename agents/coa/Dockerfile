@@ -1,36 +1,53 @@
-# ─── Build stage ──────────────────────────────────────────────────────────────
+# Build context: repo root (DO App Platform — no source_dir set)
 FROM node:20-slim AS builder
 
 WORKDIR /app
 
-# Copy package files first for layer caching
-COPY package.json package-lock.json* ./
-RUN npm ci --production=false
+# Copy workspace root + package manifests (layer caching)
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/runtime/package.json packages/runtime/
+COPY agents/coa/package.json agents/coa/
 
-# Copy source and build
-COPY tsconfig.json ./
-COPY src/ src/
-COPY scripts/ scripts/
+# Install all workspace dependencies
+RUN npm ci
 
-# Build registry (creates plugins/registry.json if plugins exist)
-RUN npx tsx scripts/build-registry.ts || true
+# Build @waas/shared
+COPY packages/shared/tsconfig.json packages/shared/
+COPY packages/shared/src/ packages/shared/src/
+RUN npm run build -w packages/shared
 
-# Compile TypeScript
-RUN npx tsc
+# Build @waas/runtime
+COPY packages/runtime/tsconfig.json packages/runtime/
+COPY packages/runtime/src/ packages/runtime/src/
+RUN npm run build -w packages/runtime
 
-# ─── Production stage ────────────────────────────────────────────────────────
+# Build agent
+COPY agents/coa/tsconfig.json agents/coa/
+COPY agents/coa/src/ agents/coa/src/
+COPY agents/coa/scripts/ agents/coa/scripts/
+COPY agents/coa/plugins/ agents/coa/plugins/
+RUN cd agents/coa && npx tsx scripts/build-registry.ts || true
+RUN npx tsc -p agents/coa
+
+# ─── Production ──────────────────────────────────────────────────────────────
 FROM node:20-slim
 
 WORKDIR /app
 
-# Copy package files and install production deps only
 COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/
+COPY packages/runtime/package.json packages/runtime/
+COPY agents/coa/package.json agents/coa/
+
 RUN npm ci --omit=dev && npm cache clean --force
 
-# Copy compiled output and plugins registry
-COPY --from=builder /app/dist/ dist/
-COPY --from=builder /app/plugins/ plugins/
+COPY --from=builder /app/packages/shared/dist/ packages/shared/dist/
+COPY --from=builder /app/packages/runtime/dist/ packages/runtime/dist/
+COPY --from=builder /app/agents/coa/dist/ agents/coa/dist/
+COPY --from=builder /app/agents/coa/plugins/ agents/coa/plugins/
 
+WORKDIR /app/agents/coa
 ENV NODE_ENV=production
 ENV PORT=3003
 
