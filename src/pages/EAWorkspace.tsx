@@ -12,7 +12,7 @@ function TasksTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['ea-tasks', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('ea_tasks').select('*').eq('organization_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('ea_tasks').select('*').eq('organization_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<ClipboardList className="h-6 w-6 text-muted-foreground" />} title="No tasks yet" description="Chat with Alex to create tasks." />;
@@ -29,7 +29,7 @@ function MeetingNotesTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['ea-meetings', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('ea_meeting_notes').select('*').eq('organization_id', orgId!).order('date', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('ea_meeting_notes').select('*').eq('organization_id', orgId!).order('date', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<FileText className="h-6 w-6 text-muted-foreground" />} title="No meeting notes" description="Meeting notes will appear here after Alex records them." />;
@@ -45,7 +45,7 @@ function CommunicationsTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['ea-comms', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('ea_communications_log').select('*').eq('organization_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('ea_communications_log').select('*').eq('organization_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<Mail className="h-6 w-6 text-muted-foreground" />} title="No communications" description="Communications from Alex will appear here." />;

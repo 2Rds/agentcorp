@@ -12,7 +12,7 @@ function ContentTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['cma-content', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('cma_content_drafts').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('cma_content_drafts').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<FileText className="h-6 w-6 text-muted-foreground" />} title="No content drafts" description="Chat with Taylor to create content." />;
@@ -29,7 +29,7 @@ function CampaignsTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['cma-campaigns', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('cma_campaigns').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('cma_campaigns').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<Megaphone className="h-6 w-6 text-muted-foreground" />} title="No campaigns" description="Campaigns created by Taylor will appear here." />;

@@ -13,7 +13,7 @@ function ReviewsTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['legal-reviews', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('legal_reviews').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('legal_reviews').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<Scale className="h-6 w-6 text-muted-foreground" />} title="No legal reviews" description="Legal reviews by Casey will appear here." />;
@@ -30,7 +30,7 @@ function IPTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['legal-ip', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('legal_ip_portfolio').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('legal_ip_portfolio').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<FileText className="h-6 w-6 text-muted-foreground" />} title="No IP assets" description="IP portfolio items will appear here." />;

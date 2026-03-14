@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AgentInfo, getChatUrl } from '@/lib/agents';
+import { posthog } from '@/lib/posthog';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { Send } from 'lucide-react';
@@ -24,28 +25,37 @@ export default function AgentChat({ agent }: AgentChatProps) {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
   // Load or create conversation
   useEffect(() => {
     if (!orgId) return;
     const load = async () => {
-      const { data } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('organization_id', orgId)
-        .eq('title', `${agent.department}-chat`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      try {
+        const { data, error } = await supabase
+          .from('conversations')
+          .select('id')
+          .eq('organization_id', orgId)
+          .eq('title', `${agent.department}-chat`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (data) {
-        setConversationId(data.id);
-        const { data: msgs } = await supabase
-          .from('messages')
-          .select('role, content')
-          .eq('conversation_id', data.id)
-          .order('created_at', { ascending: true });
-        if (msgs) setMessages(msgs as ChatMessage[]);
+        if (error) { console.error('[AgentChat] Failed to load conversation:', error.message); return; }
+
+        if (data) {
+          setConversationId(data.id);
+          const { data: msgs, error: msgsError } = await supabase
+            .from('messages')
+            .select('role, content')
+            .eq('conversation_id', data.id)
+            .order('created_at', { ascending: true });
+          if (msgsError) console.error('[AgentChat] Failed to load messages:', msgsError.message);
+          if (msgs) setMessages(msgs as ChatMessage[]);
+        }
+      } catch (err) {
+        console.error('[AgentChat] Load error:', err);
       }
     };
     load();
@@ -66,27 +76,38 @@ export default function AgentChat({ agent }: AgentChatProps) {
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    const newMessages = [...messages, { role: 'user' as const, content: userMsg }];
+    const currentMessages = messagesRef.current;
+    const newMessages = [...currentMessages, { role: 'user' as const, content: userMsg }];
     setMessages(newMessages);
     setIsStreaming(true);
+    posthog.capture?.('agent_chat_sent', { agent_id: agent.id, agent_name: agent.name, department: agent.department, api_type: agent.apiType });
 
     // Ensure conversation exists
     let convId = conversationId;
     if (!convId) {
-      const { data } = await supabase.from('conversations').insert({ organization_id: orgId, title: `${agent.department}-chat`, created_by: session.user.id }).select('id').single();
+      const { data, error } = await supabase.from('conversations').insert({ organization_id: orgId, title: `${agent.department}-chat`, created_by: session.user.id }).select('id').single();
+      if (error) console.error('[AgentChat] Failed to create conversation:', error.message);
       if (data) { convId = data.id; setConversationId(data.id); }
     }
 
     // Save user message
     if (convId) {
-      await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: userMsg });
+      const { error } = await supabase.from('messages').insert({ conversation_id: convId, role: 'user', content: userMsg });
+      if (error) console.error('[AgentChat] Failed to save user message:', error.message);
     }
 
     // Build request body
     const url = getChatUrl(agent);
+
+    if (!url.startsWith('http')) {
+      setMessages(prev => [...prev, { role: 'assistant', content: `Agent URL is not configured. Set VITE_AGENT_URL to connect to ${agent.name}.` }]);
+      setIsStreaming(false);
+      return;
+    }
+
     const body = agent.apiType === 'A'
       ? { messages: newMessages.map(m => ({ role: m.role, content: m.content })), conversationId: convId }
-      : { message: userMsg, organizationId: orgId, conversationId: convId, history: messages };
+      : { message: userMsg, organizationId: orgId, conversationId: convId, history: currentMessages };
 
     try {
       const res = await fetch(url, {
@@ -118,6 +139,10 @@ export default function AgentChat({ agent }: AgentChatProps) {
               if (payload === '[DONE]') continue;
               try {
                 const parsed = JSON.parse(payload);
+                if (parsed.error) {
+                  console.error('[AgentChat] SSE error payload:', parsed.error);
+                  continue;
+                }
                 const chunk = parsed.choices?.[0]?.delta?.content || '';
                 assistantContent += chunk;
                 setMessages(prev => {
@@ -125,7 +150,9 @@ export default function AgentChat({ agent }: AgentChatProps) {
                   copy[copy.length - 1] = { role: 'assistant', content: assistantContent };
                   return copy;
                 });
-              } catch { /* skip unparseable lines */ }
+              } catch (err) {
+                console.warn('[AgentChat] SSE parse error:', payload, err);
+              }
             }
           }
         }
@@ -133,22 +160,25 @@ export default function AgentChat({ agent }: AgentChatProps) {
 
       // Save assistant message
       if (convId && assistantContent) {
-        await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: assistantContent });
+        const { error } = await supabase.from('messages').insert({ conversation_id: convId, role: 'assistant', content: assistantContent });
+        if (error) console.error('[AgentChat] Failed to save assistant message:', error.message);
       }
     } catch (err) {
+      console.error('[AgentChat] Error:', err);
       setMessages(prev => {
         const copy = [...prev];
+        const errMsg = `Sorry, I could not reach ${agent.name}. Please try again later.`;
         if (copy[copy.length - 1]?.role === 'assistant' && !copy[copy.length - 1].content) {
-          copy[copy.length - 1] = { role: 'assistant', content: 'Sorry, I could not reach the agent. Please try again later.' };
+          copy[copy.length - 1] = { role: 'assistant', content: errMsg };
         } else {
-          copy.push({ role: 'assistant', content: 'Sorry, I could not reach the agent. Please try again later.' });
+          copy.push({ role: 'assistant', content: errMsg });
         }
         return copy;
       });
     } finally {
       setIsStreaming(false);
     }
-  }, [input, isStreaming, session, orgId, messages, conversationId, agent]);
+  }, [input, isStreaming, session, orgId, conversationId, agent]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -179,7 +209,7 @@ export default function AgentChat({ agent }: AgentChatProps) {
               msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-card border border-border'
             )}>
               {msg.role === 'assistant' ? (
-                <div className="prose prose-sm prose-invert max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1">
+                <div className="prose prose-sm dark:prose-invert max-w-none [&>p]:m-0 [&>ul]:my-1 [&>ol]:my-1">
                   <ReactMarkdown>{msg.content || '...'}</ReactMarkdown>
                 </div>
               ) : msg.content}
@@ -211,9 +241,10 @@ export default function AgentChat({ agent }: AgentChatProps) {
             onKeyDown={handleKeyDown}
             rows={1}
             placeholder={`Message ${agent.name}...`}
+            aria-label={`Message ${agent.name}`}
             className="flex-1 resize-none bg-secondary border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
           />
-          <Button size="icon" onClick={sendMessage} disabled={!input.trim() || isStreaming}>
+          <Button size="icon" onClick={sendMessage} disabled={!input.trim() || isStreaming} aria-label="Send message">
             <Send className="h-4 w-4" />
           </Button>
         </div>

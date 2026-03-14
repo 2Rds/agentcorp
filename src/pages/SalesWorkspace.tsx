@@ -21,7 +21,7 @@ function PipelineTab() {
   const [view, setView] = useState<'kanban' | 'table'>('kanban');
   const { data, isLoading } = useQuery({
     queryKey: ['sales-pipeline', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('sales_pipeline').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('sales_pipeline').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!data?.length) return <EmptyState icon={<TrendingUp className="h-6 w-6 text-muted-foreground" />} title="No pipeline deals" description="Chat with Sam to add pipeline deals." />;
@@ -79,7 +79,7 @@ function CallLogsTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['sales-calls', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('sales_call_logs').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('sales_call_logs').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<Phone className="h-6 w-6 text-muted-foreground" />} title="No call logs" description="Sales call logs from Sam will appear here." />;

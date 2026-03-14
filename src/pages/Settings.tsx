@@ -23,7 +23,8 @@ export default function Settings() {
   const { data: members, isLoading: membersLoading } = useQuery({
     queryKey: ['org-members', orgId], enabled: !!orgId,
     queryFn: async () => {
-      const { data } = await supabase.from('user_roles').select('*, profiles(display_name)').eq('organization_id', orgId!);
+      const { data, error } = await supabase.from('user_roles').select('*, profiles(display_name)').eq('organization_id', orgId!);
+      if (error) throw new Error(error.message);
       return data ?? [];
     },
   });

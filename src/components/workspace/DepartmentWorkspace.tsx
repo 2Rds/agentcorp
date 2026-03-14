@@ -1,5 +1,6 @@
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { AGENT_BY_DEPT, AgentInfo } from '@/lib/agents';
+import { posthog } from '@/lib/posthog';
 import { useAgentHealth } from '@/hooks/useAgentHealth';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +14,8 @@ interface WorkspaceProps {
 
 export default function DepartmentWorkspace({ department, tabs }: WorkspaceProps) {
   const agent = AGENT_BY_DEPT[department];
+  if (!agent) throw new Error(`Unknown department: ${department}`);
+  useEffect(() => { posthog.capture?.('workspace_viewed', { department }); }, [department]);
   const { data: healthData } = useAgentHealth();
   const h = healthData?.find(d => d.agent.department === department);
   const status = h?.status ?? 'unknown';

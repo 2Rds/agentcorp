@@ -14,7 +14,7 @@ function TasksTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['coa-tasks', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('coa_tasks').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('coa_tasks').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<ClipboardList className="h-6 w-6 text-muted-foreground" />} title="No tasks" description="Chat with Jordan to create tasks." />;
@@ -31,7 +31,7 @@ function ProcessesTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['coa-processes', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('coa_processes').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('coa_processes').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<Cog className="h-6 w-6 text-muted-foreground" />} title="No processes" description="Processes managed by Jordan will appear here." />;
@@ -47,7 +47,7 @@ function AgentUsageTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['agent-usage', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('agent_usage_events').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }).limit(100); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('agent_usage_events').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }).limit(100); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!data?.length) return <EmptyState icon={<BarChart3 className="h-6 w-6 text-muted-foreground" />} title="No usage data" description="Agent usage metrics will appear here." />;
@@ -72,7 +72,7 @@ function MessagesTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['agent-messages', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('agent_messages').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('agent_messages').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<MessageSquare className="h-6 w-6 text-muted-foreground" />} title="No messages" description="Inter-agent messages will appear here." />;
@@ -88,7 +88,7 @@ function CommsTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['coa-comms', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('coa_communications').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('coa_communications').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<Mail className="h-6 w-6 text-muted-foreground" />} title="No communications" description="Operational communications will appear here." />;

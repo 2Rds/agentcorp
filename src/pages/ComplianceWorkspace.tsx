@@ -13,7 +13,7 @@ function PoliciesTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['compliance-policies', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('compliance_policy_register').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('compliance_policy_register').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<Shield className="h-6 w-6 text-muted-foreground" />} title="No policies" description="Compliance policies will appear here." />;
@@ -40,7 +40,7 @@ function RiskTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['compliance-risks', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('compliance_risk_assessments').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('compliance_risk_assessments').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<AlertTriangle className="h-6 w-6 text-muted-foreground" />} title="No risk assessments" description="Risk assessments will appear here." />;
@@ -56,7 +56,7 @@ function GovernanceTab() {
   const { orgId } = useAuth();
   const { data, isLoading } = useQuery({
     queryKey: ['compliance-governance', orgId], enabled: !!orgId,
-    queryFn: async () => { const { data } = await supabase.from('compliance_governance_log').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); return data ?? []; },
+    queryFn: async () => { const { data, error } = await supabase.from('compliance_governance_log').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<FileCheck className="h-6 w-6 text-muted-foreground" />} title="No governance log" description="Governance decisions will appear here." />;
