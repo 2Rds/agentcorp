@@ -2,6 +2,35 @@
 
 ## Current Status
 
+### Completed — v1.2.0 (2026-03-14)
+
+**Department Agent Deployment (5 agents)**
+- [x] COA Agent "Jordan" — 13 tools, Opus + Gemini + Grok Reasoning, executive tier
+- [x] CMA Agent "Taylor" — 11 tools, Opus + Gemini + Sonar + Grok Fast (X/Twitter)
+- [x] Compliance Agent (CCO) — 10 tools, Opus + Granite 4.0 + Command A + Cohere Rerank, audit-read-all
+- [x] Legal Agent "Casey" — 11 tools, Opus + Command A + Grok Reasoning (2M context)
+- [x] Sales Agent "Sam" — 12 tools, Opus + Sonar + Gemini
+- [x] Agent configs + `AgentId` type in `@waas/shared` registry
+- [x] Updated plugin allocations: COA (10), CMA (9), Compliance (8), Legal (8), Sales (10)
+- [x] SQL migrations for all 5 agents with idempotent policies
+
+**Security Hardening**
+- [x] `@waas/runtime` tool-helpers: `safeFetch`, `safeFetchText`, `safeJsonParse`, `stripHtml`, `isAllowedUrl`
+- [x] SSRF protection: private IPs, cloud metadata, internal hosts blocked
+- [x] All `fetch()` replaced with `safeFetch()` (HTTP status validation)
+- [x] All `JSON.parse()` replaced with `safeJsonParse()` (structured errors)
+- [x] `stripHtml()` on all `fetch_url` output (prompt injection prevention)
+- [x] Zod `.max()` constraints on all string schemas
+- [x] Notion SDK proper types (`PageObjectResponse`, `DatabaseObjectResponse`)
+- [x] Secure Dockerfiles (selective COPY, `npm ci --omit=dev`, `.dockerignore`)
+- [x] Leaked Cloudflare secrets removed from `.gitignore`
+- [x] Compliance `check_policy` LIKE wildcard escaping
+
+**Infrastructure**
+- [x] `agents/*` added to root npm workspaces
+- [x] Grok Fast added to CMA model stack, Cohere Rerank added to Compliance stack
+- [x] System prompts with personality, escalation rules ($5 threshold), tool documentation
+
 ### Completed — v1.1.1 (2026-03-09)
 
 **Knowledge-Work-Plugins**
@@ -84,7 +113,8 @@
 - **Redis optional** — Vector search, semantic cache, plugin matching degrade to fallbacks without it
 - **Mem0 dependency** — Knowledge base entirely Mem0-dependent
 - **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet
-- **Inter-agent messaging** — Designed in @waas/shared but not wired into EA yet (using Telegram transport only)
+- **Inter-agent messaging** — Designed in @waas/shared but not wired into runtime yet (COA has `message_agent` tool writing to Supabase queue, not Redis Streams yet)
+- **Department agents not yet deployed** — All 5 are built and tested locally but not yet added to DigitalOcean App Platform
 
 ## Technical Debt
 
@@ -95,25 +125,29 @@
 - No automated tests for any agent server (only frontend has Vitest)
 - CFO agent still uses Claude Agent SDK; EA uses Anthropic Messages API directly — should standardize
 - `@waas/runtime` exists but EA agent was built with direct Express setup (not using runtime package yet)
+- Department agent tools have no automated tests (manual testing only)
 
 ## Roadmap
 
 ### Near-term
 
+- [ ] Deploy 5 department agents to DigitalOcean App Platform (add service components)
+- [ ] Self-hosted Redis 8.6 on DO droplet (replace Upstash free tier, enable Streams)
+- [ ] Redis Streams inter-agent messaging (replace Supabase queue in `message_agent`)
+- [ ] Add `message_agent` tool to EA agent (executive-tier cross-namespace messaging)
 - [ ] Create "Inside BlockDrive" Notion pages (department pages, agent databases)
 - [ ] Populate investor data room documents in DocSend
 - [ ] Wire EA into @waas/runtime (replace direct Express setup)
 - [ ] Google Calendar integration for EA (scheduling, meeting prep)
 - [ ] Slack integration for EA (channel monitoring, message sending)
-- [ ] EA → CFO inter-agent messaging (real tool calls, not just Telegram relay)
 - [ ] Agent server test suite (Vitest + supertest)
 - [ ] Password reset flow + email verification enforcement
 - [ ] Supabase type regeneration
 
 ### Medium-term
 
-- [ ] Additional agents: COA, CMA, IR (using @waas/runtime scaffolding)
-- [ ] CF Queues for inter-agent messaging (replace Telegram bot-to-bot)
+- [ ] IR agent (Riley) — investor relations, dual-mode (cognitive + voice)
+- [ ] Redis FT.HYBRID search for enrichment pipeline
 - [ ] ElevenLabs voice integration (Phase 2 — TTS/STT, phone calls, batch calling)
 - [ ] OAuth/SSO support (Google, GitHub)
 - [ ] Multi-org support (org switcher)

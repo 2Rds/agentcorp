@@ -37,10 +37,15 @@ waas/
 ├── src/                    # React 18 frontend (Vite, deployed to Vercel)
 ├── agent/                  # CFO Agent (Express, Claude Agent SDK, port 3001)
 ├── agents/
-│   └── ea/                 # EA Agent "Alex" (Express, Anthropic Messages API, port 3002)
+│   ├── ea/                 # EA Agent "Alex" (Anthropic Messages API, port 3002)
+│   ├── coa/                # COA Agent "Jordan" (Agent SDK, 13 tools, port 3003)
+│   ├── cma/                # CMA Agent "Taylor" (Agent SDK, 11 tools, port 3004)
+│   ├── compliance/         # CCO Agent (Agent SDK, 10 tools, port 3005)
+│   ├── legal/              # Legal Agent "Casey" (Agent SDK, 11 tools, port 3006)
+│   └── sales/              # Sales Agent "Sam" (Agent SDK, 12 tools, port 3007)
 ├── packages/
 │   ├── shared/             # @waas/shared — pure types + logic (zero runtime deps)
-│   └── runtime/            # @waas/runtime — Express agent execution engine
+│   └── runtime/            # @waas/runtime — Express agent execution engine + tool-helpers
 ├── docs/waas/              # WaaS platform architecture docs
 ├── supabase/               # Migrations + edge functions
 └── CLAUDE.md
@@ -68,6 +73,12 @@ npm run dev          # Dev server with hot reload (tsx watch, port 3002)
 npm run build        # Build registry + TypeScript compile
 npm run start        # Production start (node dist/)
 
+# Department Agents (agents/{coa,cma,compliance,legal,sales}/)
+cd agents/<name>
+npm run dev          # Dev server with hot reload (tsx watch)
+npm run build        # Build registry + TypeScript compile
+npm run start        # Production start (node dist/)
+
 # WaaS packages
 npm run build:packages      # Build @waas/shared then @waas/runtime
 npm run typecheck:packages  # Type check packages
@@ -77,11 +88,12 @@ Tests use Vitest with jsdom. Test files live alongside source using `*.test.ts` 
 
 ## Architecture
 
-### Three-Tier System
+### System
 
 1. **React 18 Frontend** — Vite + shadcn/ui + Tailwind, deployed to Vercel at `cfo.blockdrive.co`
 2. **CFO Agent** (`agent/`) — Express + Claude Agent SDK, 31 MCP tools, multi-model orchestration
 3. **EA Agent** (`agents/ea/`) — Express + Anthropic Messages API (direct), native tool loop, Telegram bot
+4. **Department Agents** (`agents/{coa,cma,compliance,legal,sales}/`) — Express + Agent SDK + @waas/runtime, specialized model stacks
 
 Backend: Supabase (Postgres, Auth, RLS, Edge Functions). Memory: Mem0 (org-scoped persistent memory with graph).
 
@@ -207,7 +219,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `middleware/auth.ts` — Supabase JWT verification + org membership + token cache
 - `routes/` — health (GET /health) + chat (POST /chat, SSE streaming)
 - `transport/telegram.ts` — Telegram bot transport (grammy) for inter-agent messaging
-- `lib/` — redis-client, mem0-client, plugin-loader, stream-adapter
+- `lib/` — redis-client, mem0-client, plugin-loader, stream-adapter, tool-helpers (safeFetch, SSRF protection, stripHtml)
 
 ### Key Hooks (src/hooks/)
 
@@ -248,6 +260,11 @@ Deno runtime. Used as fallback when agent server is unreachable.
 - Helper functions: `is_org_member()`, `has_role()` (SECURITY DEFINER)
 - Core tables: organizations, profiles, user_roles, financial_model, cap_table_entries, conversations, messages, knowledge_base, documents, investor_links, link_views, model_sheets, integrations
 - EA tables: ea_tasks, ea_meeting_notes, ea_communications_log
+- COA tables: coa_tasks, coa_communications, coa_processes, agent_messages
+- CMA tables: cma_content_drafts, cma_campaigns
+- Compliance tables: compliance_policy_register, compliance_risk_assessments, compliance_governance_log
+- Legal tables: legal_reviews, legal_ip_portfolio
+- Sales tables: sales_pipeline, sales_call_logs
 
 ## Deployment
 
@@ -256,6 +273,11 @@ Deno runtime. Used as fallback when agent server is unreachable.
 | Frontend | Vercel | `cfo.blockdrive.co` |
 | CFO Agent | Docker / DigitalOcean App Platform | Port 3001 |
 | EA Agent | DigitalOcean App Platform | Port 3002, ingress `/ea` |
+| COA Agent | DigitalOcean App Platform | Port 3003, ingress `/coa` |
+| CMA Agent | DigitalOcean App Platform | Port 3004, ingress `/cma` |
+| Compliance Agent | DigitalOcean App Platform | Port 3005, ingress `/compliance` |
+| Legal Agent | DigitalOcean App Platform | Port 3006, ingress `/legal` |
+| Sales Agent | DigitalOcean App Platform | Port 3007, ingress `/sales` |
 | n8n | DigitalOcean Droplet (167.172.24.255) | `n8n.blockdrive.co` |
 
 **DigitalOcean App Platform:**
@@ -276,20 +298,24 @@ Deno runtime. Used as fallback when agent server is unreachable.
 - **Provider Keys mode**: When `CF_AIG_TOKEN` is set, Cloudflare AI Gateway injects API keys at edge — provider keys become optional.
 - **Google Sheets**: Switched from OAuth 2.0 to service account with domain-wide delegation (`GOOGLE_SERVICE_ACCOUNT_KEY_FILE`). Service account JSON must never be committed (gitignored).
 - **Notion scope enforcement** (CFO): CFA_SCOPE Notion access rules inlined in `agent/src/lib/notion-client.ts` (agent package is outside npm workspaces, cannot import `@waas/shared`). EA agent has executive-tier access without scope enforcement.
-- **Conditional tool loading**: Notion tools only register when `NOTION_API_KEY` is set (`config.notionEnabled`). Both agents check this at tool factory time.
+- **Conditional tool loading**: Notion tools only register when `NOTION_API_KEY` is set (`config.notionEnabled`). All agents check this at tool factory time.
 - **PDF generation**: Playwright HTML→PDF with branded template, uploads to Supabase Storage `{orgId}/investor-docs/`, returns 1hr signed URL (matches excel-export pattern).
+- **Agent SDK tool pattern** (dept agents): Tools use `tool(name, description, zodRawShape, handler)` 4-arg signature with Zod schemas. All import `safeFetch`, `safeFetchText`, `safeJsonParse`, `stripHtml` from `@waas/runtime`.
+- **SSRF protection**: `isAllowedUrl()` blocks private IPs, cloud metadata, localhost, `.internal`/`.local` suffixes before any `fetch_url` call.
+- **$5 escalation threshold**: All department agents escalate to COA at $5 budget. COA escalates to Sean for strategic decisions.
 
 ## Agent Network
 
-| Agent ID | Role | Port | Status |
-|----------|------|------|--------|
-| `blockdrive-ea` | Executive Assistant (Alex) | 3002 | **Deployed** |
-| `blockdrive-cfa` | Chief Financial Agent | 3001 | **Deployed** (CFO agent) |
-| `blockdrive-coa` | Chief Operating Agent | — | Planned |
-| `blockdrive-cma` | Chief Marketing Agent | — | Planned |
-| `blockdrive-ir` | Investor Relations | — | Planned |
-| `blockdrive-legal` | Legal Counsel | — | Planned |
-| `blockdrive-sales` | Head of Sales | — | Planned |
+| Agent ID | Role | Port | Tools | Status |
+|----------|------|------|-------|--------|
+| `blockdrive-ea` | Executive Assistant (Alex) | 3002 | 11 | **Deployed** |
+| `blockdrive-cfa` | Chief Financial Agent (Morgan) | 3001 | 31 | **Deployed** |
+| `blockdrive-coa` | Chief Operating Agent (Jordan) | 3003 | 13 | **Built** |
+| `blockdrive-cma` | Chief Marketing Agent (Taylor) | 3004 | 11 | **Built** |
+| `blockdrive-compliance` | Chief Compliance Officer | 3005 | 10 | **Built** |
+| `blockdrive-legal` | Legal Counsel (Casey) | 3006 | 11 | **Built** |
+| `blockdrive-sales` | Head of Sales (Sam) | 3007 | 12 | **Built** |
+| `blockdrive-ir` | Investor Relations (Riley) | — | — | Planned |
 
 ## UI Patterns
 
@@ -310,7 +336,7 @@ Import: `import { supabase } from "@/integrations/supabase/client"`. Types auto-
 
 - Subagent model policy: ALL agents and subagents MUST use `model: "opus"` (Opus 4.6) — no sonnet, no haiku, no exceptions
 - Package name: `waas` (root), agents are independent packages with their own `package.json`
-- Root `package.json` uses `"workspaces": ["packages/*"]` for @waas/shared and @waas/runtime
+- Root `package.json` uses `"workspaces": ["packages/*", "agents/*"]` for shared packages and department agents
 - Agent servers use `"type": "module"` with `.js` import extensions in TypeScript
 - EA agent uses Anthropic Messages API directly (NOT Claude Agent SDK) — better control over tool loop
 - CFO agent uses Claude Agent SDK with MCP tools

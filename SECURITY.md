@@ -130,6 +130,21 @@ The agent server uses the Supabase service role key (bypasses RLS) for:
 
 The service role key is never exposed to the frontend. The frontend uses the anon/publishable key exclusively.
 
+## SSRF Protection (Tool Helpers)
+
+All department agent tools use `@waas/runtime` shared helpers for outbound HTTP requests. The `isAllowedUrl()` function validates URLs before any `fetch_url` or `safeFetchText` call:
+
+1. **Protocol enforcement** — Only `http:` and `https:` allowed
+2. **Private IP blocking** — `10.x`, `172.16-31.x`, `192.168.x`, `fc00:/fd:` IPv6
+3. **Cloud metadata blocking** — `169.254.169.254`, `metadata.google.internal`
+4. **Internal hostname blocking** — `localhost`, `127.0.0.1`, `::1`, `0.0.0.0`
+5. **Internal suffix blocking** — `.internal`, `.local`, `.localhost`
+
+Additional tool-level protections:
+- `safeFetch<T>()` — Validates HTTP status codes, returns structured `{ ok, data } | { ok: false, error }` instead of silent failure
+- `safeJsonParse()` — Prevents `JSON.parse` crashes from malformed input
+- `stripHtml()` — Removes HTML tags from fetched web pages to prevent prompt injection
+
 ## Namespace Isolation (Agent-to-Agent)
 
 Each agent operates within a defined `ToolScope` that controls access to Redis, mem0, Supabase tables, and Notion databases. Enforcement is fail-closed via `ScopeEnforcer` (`@waas/shared/namespace`).
@@ -138,6 +153,11 @@ Each agent operates within a defined `ToolScope` that controls access to Redis, 
 |-------|-------|------|--------|-----------------|
 | EA (Alex) | `blockdrive:ea:` RW, `blockdrive:` R | Own RW, `*` R | Decision Log RW, Project Hub RW, Pipeline R | Executive read all |
 | CFA (Morgan) | `blockdrive:cfa:` RW | Own RW | Pipeline RW, Decision Log RW, Project Hub R | None |
+| COA (Jordan) | `blockdrive:coa:` RW, `blockdrive:` R | Own RW, `*` R | Full workspace RW | Executive read all |
+| CMA (Taylor) | `blockdrive:cma:` RW | Own RW | Project Hub R | None |
+| CCO (Compliance) | `blockdrive:compliance:` RW, `blockdrive:` R | Own RW, `*` R | Decision Log R, Project Hub R | Audit read all |
+| Legal (Casey) | `blockdrive:legal:` RW | Own RW | Decision Log RW | None |
+| Sales (Sam) | `blockdrive:sales:` RW | Own RW | Pipeline R | None |
 
 CFO agent inlines CFA_SCOPE Notion access rules directly in `notion-client.ts` (the CFO agent package is not a workspace member and cannot import from `@waas/shared`). EA agent has executive-tier cross-namespace read access to all department memories.
 
@@ -151,11 +171,12 @@ EA agent's Telegram bot transport enforces:
 
 | Key | Scope | Storage |
 |-----|-------|---------|
-| `ANTHROPIC_API_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
-| `OPENROUTER_API_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
-| `MEM0_API_KEY` | Both agent servers | `agent/.env`, `agents/ea/.env` |
-| `NOTION_API_KEY` | Both agent servers (optional) | `agent/.env`, `agents/ea/.env` |
+| `ANTHROPIC_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
+| `SUPABASE_SERVICE_ROLE_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
+| `OPENROUTER_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
+| `MEM0_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
+| `NOTION_API_KEY` | All agent servers (optional) | `agent/.env`, `agents/*/.env` |
+| `PERPLEXITY_API_KEY` | Dept agents (optional, fallback to OpenRouter) | `agents/*/.env` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Frontend (public) | `.env` |
 
 Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the gateway to inject API keys at the edge — keys never leave the server.

@@ -133,6 +133,58 @@ Client POST /api/chat
   → On completion: extract knowledge (fire-and-forget)
 ```
 
+## Department Agent Servers (`agents/{coa,cma,compliance,legal,sales}/`)
+
+Five department head agents built on `@waas/runtime` with the Claude Agent SDK (`tool()` + Zod). Each runs as an independent Express server with org-scoped MCP tools, Notion integration (conditional), and mem0 memory.
+
+### Agent Model Stacks
+
+| Agent | Primary | Support Models | Embed | Rerank | Port |
+|-------|---------|---------------|-------|--------|------|
+| COA (Jordan) | Opus 4.6 | Gemini 3.1 Pro, Grok Reasoning | Cohere v4.0 | Cohere v4.0 | 3003 |
+| CMA (Taylor) | Opus 4.6 | Gemini 3.1 Pro, Sonar Pro, Grok Fast | Cohere v4.0 | — | 3004 |
+| CCO (Compliance) | Opus 4.6 | Granite 4.0, Command A | Cohere v4.0 | Cohere v4.0 | 3005 |
+| Legal (Casey) | Opus 4.6 | Command A, Grok Reasoning (2M ctx) | Cohere v4.0 | Cohere v4.0 | 3006 |
+| Sales (Sam) | Opus 4.6 | Sonar Pro, Gemini 3.1 Pro | Cohere v4.0 | — | 3007 |
+
+### Tool Summary
+
+| Agent | Tools | Specialties |
+|-------|-------|-------------|
+| COA | 13 | Cross-namespace knowledge, Notion CRUD, agent health, task queue, inter-agent messaging |
+| CMA | 11 | Content drafting, campaign CRUD, SEO analysis, X/Twitter via Grok |
+| Compliance | 10 | Audit scan (Granite routing), risk assessment, governance log, policy register |
+| Legal | 11 | Legal review + risk scoring, IP portfolio, contract analysis (Grok 2M), Notion write |
+| Sales | 12 | Pipeline CRUD, prospect research, call prep, proposal drafting, call logging |
+
+### Shared Tool Helpers (`@waas/runtime`)
+
+All department agents import from `@waas/runtime`:
+
+- `safeFetch<T>()` — HTTP fetch with status validation, returns `{ ok, data } | { ok: false, error }`
+- `safeFetchText()` — Same + SSRF URL validation via `isAllowedUrl()`
+- `safeJsonParse()` — Structured JSON parse errors instead of thrown SyntaxError
+- `stripHtml()` — Remove HTML tags from fetched web content (prompt injection prevention)
+- `isAllowedUrl()` — Blocks private IPs, cloud metadata (169.254.169.254), localhost, `.internal`/`.local` suffixes
+
+### Org Hierarchy
+
+```
+Sean (Human Principal)
+├── Alex (EA) — executive tier, cross-namespace read
+├── Jordan (COA) — executive tier, manages department heads
+│   ├── Morgan (CFA) — financial modeling
+│   │   └── Riley (IR) — investor relations (planned)
+│   ├── Taylor (CMA) — marketing/content
+│   ├── CCO (Compliance) — governance, audit-read-all
+│   ├── Casey (Legal) — contracts, IP
+│   └── Sam (Sales) — pipeline, prospecting
+```
+
+### Escalation
+
+All department agents escalate to COA (Jordan) at $5 budget threshold. COA escalates to Sean for strategic decisions, hiring, vendor contracts, and cross-department conflicts.
+
 ## EA Agent Server (`agents/ea/src/`)
 
 Express server using the Anthropic Messages API directly (not Claude Agent SDK). Claude Opus 4.6 as the primary model with an agentic tool loop (max 15 turns).
@@ -222,11 +274,29 @@ Supabase PostgreSQL with Row-Level Security. See [SECURITY.md](SECURITY.md) for 
 | `ea_tasks` | EA task queue |
 | `ea_meeting_notes` | EA meeting notes with action items |
 | `ea_communications_log` | EA email drafts and comms |
+| `coa_tasks` | COA operational task queue |
+| `coa_communications` | COA department communications |
+| `coa_processes` | COA process tracking with metrics |
+| `agent_messages` | Inter-agent message queue |
+| `cma_content_drafts` | CMA content drafts (blog, social, email, landing page) |
+| `cma_campaigns` | CMA campaign management with metrics |
+| `compliance_policy_register` | Policy register with review cycles |
+| `compliance_risk_assessments` | Risk assessments with scoring |
+| `compliance_governance_log` | Governance action log |
+| `legal_reviews` | Legal reviews with risk scoring |
+| `legal_ip_portfolio` | IP portfolio (patents, trademarks, copyrights) |
+| `sales_pipeline` | Sales deal pipeline with stages |
+| `sales_call_logs` | Sales call summaries with action items |
 
 ## Deployment
 
 - **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `cfo.blockdrive.co`)
 - **CFO Agent:** DigitalOcean App Platform (Docker, port 3001)
 - **EA Agent:** DigitalOcean App Platform (Docker, port 3002, `/ea` ingress)
+- **COA Agent:** DigitalOcean App Platform (Docker, port 3003, `/coa` ingress)
+- **CMA Agent:** DigitalOcean App Platform (Docker, port 3004, `/cma` ingress)
+- **Compliance Agent:** DigitalOcean App Platform (Docker, port 3005, `/compliance` ingress)
+- **Legal Agent:** DigitalOcean App Platform (Docker, port 3006, `/legal` ingress)
+- **Sales Agent:** DigitalOcean App Platform (Docker, port 3007, `/sales` ingress)
 - **Redis:** Docker Compose alongside agent server
 - **n8n:** DigitalOcean Droplet (`n8n.blockdrive.co`)

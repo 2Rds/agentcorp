@@ -2,6 +2,42 @@
 
 All notable changes to the WaaS platform.
 
+## [v1.2.0] - 2026-03-14
+
+Department agent deployment — 5 new agents built with @waas/runtime, shared tool-helpers for security hardening, and model stack specialization per department.
+
+### Added
+
+- **COA Agent "Jordan"** — Chief Operating Agent with 13 MCP tools (cross-namespace knowledge, Notion CRUD, agent health checks, task management, inter-agent messaging). Opus + Gemini + Grok Reasoning model stack.
+- **CMA Agent "Taylor"** — Chief Marketing Agent with 11 tools (content drafting, campaign management, SEO analysis, X/Twitter search via Grok Fast). Opus + Gemini + Sonar + Grok Fast model stack.
+- **Compliance Agent (CCO)** — 10 tools (cross-namespace audit scanning via Granite 4.0, risk assessment, governance logging, policy register). Opus + Granite + Command A model stack with Cohere Rerank.
+- **Legal Agent "Casey"** — 11 tools (legal review with risk scoring, IP portfolio tracking, contract analysis via Grok 2M context). Opus + Command A + Grok Reasoning model stack.
+- **Sales Agent "Sam"** — 12 tools (pipeline management, prospect research, call prep, proposal drafting, call logging). Opus + Sonar + Gemini model stack.
+- `@waas/runtime` tool-helpers: `safeFetch`, `safeFetchText`, `safeJsonParse`, `stripHtml`, `isAllowedUrl` (SSRF protection)
+- Agent configs for all 5 department heads in `@waas/shared` agent registry
+- `AgentId` type union exported from `@waas/shared`
+- Grok Fast added to CMA model stack (X/Twitter integration)
+- Cohere Rerank added to Compliance model stack (noisy cross-namespace audit filtering)
+- Updated plugin allocations: COA (10), CMA (9), Compliance (8), Legal (8), Sales (10)
+- `agents/*` added to root npm workspaces
+- Dockerfiles with secure multi-stage builds and `.dockerignore` for all 5 agents
+- SQL migrations with idempotent policies (`DROP POLICY IF EXISTS` before `CREATE POLICY`)
+- System prompts with personality, escalation rules ($5 budget threshold), and full tool documentation
+
+### Changed
+
+- All agent tools use `safeFetch`/`safeFetchText` instead of raw `fetch()` (HTTP status validation)
+- All `JSON.parse()` calls replaced with `safeJsonParse` (structured error handling)
+- All `fetch_url` tools use `stripHtml` to prevent prompt injection from web content
+- All Zod string schemas have `.max()` length constraints
+- Notion SDK types use `PageObjectResponse`/`DatabaseObjectResponse` instead of `any` casts
+- COA `get_agent_status` uses configurable `AGENT_BASE_URL` env var (not localhost)
+
+### Fixed
+
+- Leaked Cloudflare AI Gateway secrets removed from `.gitignore`
+- Compliance `check_policy` escapes LIKE wildcards to prevent SQL pattern injection
+
 ## [v1.1.1] - 2026-03-09
 
 Knowledge-work-plugins integration for both agents — contextual domain skills injected into system prompts via enrichment pipeline.
