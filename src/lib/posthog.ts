@@ -9,9 +9,8 @@ export function initPostHog() {
   }
 
   try {
-    const isDev = import.meta.env.DEV;
     posthog.init(key, {
-      api_host: isDev ? '/ingest' : (import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com'),
+      api_host: '/ingest',
       ui_host: 'https://us.posthog.com',
       autocapture: true,
       capture_pageview: false,
