@@ -24,6 +24,12 @@ export type { HealthDeps } from "./routes/health.js";
 export { createChatRouter } from "./routes/chat.js";
 export type { ChatRouteDeps } from "./routes/chat.js";
 
+// Tool helpers (shared across all agents)
+export {
+  isAllowedUrl, safeJsonParse, safeFetch, safeFetchText, stripHtml,
+} from "./lib/tool-helpers.js";
+export type { FetchResult, FetchError } from "./lib/tool-helpers.js";
+
 // Transport
 export { TelegramTransport } from "./transport/telegram.js";
 export type { TelegramTransportConfig } from "./transport/telegram.js";
