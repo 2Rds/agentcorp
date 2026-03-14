@@ -318,6 +318,7 @@ export class AgentRuntime {
       getRedis: () => getRedis(rtConfig.env.redisUrl),
       onResponse: rtConfig.onResponse,
       governance: this.governance,
+      supabase: this.supabaseAdmin,
     }));
 
     // Custom routes (each agent adds its own)

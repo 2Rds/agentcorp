@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -70,6 +71,11 @@ function GovernanceTab() {
 }
 
 export default function ComplianceWorkspace() {
+  const { orgId } = useAuth();
+  const filter = orgId ? `org_id=eq.${orgId}` : null;
+  useRealtimeSubscription('compliance_policy_register', filter, [['compliance-policies', orgId!]], !!orgId);
+  useRealtimeSubscription('compliance_risk_assessments', filter, [['compliance-risks', orgId!]], !!orgId);
+  useRealtimeSubscription('compliance_governance_log', filter, [['compliance-governance', orgId!]], !!orgId);
   return <DepartmentWorkspace department="compliance" tabs={[
     { id: 'policies', label: 'Policies', content: <PoliciesTab /> },
     { id: 'risks', label: 'Risk Assessments', content: <RiskTab /> },

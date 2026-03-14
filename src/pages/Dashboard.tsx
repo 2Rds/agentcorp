@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAgentHealth } from '@/hooks/useAgentHealth';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { AGENTS } from '@/lib/agents';
@@ -23,6 +24,15 @@ export default function Dashboard() {
       posthog.capture?.('agent_health_checked', { online_count: onlineCount, offline_count: offlineCount, unknown_count: unknownCount });
     }
   }, [healthData]);
+
+  // Realtime subscriptions for live dashboard updates
+  const rtFilter = orgId ? `org_id=eq.${orgId}` : null;
+  useRealtimeSubscription('sales_pipeline', rtFilter, [['pipeline-value', orgId!]], !!orgId);
+  useRealtimeSubscription('coa_tasks', rtFilter, [['open-tasks', orgId!], ['recent-activity', orgId!]], !!orgId);
+  useRealtimeSubscription('cma_campaigns', rtFilter, [['active-campaigns', orgId!]], !!orgId);
+  useRealtimeSubscription('agent_messages', rtFilter, [['recent-activity', orgId!]], !!orgId);
+  useRealtimeSubscription('cma_content_drafts', rtFilter, [['recent-activity', orgId!]], !!orgId);
+  useRealtimeSubscription('legal_reviews', rtFilter, [['recent-activity', orgId!]], !!orgId);
 
   const { data: pipelineValue } = useQuery({
     queryKey: ['pipeline-value', orgId],
@@ -165,9 +175,9 @@ export default function Dashboard() {
                   <div className="ml-4 border-l border-border pl-4 space-y-1.5">
                     <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-finance" /> Morgan <span className="text-muted-foreground text-xs">(CFA)</span></div>
                     <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-marketing" /> Taylor <span className="text-muted-foreground text-xs">(CMA)</span></div>
-                    <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-compliance" /> CCO <span className="text-muted-foreground text-xs">(Compliance)</span></div>
-                    <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-legal" /> Casey <span className="text-muted-foreground text-xs">(Legal)</span></div>
-                    <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-sales" /> Sam <span className="text-muted-foreground text-xs">(Sales)</span></div>
+                    <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-compliance" /> Parker <span className="text-muted-foreground text-xs">(CCA)</span></div>
+                    <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-legal" /> Casey <span className="text-muted-foreground text-xs">(CLA)</span></div>
+                    <div className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-agent-sales" /> Sam <span className="text-muted-foreground text-xs">(CSA)</span></div>
                   </div>
                 </div>
               </div>

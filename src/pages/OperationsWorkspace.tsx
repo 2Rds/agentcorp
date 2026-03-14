@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -101,6 +102,13 @@ function CommsTab() {
 }
 
 export default function OperationsWorkspace() {
+  const { orgId } = useAuth();
+  const filter = orgId ? `org_id=eq.${orgId}` : null;
+  useRealtimeSubscription('coa_tasks', filter, [['coa-tasks', orgId!]], !!orgId);
+  useRealtimeSubscription('coa_processes', filter, [['coa-processes', orgId!]], !!orgId);
+  useRealtimeSubscription('agent_usage_events', filter, [['agent-usage', orgId!]], !!orgId);
+  useRealtimeSubscription('agent_messages', filter, [['agent-messages', orgId!]], !!orgId);
+  useRealtimeSubscription('coa_communications', filter, [['coa-comms', orgId!]], !!orgId);
   return <DepartmentWorkspace department="operations" tabs={[
     { id: 'tasks', label: 'Tasks', content: <TasksTab /> },
     { id: 'processes', label: 'Processes', content: <ProcessesTab /> },

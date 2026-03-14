@@ -23,6 +23,7 @@ import type { Mem0Client } from "../lib/mem0-client.js";
 import type { ModelRouter } from "@waas/shared";
 import { MODEL_REGISTRY } from "@waas/shared";
 import type { RedisClientType } from "redis";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -46,6 +47,8 @@ export interface ChatRouteDeps {
   maxTurns?: number;
   /** Governance engine for spend tracking */
   governance?: GovernanceEngine;
+  /** Supabase service client for writing usage events */
+  supabase?: SupabaseClient;
 }
 
 /** Allowed roles for history messages (whitelist to prevent injection) */
@@ -88,6 +91,7 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
     }
 
     const convId = conversationId ?? `conv-${Date.now().toString(36)}`;
+    const startTime = Date.now();
 
     // SSE headers
     res.setHeader("Content-Type", "text/event-stream");
@@ -202,6 +206,30 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
             console.warn(
               `[${deps.agentId}] Daily spend limit breached: $${spendResult.totalToday.toFixed(2)}`,
             );
+          }
+
+          // Persist usage event to Supabase for frontend visibility (fire-and-forget)
+          if (deps.supabase) {
+            Promise.resolve(
+              deps.supabase
+                .from("agent_usage_events")
+                .insert({
+                  org_id: organizationId,
+                  agent_id: deps.agentId,
+                  model: "claude-opus-4-6",
+                  input_tokens: inputTokens,
+                  output_tokens: outputTokens,
+                  cost_usd: estimatedCostUsd,
+                  latency_ms: Date.now() - startTime,
+                })
+            )
+              .then(({ error: insertErr }) => {
+                if (insertErr) console.error(`[${deps.agentId}] Failed to write usage event:`, insertErr.message);
+              })
+              .catch((unexpectedErr: unknown) => {
+                console.error(`[${deps.agentId}] Usage event insert threw:`, unexpectedErr);
+                Sentry.captureException(unexpectedErr);
+              });
           }
         } catch (spendErr) {
           console.error(`[${deps.agentId}] Spend tracking failed (non-fatal):`, spendErr);

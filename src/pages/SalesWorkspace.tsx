@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -93,6 +94,10 @@ function CallLogsTab() {
 }
 
 export default function SalesWorkspace() {
+  const { orgId } = useAuth();
+  const filter = orgId ? `org_id=eq.${orgId}` : null;
+  useRealtimeSubscription('sales_pipeline', filter, [['sales-pipeline', orgId!]], !!orgId);
+  useRealtimeSubscription('sales_call_logs', filter, [['sales-calls', orgId!]], !!orgId);
   return <DepartmentWorkspace department="sales" tabs={[
     { id: 'pipeline', label: 'Pipeline', content: <PipelineTab /> },
     { id: 'calls', label: 'Call Logs', content: <CallLogsTab /> },
