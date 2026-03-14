@@ -36,6 +36,7 @@ import type {
 import { ModelRouter as ModelRouterImpl } from "@waas/shared";
 import { getRedis, disconnectRedis } from "./lib/redis-client.js";
 import { Mem0Client } from "./lib/mem0-client.js";
+import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
 import { setPluginsDir, loadPluginRegistry } from "./lib/plugin-loader.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createHealthRouter } from "./routes/health.js";
@@ -154,6 +155,10 @@ export class AgentRuntime {
     const agentId = this.config.id;
     const port = this.runtimeConfig.env.port ?? 3001;
 
+    // Initialize observability
+    initSentry(agentId);
+    initPostHog();
+
     // Parallel initialization
     const [redisResult, pluginsResult, telegramResult] = await Promise.allSettled([
       this.runtimeConfig.env.redisUrl
@@ -195,6 +200,14 @@ export class AgentRuntime {
       };
       process.on("SIGINT", shutdown);
       process.on("SIGTERM", shutdown);
+      process.on("unhandledRejection", (reason) => {
+        Sentry.captureException(reason);
+        console.error(`[${agentId}] Unhandled rejection:`, reason);
+      });
+      process.on("uncaughtException", (err) => {
+        Sentry.captureException(err);
+        console.error(`[${agentId}] Uncaught exception:`, err);
+      });
     }
   }
 
@@ -202,7 +215,7 @@ export class AgentRuntime {
    * Stop the runtime cleanly.
    */
   async stop(): Promise<void> {
-    const stops: Promise<void>[] = [disconnectRedis()];
+    const stops: Promise<void>[] = [disconnectRedis(), shutdownObservability()];
     if (this.telegramTransport) {
       stops.push(this.telegramTransport.stop());
     }
@@ -286,10 +299,13 @@ export class AgentRuntime {
       }
     }
 
-    // 404 handler (must be last)
+    // 404 handler (must be before Sentry error handler)
     this.app.use((_req, res) => {
       res.status(404).json({ error: "Not found" });
     });
+
+    // Sentry error handler (must be after all routes and 404)
+    Sentry.setupExpressErrorHandler(this.app);
   }
 
   private async initializePlugins(): Promise<void> {

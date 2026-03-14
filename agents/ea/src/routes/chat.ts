@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
 import { createAgentQuery } from "../agent/ea-agent.js";
 import { extractKnowledge } from "../agent/knowledge-extractor.js";
+import { Sentry, getPostHog } from "../lib/observability.js";
 
 const router = Router();
 
@@ -42,8 +43,12 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
     if (organizationId && lastUserMessage && fullResponse) {
       extractKnowledge(lastUserMessage, fullResponse, organizationId, conversationId);
     }
+
+    // PostHog event
+    getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: "ea", org_id: organizationId } });
   } catch (err: any) {
     console.error("Agent error:", err);
+    Sentry.captureException(err);
 
     if (!res.headersSent) {
       res.status(500).json({ error: err.message || "Agent execution failed" });

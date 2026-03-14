@@ -14,6 +14,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.1.0",
     "@notionhq/client": "^2.3.0",
+    "@sentry/node": "^10.43.0",
     "@supabase/supabase-js": "^2.95.3",
     "cohere-ai": "^7.20.0",
     "cors": "^2.8.5",
@@ -27,6 +28,7 @@
     "marked": "^17.0.4",
     "pdf-parse": "^2.4.5",
     "playwright": "^1.58.2",
+    "posthog-node": "^5.21.2",
     "redis": "^5.11.0",
     "xlsx": "^0.18.5",
     "zod": "^3.25.76"

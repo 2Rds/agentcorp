@@ -1,3 +1,8 @@
+import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
+
+initSentry();
+initPostHog();
+
 import express from "express";
 import { config } from "./config.js";
 import { corsMiddleware } from "./middleware/cors.js";
@@ -22,6 +27,9 @@ app.use(healthRouter);
 app.use(chatRouter);
 app.use(knowledgeRouter);
 app.use(webhooksRouter);
+
+// Sentry error handler (must be after all routes)
+Sentry.setupExpressErrorHandler(app);
 
 // ─── Telegram Bot (direct user chat) ────────────────────────────────────────
 
@@ -74,6 +82,7 @@ async function startTelegramBot() {
       }
     } catch (err) {
       console.error("Telegram handler error:", err);
+      Sentry.captureException(err);
       await ctx.reply("Sorry, I encountered an error processing your message.").catch(() => {});
     }
   });
@@ -99,10 +108,20 @@ app.listen(config.port, async () => {
   }
 });
 
+// Unhandled errors → Sentry
+process.on("unhandledRejection", (reason) => {
+  Sentry.captureException(reason);
+  console.error("Unhandled rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  Sentry.captureException(err);
+  console.error("Uncaught exception:", err);
+});
+
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   console.log("SIGTERM received, shutting down...");
   telegramBot?.stop();
-  await disconnectRedis();
+  await Promise.allSettled([disconnectRedis(), shutdownObservability()]);
   process.exit(0);
 });

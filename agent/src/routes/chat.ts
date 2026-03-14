@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
 import { createAgentQuery } from "../agent/cfo-agent.js";
 import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 import { extractKnowledge } from "../agent/knowledge-extractor.js";
+import { Sentry, getPostHog } from "../lib/observability.js";
 
 const router = Router();
 
@@ -53,10 +54,14 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
         if (organizationId && lastUserMessage && fullAssistantResponse) {
           extractKnowledge(lastUserMessage, fullAssistantResponse, organizationId, conversationId);
         }
+
+        // PostHog event
+        getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: "cfa", org_id: organizationId } });
       }
     }
   } catch (err: any) {
     console.error("Agent error:", err);
+    Sentry.captureException(err);
 
     // If we haven't sent any data yet, send an error response
     if (!res.headersSent) {

@@ -17,6 +17,7 @@ import type { SDKMessage, McpSdkServerConfigWithInstance } from "@anthropic-ai/c
 import type { AuthenticatedRequest } from "../middleware/auth.js";
 import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
+import { Sentry, getPostHog } from "../lib/observability.js";
 import type { Mem0Client } from "../lib/mem0-client.js";
 import type { ModelRouter } from "@waas/shared";
 import type { RedisClientType } from "redis";
@@ -147,8 +148,12 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
           .then(() => deps.onResponse!(deps.agentId, organizationId, message, fullText, convId))
           .catch((err) => console.error("Post-response hook failed:", err));
       }
+
+      // PostHog event
+      getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: deps.agentId, org_id: organizationId } });
     } catch (err) {
       console.error(`Chat error (agent=${deps.agentId}):`, err);
+      Sentry.captureException(err);
       if (!clientDisconnected) {
         res.write(`data: ${JSON.stringify({ error: "Agent query failed" })}\n\n`);
         res.end();
