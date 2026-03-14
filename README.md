@@ -101,17 +101,14 @@ waas/
 
 ## Features
 
-- **AI CFO Chat** — Streaming Claude Opus 4.6 with org memories and 31 knowledge plugins
-- **Executive Assistant** — Autonomous task management, meeting notes, cross-department queries, Telegram interface, 84 knowledge plugins
-- **Financial Model** — SaaS-template with scenario toggling, derived metrics (burn, runway, MRR)
-- **Cap Table** — Equity tracking across funding rounds
-- **Investor Portal** — DocSend-style links with password gating and analytics
-- **Knowledge Base** — Document uploads with Gemini vision, semantic search, graph memory
-- **Notion Integration** — Read/write access to Notion databases (Decision Log, Project Hub, Investor Pipeline) with scope enforcement
-- **PDF Generation** — Branded investor documents (exec summaries, metrics one-pagers) via Playwright HTML→PDF
-- **Google Sheets** — Model sync via service account with domain-wide delegation
-- **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching
+- **AgentCorp Workspace** — Multi-agent chat UI with department-specific workspace pages for all 7 agents
+- **Agent Dashboard** — Real-time health monitoring for all deployed agents
+- **Streaming AI Chat** — SSE-based chat with each agent via `AgentChat` component + conversation persistence
 - **7-Agent Network** — EA, CFA, COA, CMA, Compliance, Legal, Sales with specialized model stacks
+- **Executive Assistant** — Autonomous task management, meeting notes, cross-department queries, Telegram interface, 84 knowledge plugins
+- **AI CFO** — Financial modeling, cap table, investor data rooms, analytics via 31 MCP tools
+- **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching
+- **Notion Integration** — Read/write access to Notion databases with scope enforcement
 - **Inter-Agent Messaging** — Redis inbox + Telegram bot-to-bot transport
 - **Namespace Isolation** — Scoped Redis + mem0 per department, fail-closed enforcement
 - **SSRF Protection** — URL validation blocking private IPs, cloud metadata, internal hosts

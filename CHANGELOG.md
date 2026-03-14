@@ -2,6 +2,44 @@
 
 All notable changes to the WaaS platform.
 
+## [v2.0.0] - 2026-03-14
+
+AgentCorp frontend migration — the React UI has been completely rewritten from a CFO-specific finance dashboard to a multi-agent workspace platform with department-specific chat interfaces for all 7 agents. Includes 15 PR review fixes addressing critical auth race conditions, stale closures, and silent error swallowing.
+
+### Added
+
+- **AgentCorp Frontend** — New workspace UI with department-specific chat pages for all 7 agents (EA, Finance, Operations, Marketing, Compliance, Legal, Sales)
+- **Dashboard** — Agent overview grid with health status monitoring for all deployed agents
+- **DepartmentWorkspace** — Reusable workspace component with `AgentChat` for streaming conversations with any department agent
+- **AgentCorp platform specification** — Lovable prompt specification for the frontend design system
+
+### Changed
+
+- **Frontend routes** — Complete route overhaul: old CFO pages (`/dashboard`, `/model`, `/investors`, `/knowledge`, `/docs`, `/sign-up`, `/dataroom/:slug`) replaced with workspace routes (`/ea`, `/finance`, `/operations`, `/marketing`, `/compliance`, `/legal`, `/sales`, `/settings`)
+- **AuthContext** — Uses `onAuthStateChange` exclusively for session tracking (removed separate `getSession()` call that caused race conditions)
+- **Supabase queries** — All 25+ query sites now destructure `{ error }` and throw on failure (surfaces errors via TanStack Query)
+- **Password minimum** — Increased from 6 to 8 characters
+- **AgentChat SSE parser** — Logs parse errors instead of silently swallowing them, detects error payloads from agent servers
+- **Dark mode** — `prose-invert` → `dark:prose-invert` for conditional dark mode rendering
+
+### Fixed
+
+- **AuthContext race condition** (CRITICAL) — Removed `getSession()` dual-path that could set stale session state after `onAuthStateChange` had already fired
+- **AgentChat stale closure** (CRITICAL) — Added `messagesRef` to prevent `sendMessage` from reading stale `messages` array during rapid sends
+- **SSE error swallowing** (CRITICAL) — Empty catch block now logs errors; error payloads from agent servers are detected and logged
+- **Supabase silent errors** — Added `{ error }` destructuring to 25+ Supabase queries across 8 pages (Dashboard, EA, Operations, Marketing, Compliance, Legal, Sales, Settings)
+- **AgentChat persistence** — Error handling for conversation create, message insert operations with console logging
+- **Missing VITE_AGENT_URL guard** — Shows user-facing message when agent URL is not configured instead of silently failing
+- **DepartmentWorkspace null guard** — Throws descriptive error for unknown department lookups
+- **formatTime NaN guard** — Returns dash for invalid date strings instead of "NaN:NaN"
+- **AuthContext fetchOrg** — `.catch()` safeguard prevents unhandled promise rejections from causing infinite loading
+- **signOut error logging** — Auth sign-out errors are now logged instead of silently discarded
+- **Accessibility** — Added `aria-label` attributes to AgentChat textarea and send button
+- **Vitest config** — Excludes `src/_finance-archive/**` from test glob
+- **Supabase client comments** — Removed misleading "auto-generated" comments from manually configured file
+- **.gitkeep files** — Added to agent plugin directories for Docker build compatibility
+- **Dockerfiles** — Rewritten for monorepo root build context
+
 ## [v1.2.0] - 2026-03-14
 
 Department agent deployment — 5 new agents built with @waas/runtime, shared tool-helpers for security hardening, and model stack specialization per department.

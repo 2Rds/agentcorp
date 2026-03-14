@@ -2,6 +2,38 @@
 
 ## Current Status
 
+### Completed — v2.0.0 (2026-03-14)
+
+**AgentCorp Frontend Migration**
+- [x] New multi-agent workspace UI replacing CFO-specific finance dashboard
+- [x] Department workspace pages for all 7 agents (EA, Finance, Operations, Marketing, Compliance, Legal, Sales)
+- [x] Agent health dashboard with real-time status monitoring
+- [x] `DepartmentWorkspace` component mapping departments to agent configs
+- [x] `AgentChat` with SSE streaming, conversation persistence, and `messagesRef` for stale closure prevention
+- [x] AgentCorp platform Lovable prompt specification
+
+**PR Review Fixes (15 issues)**
+- [x] AuthContext race condition — removed `getSession()` dual-path, uses `onAuthStateChange` exclusively
+- [x] AgentChat stale closure — `messagesRef` prevents reading stale `messages` array during rapid sends
+- [x] SSE parser error logging — replaced empty catch with `console.warn`, added error payload detection
+- [x] Supabase `{ error }` destructuring across 25+ query sites in 8 pages
+- [x] AgentChat conversation persistence error handling with logging
+- [x] Missing `VITE_AGENT_URL` guard with user-facing message
+- [x] AuthContext `fetchOrg` `.catch()` safeguard for unhandled promise rejections
+- [x] signOut error logging
+- [x] `formatTime` NaN guard for invalid dates
+- [x] Password minimum length 6 → 8
+- [x] Accessibility: aria-labels on AgentChat textarea and send button
+- [x] `dark:prose-invert` conditional dark mode rendering
+- [x] `DepartmentWorkspace` null guard for unknown departments
+- [x] Vitest config excludes `_finance-archive`
+- [x] Removed misleading auto-generated comments from Supabase client
+
+**Build Fixes**
+- [x] .gitkeep files for agent plugin directories (Docker build)
+- [x] Dockerfiles rewritten for monorepo root build context
+- [x] Agent SQL migrations with gitignored `app-spec.yaml`
+
 ### Completed — v1.2.0 (2026-03-14)
 
 **Department Agent Deployment (5 agents)**
@@ -109,7 +141,7 @@
 - **Single-org per user** — Profile links to one org
 - **No invitation system** — Org members added manually
 - **No OAuth/SSO** — Only email+password
-- **Client-side metrics only** — Derived metrics computed in browser
+- **No dedicated financial UI** — Financial model, cap table, and investor portal are now chat-driven via CFO agent (old dedicated pages removed in AgentCorp migration)
 - **Redis optional** — Vector search, semantic cache, plugin matching degrade to fallbacks without it
 - **Mem0 dependency** — Knowledge base entirely Mem0-dependent
 - **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet

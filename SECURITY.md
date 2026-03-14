@@ -22,7 +22,7 @@ The platform uses native Supabase Auth with email+password authentication. No th
   → Onboarding (if no org) or AppLayout
 ```
 
-`AuthProvider` subscribes to `onAuthStateChange` before calling `getSession()` to avoid race conditions. All Supabase queries use the authenticated client, which automatically includes the JWT.
+`AuthProvider` uses `onAuthStateChange` exclusively for session tracking — the `INITIAL_SESSION` event provides the session on page load, eliminating the need for a separate `getSession()` call and the race condition it caused. All Supabase queries use the authenticated client, which automatically includes the JWT. The `fetchOrg` call is wrapped with `.catch()` to prevent unhandled promise rejections from causing infinite loading states.
 
 ### Agent Server Auth
 

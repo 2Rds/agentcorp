@@ -99,7 +99,7 @@ Backend: Supabase (Postgres, Auth, RLS, Edge Functions). Memory: Mem0 (org-scope
 
 ### Auth & Multi-tenancy
 
-Auth flow: `/auth` (email+password) → `ProtectedRoute` → `OrgGate` (checks org membership) → Onboarding or `AppLayout`.
+Auth flow: `/auth` (email+password) → `ProtectedRoute` → `AppLayout` (with org context via `AuthProvider`).
 
 Uses **native Supabase Auth** (email+password). Users belong to organizations via `user_roles` table with roles: owner, cofounder, advisor, investor. All data access scoped by organization through RLS using `is_org_member(_user_id, _org_id)` and `has_role(_user_id, _role, _org_id)` PostgreSQL helper functions with UUID params and `auth.uid()`.
 
@@ -223,28 +223,25 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 ### Key Hooks (src/hooks/)
 
-- `useAuth` — Compatibility shim wrapping `useAuthContext()`
-- `useAuthContext` — Full Supabase auth context (user, session, org, signOut)
-- `useOrganization` — Active org ID from auth context, org creation via atomic RPC
-- `useModelSheet(orgId)` — Google Sheets integration
-- `useFinancialModel(orgId, scenario)` — Financial model data + derived metrics
-- `useCapTable(orgId)` — Cap table entries with computed totals
-- `useAgentThread` / `useConversations` — Chat thread management
-- `useInvestorLinks` — DocSend-style shareable links
+- `useAuth` — Supabase auth context (user, session, org, signOut) exported from `AuthContext.tsx`
+- `useAgentHealth` — Agent health status polling for dashboard
+- `use-toast` — Toast notification hook (shadcn/ui)
+- `use-mobile` — Responsive breakpoint detection
 
 ### Frontend Routes (src/App.tsx)
 
 | Path | Page | Purpose |
 |------|------|---------|
 | `/auth` | Auth | Supabase email+password sign-in |
-| `/sign-up` | SignUp | Account creation |
-| `/` | Chat | AI CFO agent streaming chat |
-| `/knowledge` | Knowledge | Document uploads + agent knowledge base |
-| `/model` | FinancialModel | Google Sheets financial model |
-| `/dashboard` | Dashboard | Financial charts (P&L, burn/runway, cap table) |
-| `/investors` | Investors | Shareable links + engagement analytics |
-| `/docs` | Docs | Platform documentation |
-| `/settings` | SettingsPage | User and org settings |
+| `/` | Dashboard | Agent overview grid with health status |
+| `/ea` | EAWorkspace | Chat with Alex (Executive Assistant) |
+| `/finance` | FinanceWorkspace | Chat with Morgan (CFO Agent) |
+| `/operations` | OperationsWorkspace | Chat with Jordan (COA) |
+| `/marketing` | MarketingWorkspace | Chat with Taylor (CMA) |
+| `/compliance` | ComplianceWorkspace | Chat with CCO (Compliance) |
+| `/legal` | LegalWorkspace | Chat with Casey (Legal) |
+| `/sales` | SalesWorkspace | Chat with Sam (Sales) |
+| `/settings` | Settings | User and org settings |
 
 ### Edge Functions (supabase/functions/)
 
@@ -320,12 +317,11 @@ Deno runtime. Used as fallback when agent server is unreachable.
 ## UI Patterns
 
 - shadcn/ui (Radix primitives) in `src/components/ui/` — don't modify directly
-- Recharts for dashboard charts in `src/components/dashboard/`
 - Tailwind CSS with CSS variables for theming (light/dark)
 - `cn()` from `src/lib/utils.ts` for conditional class merging
-- React Hook Form + Zod for form validation
 - TanStack Query for server state; React Context for auth only
-- Chat.tsx uses `VITE_AGENT_URL` env var with edge function fallback
+- `AgentChat` component uses `VITE_AGENT_URL` env vars per agent (e.g. `VITE_EA_AGENT_URL`)
+- `DepartmentWorkspace` maps department name → agent config → `AgentChat`
 - `@/*` → `./src/*` path alias (tsconfig + vite config)
 
 ## Supabase Client

@@ -2,70 +2,68 @@
 
 ## Overview
 
-Three-tier system: a React 18 frontend deployed to Vercel, two Express agent servers (CFO + EA), and Supabase for database, auth, storage, and edge function fallback.
+Multi-tier system: a React 18 frontend (Vercel) providing workspace UIs for 7 Express agent servers (DigitalOcean), backed by Supabase (Postgres, Auth, RLS, Storage).
 
 ```
                     ┌─────────────────┐
                     │   Vercel CDN     │
-                    │  React Frontend  │
+                    │  AgentCorp UI    │
                     └────────┬────────┘
                              │
-              ┌──────────────┼──────────────┐
-              │              │              │
-     ┌────────▼───────┐ ┌───▼──────┐ ┌────▼────────┐
-     │  CFO Agent      │ │ Supabase │ │  EA Agent    │
-     │  (Agent SDK)    │ │ Postgres │ │  (Messages)  │
-     │  31 MCP tools   │ │          │ │  11 tools    │
-     └──┬───┬───┬──┬──┘ └──────────┘ └──┬───┬──────┘
-        │   │   │  │                     │   │
-   ┌────┘   │   │  └────┐          ┌────┘   └────┐
-   │        │   │       │          │              │
-┌──▼──┐ ┌──▼──┐│  ┌────▼────┐  ┌──▼──┐    ┌─────▼───┐
-│Opus │ │Open ││  │  Redis   │  │Tele │    │  Notion  │
-│4.6  │ │Route││  │  8.4     │  │gram │    │  API     │
-└─────┘ └─────┘│  └──────────┘  └─────┘    └─────────┘
-           ┌───▼──┐
-           │ Mem0 │
-           └──────┘
+        ┌────────────────────┼────────────────────┐
+        │                    │                    │
+   ┌────▼─────┐    ┌────────▼────────┐    ┌──────▼──────┐
+   │ Supabase │    │  CFO + EA Agent  │    │ 5 Dept Agent │
+   │ Postgres │    │  (custom Express)│    │  Servers     │
+   └──────────┘    └──┬───┬───┬──────┘    │ (@waas/runtime)│
+                      │   │   │           └──┬───┬───────┘
+                 ┌────┘   │   └────┐         │   │
+                 │        │        │         │   │
+              ┌──▼──┐ ┌──▼──┐ ┌───▼───┐  ┌──▼──┐│
+              │Opus │ │Open │ │ Redis  │  │Tele ││
+              │4.6  │ │Route│ │ 8.4   │  │gram ││
+              └─────┘ └─────┘ └───────┘  └─────┘│
+                         ┌───▼──┐          ┌─────▼───┐
+                         │ Mem0 │          │  Notion  │
+                         └──────┘          └─────────┘
 ```
 
 ## Frontend (`src/`)
 
-React 18 + TypeScript + Vite. Uses shadcn/ui (Radix primitives) with Tailwind CSS. Recharts for dashboard charts. TanStack Query for server state; React Context for auth only.
+React 18 + TypeScript + Vite. Uses shadcn/ui (Radix primitives) with Tailwind CSS. TanStack Query for server state; React Context for auth only. The frontend is the **AgentCorp workspace** — a multi-agent chat and management UI for all 7 department agents.
 
 ### Routes
 
 | Path | Component | Auth |
 |------|-----------|------|
 | `/auth` | Auth | Public — email+password sign-in |
-| `/sign-up` | SignUp | Public — account creation |
-| `/` | Chat | Protected — AI CFO streaming chat |
-| `/knowledge` | Knowledge | Protected — documents + knowledge graph |
-| `/dashboard` | Dashboard | Protected — financial charts |
-| `/model` | FinancialModel | Protected — Google Sheets model |
-| `/investors` | Investors | Protected — shareable links + analytics |
-| `/docs` | Docs | Protected — platform documentation |
-| `/settings` | SettingsPage | Protected — user/org settings |
-| `/dataroom/:slug` | DataRoom | Public — investor portal |
+| `/` | Dashboard | Protected — agent overview grid with health status |
+| `/ea` | EAWorkspace | Protected — chat with Alex (Executive Assistant) |
+| `/finance` | FinanceWorkspace | Protected — chat with Morgan (CFO Agent) |
+| `/operations` | OperationsWorkspace | Protected — chat with Jordan (COA) |
+| `/marketing` | MarketingWorkspace | Protected — chat with Taylor (CMA) |
+| `/compliance` | ComplianceWorkspace | Protected — chat with CCO (Compliance) |
+| `/legal` | LegalWorkspace | Protected — chat with Casey (Legal) |
+| `/sales` | SalesWorkspace | Protected — chat with Sam (Sales) |
+| `/settings` | Settings | Protected — user and org settings |
 
 ### Auth Flow
 
 ```
-/auth (email+password) → ProtectedRoute → OrgGate → Onboarding or AppLayout
+/auth (email+password) → ProtectedRoute → AppLayout (with org context)
 ```
 
-`AuthProvider` (`src/contexts/AuthContext.tsx`) wraps the app. Uses `supabase.auth.onAuthStateChange()` for session tracking. Fetches organization membership via `profiles` → `organizations` → `user_roles`. Protected routes redirect unauthenticated users to `/auth`. `OrgGate` checks org membership and shows onboarding if none found.
+`AuthProvider` (`src/contexts/AuthContext.tsx`) wraps the app. Uses `supabase.auth.onAuthStateChange()` exclusively for session tracking (no separate `getSession()` call). Fetches organization membership via `profiles` → `organizations`. Protected routes redirect unauthenticated users to `/auth`.
 
-### Financial Engine
+### Agent Chat
 
-All financial data stored in `financial_model` table as line items with category (revenue/cogs/opex/headcount/funding), subcategory, month, amount, formula, and scenario. Derived metrics computed **client-side** in `useFinancialModel` via `useMemo`:
+Each workspace page renders a `DepartmentWorkspace` component which maps the department to an agent config and renders `AgentChat`. The chat component:
 
-- **Burn rate** — `abs(min(0, latest_ebitda))`
-- **Runway** — `(cumulative_ebitda + totalFunding) / monthlyBurn`
-- **MRR** — Latest month's revenue
-- **Gross margin** — `(grossProfit / revenue) * 100`
-- **Monthly aggregates** — Per-month revenue, COGS, gross profit, OpEx, EBITDA, net burn
-- **Breakdowns** — Revenue and OpEx by subcategory
+- Streams responses via SSE from the agent's `/chat` endpoint
+- Persists conversations and messages to Supabase
+- Uses `messagesRef` to prevent stale closure issues during rapid sends
+- Guards against missing `VITE_AGENT_URL` with user-facing error message
+- Includes aria-labels for accessibility
 
 ## Agent Server (`agent/src/`)
 
