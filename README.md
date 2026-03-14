@@ -3,7 +3,7 @@
 Cognitive agent orchestration platform for enterprise operations. Namespace-isolated, memory-enriched AI agents that communicate, delegate, and execute across departments.
 
 **Live:**
-- CFO Dashboard: [cfo.blockdrive.co](https://cfo.blockdrive.co)
+- AgentCorp Dashboard: [corp.blockdrive.co](https://corp.blockdrive.co)
 - EA Agent (Alex): DigitalOcean App Platform (Telegram: @alex_executive_assistant_bot)
 
 ## Quick Start

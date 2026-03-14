@@ -52,8 +52,8 @@ function getOpenRouterBaseURL(): string {
 function getOpenRouterHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "HTTP-Referer": "https://cfo.blockdrive.co",
-    "X-Title": "BlockDrive CFO",
+    "HTTP-Referer": "https://corp.blockdrive.co",
+    "X-Title": "BlockDrive AgentCorp",
   };
 
   if (useProviderKeys()) {

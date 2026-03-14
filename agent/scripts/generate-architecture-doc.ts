@@ -1145,7 +1145,7 @@ function renderDeployment(): string {
 
     <table>
       <tr><th>Service</th><th>Platform</th><th>Details</th><th>Status</th></tr>
-      <tr><td>Frontend</td><td>Vercel (auto-build)</td><td>React app, cfo.blockdrive.co</td><td><span class="badge badge-live">LIVE</span></td></tr>
+      <tr><td>Frontend</td><td>Vercel (auto-build)</td><td>React app, corp.blockdrive.co</td><td><span class="badge badge-live">LIVE</span></td></tr>
       <tr><td>Agent Fleet</td><td>DigitalOcean App Platform</td><td>Docker containers, each agent on its own port with dedicated ingress</td><td><span class="badge badge-live">LIVE</span> (2 of 8)</td></tr>
       <tr><td>Redis 8.4</td><td>Docker Compose</td><td>3 RediSearch indexes (plugins, documents, LLM cache)</td><td><span class="badge badge-live">LIVE</span></td></tr>
       <tr><td>n8n Automation</td><td>DigitalOcean Droplet</td><td>Cross-agent workflow orchestration hub</td><td><span class="badge badge-live">LIVE</span></td></tr>

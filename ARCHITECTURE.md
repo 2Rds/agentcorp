@@ -323,7 +323,7 @@ Custom events: `agent_chat_sent`, `workspace_viewed`, `agent_health_checked`.
 
 ## Deployment
 
-- **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `cfo.blockdrive.co`)
+- **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `corp.blockdrive.co`)
 - **CFO Agent:** DigitalOcean App Platform (Docker, port 3001)
 - **EA Agent:** DigitalOcean App Platform (Docker, port 3002, `/ea` ingress)
 - **COA Agent:** DigitalOcean App Platform (Docker, port 3003, `/coa` ingress)

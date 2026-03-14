@@ -221,7 +221,7 @@ Tabs: Chat | Financial Model | Cap Table | Investors | Knowledge Base
 - **Investors tab:** Placeholder content: "Investor Portal — will be migrated from existing Finance app".
 - **Knowledge Base tab:** Placeholder content: "Knowledge Base — will be migrated from existing Finance app".
 
-Note: After Lovable generates the project, the actual Finance tab contents will be migrated from the existing `cfo.blockdrive.co` app. Key assets to migrate: hooks (`useFinancialModel`, `useCapTable`, `useInvestorLinks`, `useModelSheet`), Finance page components, and Supabase query patterns. Same database, same auth — just component-level migration.
+Note: After Lovable generates the project, the actual Finance tab contents will be migrated from the existing `corp.blockdrive.co` app. Key assets to migrate: hooks (`useFinancialModel`, `useCapTable`, `useInvestorLinks`, `useModelSheet`), Finance page components, and Supabase query patterns. Same database, same auth — just component-level migration.
 
 #### EA Workspace (`/ea`)
 Tabs: Chat | Tasks | Meeting Notes | Communications

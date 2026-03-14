@@ -90,7 +90,7 @@ Tests use Vitest with jsdom. Test files live alongside source using `*.test.ts` 
 
 ### System
 
-1. **React 18 Frontend** — Vite + shadcn/ui + Tailwind, deployed to Vercel at `cfo.blockdrive.co`
+1. **React 18 Frontend** — Vite + shadcn/ui + Tailwind, deployed to Vercel at `corp.blockdrive.co`
 2. **CFO Agent** (`agent/`) — Express + Claude Agent SDK, 31 MCP tools, multi-model orchestration
 3. **EA Agent** (`agents/ea/`) — Express + Anthropic Messages API (direct), native tool loop, Telegram bot
 4. **Department Agents** (`agents/{coa,cma,compliance,legal,sales}/`) — Express + Agent SDK + @waas/runtime, specialized model stacks
@@ -271,7 +271,7 @@ Deno runtime. Used as fallback when agent server is unreachable.
 
 | Service | Platform | URL/Port |
 |---------|----------|----------|
-| Frontend | Vercel | `cfo.blockdrive.co` |
+| Frontend | Vercel | `corp.blockdrive.co` |
 | CFO Agent | Docker / DigitalOcean App Platform | Port 3001 |
 | EA Agent | DigitalOcean App Platform | Port 3002, ingress `/ea` |
 | COA Agent | DigitalOcean App Platform | Port 3003, ingress `/coa` |
