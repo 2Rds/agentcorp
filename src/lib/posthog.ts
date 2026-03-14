@@ -1,4 +1,5 @@
 import posthog from 'posthog-js';
+import * as Sentry from '@sentry/react';
 
 export function initPostHog() {
   const key = import.meta.env.VITE_POSTHOG_KEY;
@@ -8,12 +9,21 @@ export function initPostHog() {
   }
 
   try {
+    const isDev = import.meta.env.DEV;
     posthog.init(key, {
-      api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
+      api_host: isDev ? '/ingest' : (import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com'),
+      ui_host: 'https://us.posthog.com',
       autocapture: true,
       capture_pageview: false,
     });
-    console.log('[PostHog] Initialized');
+
+    // Link PostHog sessions to Sentry errors (bidirectional integration)
+    const sessionId = posthog.get_session_id();
+    if (sessionId) {
+      Sentry.getCurrentScope().setTag('posthog_session_id', sessionId);
+    }
+
+    console.log('[PostHog] Initialized (Sentry integration active)');
   } catch (err) {
     console.error('[PostHog] Initialization failed (non-fatal):', err);
   }
