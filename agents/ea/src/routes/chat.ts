@@ -44,19 +44,21 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
       extractKnowledge(lastUserMessage, fullResponse, organizationId, conversationId);
     }
 
-    // PostHog event
-    getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: "ea", org_id: organizationId } });
-  } catch (err: any) {
+    // PostHog event (non-fatal — never affect user response)
+    try { getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: "ea", org_id: organizationId } }); }
+    catch (analyticsErr) { console.error("[PostHog] capture failed (non-fatal):", analyticsErr); }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Agent execution failed";
     console.error("Agent error:", err);
     Sentry.captureException(err);
 
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || "Agent execution failed" });
+      res.status(500).json({ error: message });
       return;
     }
 
     const errorChunk = {
-      choices: [{ delta: { content: `\n\nError: ${err.message || "Something went wrong"}` } }],
+      choices: [{ delta: { content: `\n\nError: ${message}` } }],
     };
     res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
     res.write("data: [DONE]\n\n");

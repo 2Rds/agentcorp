@@ -116,6 +116,7 @@ process.on("unhandledRejection", (reason) => {
 process.on("uncaughtException", (err) => {
   Sentry.captureException(err);
   console.error("Uncaught exception:", err);
+  Sentry.close(2000).finally(() => process.exit(1));
 });
 
 // Graceful shutdown

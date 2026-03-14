@@ -1,42 +1,9 @@
-import * as Sentry from "@sentry/node";
-import { PostHog } from "posthog-node";
-
-let posthog: PostHog | undefined;
+// Re-export from @waas/runtime — EA is in npm workspaces so can import directly.
+// Wrap initSentry to pass the EA agent ID.
+import { initSentry as initSentryBase } from "@waas/runtime";
 
 export function initSentry(): void {
-  const dsn = process.env.SENTRY_DSN;
-  if (!dsn) return;
-
-  Sentry.init({
-    dsn,
-    environment: process.env.NODE_ENV || "development",
-    serverName: "blockdrive-ea",
-    tracesSampleRate: 0.2,
-  });
+  initSentryBase("blockdrive-ea");
 }
 
-export function initPostHog(): PostHog | undefined {
-  const apiKey = process.env.POSTHOG_API_KEY;
-  if (!apiKey) return undefined;
-
-  posthog = new PostHog(apiKey, {
-    host: process.env.POSTHOG_HOST || "https://us.i.posthog.com",
-    flushAt: 20,
-    flushInterval: 10000,
-  });
-
-  return posthog;
-}
-
-export function getPostHog(): PostHog | undefined {
-  return posthog;
-}
-
-export async function shutdownObservability(): Promise<void> {
-  const stops: Promise<void>[] = [];
-  if (posthog) stops.push(posthog.shutdown());
-  stops.push(Sentry.close(2000).then(() => {}));
-  await Promise.allSettled(stops);
-}
-
-export { Sentry };
+export { initPostHog, shutdownObservability, getPostHog, Sentry } from "@waas/runtime";

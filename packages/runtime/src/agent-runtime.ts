@@ -107,6 +107,10 @@ export class AgentRuntime {
   private shutdownRegistered = false;
 
   constructor(rtConfig: AgentRuntimeConfig) {
+    // Initialize observability FIRST — before anything that could fail
+    initSentry(rtConfig.config.id);
+    initPostHog();
+
     this.runtimeConfig = rtConfig;
     this.config = rtConfig.config;
 
@@ -154,10 +158,6 @@ export class AgentRuntime {
   async start(): Promise<void> {
     const agentId = this.config.id;
     const port = this.runtimeConfig.env.port ?? 3001;
-
-    // Initialize observability
-    initSentry(agentId);
-    initPostHog();
 
     // Parallel initialization
     const [redisResult, pluginsResult, telegramResult] = await Promise.allSettled([
@@ -207,6 +207,7 @@ export class AgentRuntime {
       process.on("uncaughtException", (err) => {
         Sentry.captureException(err);
         console.error(`[${agentId}] Uncaught exception:`, err);
+        Sentry.close(2000).finally(() => process.exit(1));
       });
     }
   }
@@ -299,13 +300,13 @@ export class AgentRuntime {
       }
     }
 
-    // 404 handler (must be before Sentry error handler)
+    // Sentry error handler (must be after all routes, before 404)
+    Sentry.setupExpressErrorHandler(this.app);
+
+    // 404 handler (must be last)
     this.app.use((_req, res) => {
       res.status(404).json({ error: "Not found" });
     });
-
-    // Sentry error handler (must be after all routes and 404)
-    Sentry.setupExpressErrorHandler(this.app);
   }
 
   private async initializePlugins(): Promise<void> {

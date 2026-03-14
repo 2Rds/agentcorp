@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Component, useEffect, type ReactNode, type ErrorInfo } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -26,12 +26,20 @@ const queryClient = new QueryClient();
 function PostHogPageView() {
   const location = useLocation();
   useEffect(() => {
-    posthog.capture?.('$pageview', { $current_url: window.location.href });
-  }, [location.pathname]);
+    posthog.capture('$pageview', { $current_url: `${window.location.origin}${location.pathname}${location.search}` });
+  }, [location.pathname, location.search]);
   return null;
 }
 
-const SentryErrorBoundary = Sentry.ErrorBoundary ?? (({ children }: { children: React.ReactNode }) => <>{children}</>);
+/** Fallback error boundary when Sentry.ErrorBoundary is unavailable */
+class FallbackErrorBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(error: Error, info: ErrorInfo) { console.error("React error boundary caught:", error, info); }
+  render() { return this.state.hasError ? this.props.fallback : this.props.children; }
+}
+
+const SentryErrorBoundary = Sentry.ErrorBoundary ?? FallbackErrorBoundary;
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
