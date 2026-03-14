@@ -2,7 +2,7 @@
 
 ## Overview
 
-Three-tier system: a React 18 frontend deployed to Vercel, two Express agent servers (CFO + EA), and Supabase for database, auth, storage, and edge function fallback.
+Three-tier system: a React 18 frontend deployed to Vercel, seven Express agent servers (CFO + EA + 5 department agents), and Supabase for database, auth, storage, and edge function fallback. Full-stack observability via Sentry (error tracking) and PostHog (product analytics).
 
 ```
                     ┌─────────────────┐
@@ -38,15 +38,15 @@ React 18 + TypeScript + Vite. Uses shadcn/ui (Radix primitives) with Tailwind CS
 | Path | Component | Auth |
 |------|-----------|------|
 | `/auth` | Auth | Public — email+password sign-in |
-| `/sign-up` | SignUp | Public — account creation |
-| `/` | Chat | Protected — AI CFO streaming chat |
-| `/knowledge` | Knowledge | Protected — documents + knowledge graph |
-| `/dashboard` | Dashboard | Protected — financial charts |
-| `/model` | FinancialModel | Protected — Google Sheets model |
-| `/investors` | Investors | Protected — shareable links + analytics |
-| `/docs` | Docs | Protected — platform documentation |
-| `/settings` | SettingsPage | Protected — user/org settings |
-| `/dataroom/:slug` | DataRoom | Public — investor portal |
+| `/` | Dashboard | Protected — agent health grid, department metrics |
+| `/ea` | EAWorkspace | Protected — Executive Assistant chat + tasks |
+| `/finance` | FinanceWorkspace | Protected — CFO agent chat + financial tools |
+| `/operations` | OperationsWorkspace | Protected — COA agent chat + operations |
+| `/marketing` | MarketingWorkspace | Protected — CMA agent chat + campaigns |
+| `/compliance` | ComplianceWorkspace | Protected — CCO agent chat + governance |
+| `/legal` | LegalWorkspace | Protected — Legal agent chat + reviews |
+| `/sales` | SalesWorkspace | Protected — Sales agent chat + pipeline |
+| `/settings` | Settings | Protected — user/org settings |
 
 ### Auth Flow
 
@@ -54,7 +54,7 @@ React 18 + TypeScript + Vite. Uses shadcn/ui (Radix primitives) with Tailwind CS
 /auth (email+password) → ProtectedRoute → OrgGate → Onboarding or AppLayout
 ```
 
-`AuthProvider` (`src/contexts/AuthContext.tsx`) wraps the app. Uses `supabase.auth.onAuthStateChange()` for session tracking. Fetches organization membership via `profiles` → `organizations` → `user_roles`. Protected routes redirect unauthenticated users to `/auth`. `OrgGate` checks org membership and shows onboarding if none found.
+`AuthProvider` (`src/contexts/AuthContext.tsx`) wraps the app. Uses `supabase.auth.onAuthStateChange()` exclusively for session tracking — the `INITIAL_SESSION` event provides the session on page load, eliminating the need for a separate `getSession()` call. Fetches organization membership via `profiles` → `organizations` → `user_roles`. On auth, identifies user with PostHog and sets Sentry user context; on sign-out, resets both. Protected routes redirect unauthenticated users to `/auth`.
 
 ### Financial Engine
 
@@ -287,6 +287,39 @@ Supabase PostgreSQL with Row-Level Security. See [SECURITY.md](SECURITY.md) for 
 | `legal_ip_portfolio` | IP portfolio (patents, trademarks, copyrights) |
 | `sales_pipeline` | Sales deal pipeline with stages |
 | `sales_call_logs` | Sales call summaries with action items |
+
+## Observability
+
+Full-stack error tracking (Sentry) and product analytics (PostHog). All init is zero-config — safe no-op when env vars are unset.
+
+### Sentry (Error Tracking)
+
+| Layer | SDK | Key Features |
+|-------|-----|-------------|
+| Frontend | `@sentry/react` | BrowserTracing, Replay (on error), ErrorBoundary, source maps via `@sentry/vite-plugin` |
+| CFO Agent | `@sentry/node` | Express error handler, unhandled rejection/exception → flush + exit |
+| EA Agent | `@sentry/node` | Re-exports from `@waas/runtime` (DRY) |
+| @waas/runtime | `@sentry/node` | `initSentry(agentId)` — covers COA, CMA, Compliance, Legal, Sales |
+
+All agent servers: `uncaughtException` handler calls `Sentry.close(2000)` then `process.exit(1)` (Node enters undefined state after uncaught exception). Express error handler placed after routes but before 404 handler.
+
+### PostHog (Product Analytics)
+
+| Layer | SDK | Key Features |
+|-------|-----|-------------|
+| Frontend | `posthog-js` | Autocapture, SPA page views via `useLocation`, user identify/reset on auth |
+| All agents | `posthog-node` | `agent_query` event on every chat request (distinctId = userId) |
+
+Custom events: `agent_chat_sent`, `workspace_viewed`, `agent_health_checked`.
+
+### Architecture (3 init modules)
+
+| Module | Location | Covers |
+|--------|----------|--------|
+| Frontend | `src/lib/sentry.ts` + `src/lib/posthog.ts` | React SPA |
+| CFO Agent | `agent/src/lib/observability.ts` | CFO server |
+| @waas/runtime | `packages/runtime/src/lib/observability.ts` | COA, CMA, Compliance, Legal, Sales |
+| EA Agent | `agents/ea/src/lib/observability.ts` | Re-exports from @waas/runtime |
 
 ## Deployment
 

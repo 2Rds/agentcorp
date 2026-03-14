@@ -33,3 +33,6 @@ export type { FetchResult, FetchError } from "./lib/tool-helpers.js";
 // Transport
 export { TelegramTransport } from "./transport/telegram.js";
 export type { TelegramTransportConfig } from "./transport/telegram.js";
+
+// Observability
+export { initSentry, initPostHog, shutdownObservability, getPostHog, Sentry } from "./lib/observability.js";

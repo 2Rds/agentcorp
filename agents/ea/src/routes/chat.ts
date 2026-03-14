@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
 import { createAgentQuery } from "../agent/ea-agent.js";
 import { extractKnowledge } from "../agent/knowledge-extractor.js";
+import { Sentry, getPostHog } from "../lib/observability.js";
 
 const router = Router();
 
@@ -42,16 +43,22 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
     if (organizationId && lastUserMessage && fullResponse) {
       extractKnowledge(lastUserMessage, fullResponse, organizationId, conversationId);
     }
-  } catch (err: any) {
+
+    // PostHog event (non-fatal — never affect user response)
+    try { getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: "ea", org_id: organizationId } }); }
+    catch (analyticsErr) { console.error("[PostHog] capture failed (non-fatal):", analyticsErr); }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Agent execution failed";
     console.error("Agent error:", err);
+    Sentry.captureException(err);
 
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || "Agent execution failed" });
+      res.status(500).json({ error: message });
       return;
     }
 
     const errorChunk = {
-      choices: [{ delta: { content: `\n\nError: ${err.message || "Something went wrong"}` } }],
+      choices: [{ delta: { content: `\n\nError: ${message}` } }],
     };
     res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
     res.write("data: [DONE]\n\n");

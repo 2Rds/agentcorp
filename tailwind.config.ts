@@ -70,6 +70,15 @@ export default {
           4: "hsl(var(--chart-4))",
           5: "hsl(var(--chart-5))",
         },
+        agent: {
+          ea: "hsl(var(--agent-ea))",
+          finance: "hsl(var(--agent-finance))",
+          operations: "hsl(var(--agent-operations))",
+          marketing: "hsl(var(--agent-marketing))",
+          compliance: "hsl(var(--agent-compliance))",
+          legal: "hsl(var(--agent-legal))",
+          sales: "hsl(var(--agent-sales))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -89,11 +98,16 @@ export default {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.6" },
         },
+        "bounce-dot": {
+          "0%, 80%, 100%": { transform: "scale(0)" },
+          "40%": { transform: "scale(1)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "pulse-subtle": "pulse-subtle 2s ease-in-out infinite",
+        "bounce-dot": "bounce-dot 1.4s infinite ease-in-out both",
       },
     },
   },

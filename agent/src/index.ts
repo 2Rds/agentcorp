@@ -1,3 +1,8 @@
+import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
+
+initSentry();
+initPostHog();
+
 import express from "express";
 import { config } from "./config.js";
 import { corsMiddleware } from "./middleware/cors.js";
@@ -29,6 +34,9 @@ app.use(webhooksRouter);
 app.use(modelRouter);
 app.use(integrationsRouter);
 
+// Sentry error handler (must be after all routes)
+Sentry.setupExpressErrorHandler(app);
+
 app.listen(config.port, async () => {
   console.log(`CFO Agent server listening on port ${config.port}`);
   loadPluginRegistry();
@@ -43,9 +51,20 @@ app.listen(config.port, async () => {
   }
 });
 
+// Unhandled errors → Sentry
+process.on("unhandledRejection", (reason) => {
+  Sentry.captureException(reason);
+  console.error("Unhandled rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  Sentry.captureException(err);
+  console.error("Uncaught exception:", err);
+  Sentry.close(2000).finally(() => process.exit(1));
+});
+
 // Graceful shutdown
 process.on("SIGTERM", async () => {
   console.log("SIGTERM received, shutting down...");
-  await disconnectRedis();
+  await Promise.allSettled([disconnectRedis(), shutdownObservability()]);
   process.exit(0);
 });

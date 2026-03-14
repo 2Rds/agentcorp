@@ -22,7 +22,7 @@ The platform uses native Supabase Auth with email+password authentication. No th
   → Onboarding (if no org) or AppLayout
 ```
 
-`AuthProvider` subscribes to `onAuthStateChange` before calling `getSession()` to avoid race conditions. All Supabase queries use the authenticated client, which automatically includes the JWT.
+`AuthProvider` uses `onAuthStateChange` exclusively for session tracking — the `INITIAL_SESSION` event provides the session on page load, eliminating the need for a separate `getSession()` call. On auth, identifies user with PostHog and sets Sentry user context; on sign-out, resets both. All Supabase queries use the authenticated client, which automatically includes the JWT.
 
 ### Agent Server Auth
 
@@ -177,9 +177,19 @@ EA agent's Telegram bot transport enforces:
 | `MEM0_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
 | `NOTION_API_KEY` | All agent servers (optional) | `agent/.env`, `agents/*/.env` |
 | `PERPLEXITY_API_KEY` | Dept agents (optional, fallback to OpenRouter) | `agents/*/.env` |
+| `SENTRY_DSN` | All agent servers (error tracking) | `agent/.env`, `agents/*/.env` |
+| `POSTHOG_API_KEY` | All agent servers (analytics, write-only) | `agent/.env`, `agents/*/.env` |
+| `VITE_SENTRY_DSN` | Frontend (error tracking) | `.env` |
+| `VITE_POSTHOG_KEY` | Frontend (analytics, write-only) | `.env` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Frontend (public) | `.env` |
 
 Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the gateway to inject API keys at the edge — keys never leave the server.
+
+### Observability Key Security
+
+- **PostHog project token** — Write-only, cannot read data. Safe to include in frontend bundles.
+- **Sentry DSN** — Write-only, used for error reporting. Safe to include in frontend bundles.
+- **Source maps** — Only generated during build when `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` are set. Uploaded to Sentry but NOT served via CDN. `SENTRY_AUTH_TOKEN` is a build-time secret, never shipped to the browser.
 
 ## Organization Data Isolation
 

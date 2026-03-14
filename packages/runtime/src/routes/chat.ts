@@ -13,10 +13,11 @@
 
 import { Router } from "express";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { SDKMessage, McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
+import type { SDKMessage, McpSdkServerConfigWithInstance, PermissionMode } from "@anthropic-ai/claude-agent-sdk";
 import type { AuthenticatedRequest } from "../middleware/auth.js";
 import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
+import { Sentry, getPostHog } from "../lib/observability.js";
 import type { Mem0Client } from "../lib/mem0-client.js";
 import type { ModelRouter } from "@waas/shared";
 import type { RedisClientType } from "redis";
@@ -38,7 +39,7 @@ export interface ChatRouteDeps {
   /** Optional post-response hook (e.g., knowledge extraction) */
   onResponse?: (agentId: string, orgId: string, userMessage: string, assistantText: string, conversationId: string) => void | Promise<void>;
   /** Claude Agent SDK permission mode (default: "bypassPermissions") */
-  permissionMode?: string;
+  permissionMode?: PermissionMode;
   /** Max agent turns (default: 25) */
   maxTurns?: number;
 }
@@ -107,7 +108,7 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
           systemPrompt: enrichedPrompt,
           mcpServers: { [`${deps.agentId}-tools`]: mcpServer },
           includePartialMessages: true,
-          permissionMode: (deps.permissionMode ?? "bypassPermissions") as "bypassPermissions",
+          permissionMode: deps.permissionMode ?? "bypassPermissions",
           allowDangerouslySkipPermissions: true,
           model: "claude-opus-4-6",
           maxTurns: deps.maxTurns ?? 25,
@@ -147,8 +148,13 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
           .then(() => deps.onResponse!(deps.agentId, organizationId, message, fullText, convId))
           .catch((err) => console.error("Post-response hook failed:", err));
       }
+
+      // PostHog event (non-fatal — never affect user response)
+      try { getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: deps.agentId, org_id: organizationId } }); }
+      catch (analyticsErr) { console.error("[PostHog] capture failed (non-fatal):", analyticsErr); }
     } catch (err) {
       console.error(`Chat error (agent=${deps.agentId}):`, err);
+      Sentry.captureException(err);
       if (!clientDisconnected) {
         res.write(`data: ${JSON.stringify({ error: "Agent query failed" })}\n\n`);
         res.end();

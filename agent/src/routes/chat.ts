@@ -3,6 +3,7 @@ import { authMiddleware, AuthenticatedRequest } from "../middleware/auth.js";
 import { createAgentQuery } from "../agent/cfo-agent.js";
 import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 import { extractKnowledge } from "../agent/knowledge-extractor.js";
+import { Sentry, getPostHog } from "../lib/observability.js";
 
 const router = Router();
 
@@ -53,20 +54,26 @@ router.post("/api/chat", authMiddleware, async (req: Request, res: Response) => 
         if (organizationId && lastUserMessage && fullAssistantResponse) {
           extractKnowledge(lastUserMessage, fullAssistantResponse, organizationId, conversationId);
         }
+
+        // PostHog event (non-fatal — never affect user response)
+        try { getPostHog()?.capture({ distinctId: userId, event: "agent_query", properties: { agent: "cfa", org_id: organizationId } }); }
+        catch (analyticsErr) { console.error("[PostHog] capture failed (non-fatal):", analyticsErr); }
       }
     }
-  } catch (err: any) {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Agent execution failed";
     console.error("Agent error:", err);
+    Sentry.captureException(err);
 
     // If we haven't sent any data yet, send an error response
     if (!res.headersSent) {
-      res.status(500).json({ error: err.message || "Agent execution failed" });
+      res.status(500).json({ error: message });
       return;
     }
 
     // If already streaming, send error as SSE
     const errorChunk = {
-      choices: [{ delta: { content: `\n\n⚠️ Error: ${err.message || "Something went wrong"}` } }],
+      choices: [{ delta: { content: `\n\n⚠️ Error: ${message}` } }],
     };
     res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
     res.write("data: [DONE]\n\n");

@@ -36,6 +36,7 @@ import type {
 import { ModelRouter as ModelRouterImpl } from "@waas/shared";
 import { getRedis, disconnectRedis } from "./lib/redis-client.js";
 import { Mem0Client } from "./lib/mem0-client.js";
+import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
 import { setPluginsDir, loadPluginRegistry } from "./lib/plugin-loader.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createHealthRouter } from "./routes/health.js";
@@ -106,6 +107,10 @@ export class AgentRuntime {
   private shutdownRegistered = false;
 
   constructor(rtConfig: AgentRuntimeConfig) {
+    // Initialize observability FIRST — before anything that could fail
+    initSentry(rtConfig.config.id);
+    initPostHog();
+
     this.runtimeConfig = rtConfig;
     this.config = rtConfig.config;
 
@@ -195,6 +200,15 @@ export class AgentRuntime {
       };
       process.on("SIGINT", shutdown);
       process.on("SIGTERM", shutdown);
+      process.on("unhandledRejection", (reason) => {
+        Sentry.captureException(reason);
+        console.error(`[${agentId}] Unhandled rejection:`, reason);
+      });
+      process.on("uncaughtException", (err) => {
+        Sentry.captureException(err);
+        console.error(`[${agentId}] Uncaught exception:`, err);
+        Sentry.close(2000).finally(() => process.exit(1));
+      });
     }
   }
 
@@ -202,7 +216,7 @@ export class AgentRuntime {
    * Stop the runtime cleanly.
    */
   async stop(): Promise<void> {
-    const stops: Promise<void>[] = [disconnectRedis()];
+    const stops: Promise<void>[] = [disconnectRedis(), shutdownObservability()];
     if (this.telegramTransport) {
       stops.push(this.telegramTransport.stop());
     }
@@ -285,6 +299,9 @@ export class AgentRuntime {
         this.app.use(path, authMiddleware, router);
       }
     }
+
+    // Sentry error handler (must be after all routes, before 404)
+    Sentry.setupExpressErrorHandler(this.app);
 
     // 404 handler (must be last)
     this.app.use((_req, res) => {

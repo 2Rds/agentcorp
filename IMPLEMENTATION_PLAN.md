@@ -2,6 +2,46 @@
 
 ## Current Status
 
+### Completed — v2.1.0 (2026-03-14)
+
+**Full-Stack Observability (Sentry + PostHog)**
+- [x] Frontend: `@sentry/react` with ErrorBoundary, BrowserTracing, Replay (on error), source map upload via `@sentry/vite-plugin`
+- [x] Frontend: `posthog-js` with autocapture, SPA page views, user identify/reset on auth
+- [x] CFO Agent: `@sentry/node` + `posthog-node` with Express error handler, shutdown flush
+- [x] EA Agent: Re-exports observability from `@waas/runtime` (DRY)
+- [x] @waas/runtime: Shared `initSentry(agentId)` + `initPostHog()` + `shutdownObservability()` — covers COA, CMA, Compliance, Legal, Sales
+- [x] All agent servers: `uncaughtException` → Sentry flush + `process.exit(1)`
+- [x] All SDK init calls wrapped in try-catch (non-fatal on failure)
+- [x] Conditional source maps (only when `SENTRY_AUTH_TOKEN` set)
+- [x] PostHog `.capture()` wrapped in try-catch across all chat routes
+- [x] 3 custom PostHog events: `agent_chat_sent`, `workspace_viewed`, `agent_health_checked`
+- [x] Zero-config: safe no-op when env vars unset
+
+**Hardening (4-agent Opus code review)**
+- [x] Sentry Express error handler ordering (after routes, before 404)
+- [x] `PermissionMode` type imported from SDK (removed unsafe `as` cast)
+- [x] Fixed `catch (err: any)` typing across chat routes
+- [x] Real `FallbackErrorBoundary` class component in App.tsx
+- [x] Removed `persistence: 'localStorage'` from PostHog config
+- [x] Observability init moved to constructor (before async start)
+
+### Completed — v2.0.0 (2026-03-14)
+
+**AgentCorp Frontend Migration**
+- [x] 7 department workspaces (EA, Finance, Operations, Marketing, Compliance, Legal, Sales)
+- [x] `DepartmentWorkspace` reusable component with agent chat, task panels, department metrics
+- [x] `AgentChat` streaming SSE with Markdown, conversation persistence, per-agent URL routing
+- [x] `AppLayout` sidebar navigation + `ProtectedRoute` wrapping
+- [x] `useAgentHealth` hook for real-time agent status monitoring
+- [x] Dashboard with agent health grid and department activity
+
+**PR Review Fixes (15 issues)**
+- [x] AuthContext race condition (onAuthStateChange exclusively, no getSession())
+- [x] AgentChat stale closure (messagesRef)
+- [x] Supabase `{ error }` checks across 25 query sites
+- [x] Missing VITE_AGENT_URL guard, aria-labels, dark:prose-invert, password minLength 8
+- [x] Excluded `_finance-archive` from vitest
+
 ### Completed — v1.2.0 (2026-03-14)
 
 **Department Agent Deployment (5 agents)**

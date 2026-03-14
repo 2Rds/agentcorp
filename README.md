@@ -47,6 +47,7 @@ npm run dev            # http://localhost:3002
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_PUBLISHABLE_KEY=...
 VITE_AGENT_URL=http://localhost:3001
+# Optional: VITE_SENTRY_DSN, VITE_POSTHOG_KEY, VITE_POSTHOG_HOST
 ```
 
 **CFO Agent (`agent/.env`):**
@@ -56,7 +57,7 @@ SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENROUTER_API_KEY=...             # Non-Claude models
 MEM0_API_KEY=...                   # Persistent memory
-# Optional: PORT, CORS_ORIGINS, COHERE_API_KEY, REDIS_URL, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, NOTION_API_KEY
+# Optional: PORT, CORS_ORIGINS, COHERE_API_KEY, REDIS_URL, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, NOTION_API_KEY, SENTRY_DSN, POSTHOG_API_KEY, POSTHOG_HOST
 ```
 
 **EA Agent (`agents/ea/.env`):**
@@ -101,8 +102,9 @@ waas/
 
 ## Features
 
-- **AI CFO Chat** — Streaming Claude Opus 4.6 with org memories and 31 knowledge plugins
-- **Executive Assistant** — Autonomous task management, meeting notes, cross-department queries, Telegram interface, 84 knowledge plugins
+- **AgentCorp Workspace UI** — 7 department workspaces with agent chat, task management, and department-specific dashboards
+- **AI Agent Chat** — Streaming SSE chat with Markdown rendering, conversation persistence, per-agent URL routing
+- **Agent Health Monitoring** — Real-time agent status dashboard with online/offline/unknown tracking
 - **Financial Model** — SaaS-template with scenario toggling, derived metrics (burn, runway, MRR)
 - **Cap Table** — Equity tracking across funding rounds
 - **Investor Portal** — DocSend-style links with password gating and analytics
@@ -115,6 +117,7 @@ waas/
 - **Inter-Agent Messaging** — Redis inbox + Telegram bot-to-bot transport
 - **Namespace Isolation** — Scoped Redis + mem0 per department, fail-closed enforcement
 - **SSRF Protection** — URL validation blocking private IPs, cloud metadata, internal hosts
+- **Observability** — Sentry error tracking + PostHog product analytics across frontend and all 7 agent servers (zero-config when env vars unset)
 
 ## Tech Stack
 
@@ -129,6 +132,7 @@ waas/
 | Models | Claude Opus 4.6, Gemini 3.1 Pro, Sonar Pro, Grok 4.1 Fast, Granite 4.0, Command A |
 | Search | Redis 8.4 (vector search, semantic cache) |
 | Memory | Mem0 (graph memory, org-scoped, cross-namespace read for EA) |
+| Observability | Sentry (@sentry/react + @sentry/node), PostHog (posthog-js + posthog-node) |
 | Deployment | Vercel (frontend), DigitalOcean App Platform (agents), n8n (automation) |
 
 ## Documentation
