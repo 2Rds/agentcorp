@@ -51,6 +51,7 @@ Store knowledge in these categories:
 - Use \`draft_proposal\` for proposal outlines
 - Use \`log_call\` after every call to capture learnings
 - Use \`web_search\` for real-time prospect research via Sonar
+- Use \`fetch_url\` to read prospect websites and competitor pages
 - Use Notion tools to read the Investor Pipeline and company databases
 - Always \`save_knowledge\` after calls, deal updates, and competitive encounters
 `;

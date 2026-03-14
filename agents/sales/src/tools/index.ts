@@ -9,7 +9,9 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
+import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
+import { safeFetch, safeFetchText, safeJsonParse, stripHtml } from "@waas/runtime";
 import { config } from "../config.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
@@ -25,21 +27,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       "search_knowledge",
       "Search sales namespace memory for deal history, prospect research, call transcripts, objections, and competitive intel.",
       {
-        query: z.string().describe("Search query"),
+        query: z.string().max(500).describe("Search query"),
         limit: z.number().default(10).describe("Max results"),
       },
       async (args) => {
-        try {
-          const res = await fetch("https://api.mem0.ai/v2/memories/search/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ query: args.query, top_k: args.limit, rerank: true, agent_id: "blockdrive-sales" }),
-          });
-          const data = await res.json() as { results?: Array<{ memory: string; score: number }> };
-          return text(JSON.stringify(data.results?.slice(0, args.limit) ?? []));
-        } catch (e) {
-          return err(`Memory search failed: ${String(e)}`);
-        }
+        const result = await safeFetch<{ results?: Array<{ memory: string; score: number }> }>(
+          "https://api.mem0.ai/v2/memories/search/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ query: args.query, top_k: args.limit, rerank: true, agent_id: "blockdrive-sales" }) },
+          "Memory search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(JSON.stringify(result.data.results?.slice(0, args.limit) ?? []));
       },
     ),
 
@@ -47,25 +46,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       "save_knowledge",
       "Persist sales knowledge — deal updates, prospect insights, call learnings, objection handling, competitive intel.",
       {
-        content: z.string().describe("The knowledge to save"),
+        content: z.string().max(5000).describe("The knowledge to save"),
         category: z.enum(["deal_pipeline", "prospect_research", "call_transcripts", "objections", "competitive_intel"]),
       },
       async (args) => {
-        try {
-          const res = await fetch("https://api.mem0.ai/v2/memories/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: [{ role: "user", content: args.content }],
-              agent_id: "blockdrive-sales",
-              metadata: { category: args.category, org_id: orgId },
-            }),
-          });
-          const data = await res.json();
-          return text(`Saved to ${args.category}: ${JSON.stringify(data)}`);
-        } catch (e) {
-          return err(`Memory save failed: ${String(e)}`);
-        }
+        const result = await safeFetch(
+          "https://api.mem0.ai/v2/memories/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: [{ role: "user", content: args.content }], agent_id: "blockdrive-sales", metadata: { category: args.category, org_id: orgId } }) },
+          "Memory save",
+        );
+        if (!result.ok) return err(result.error);
+        return text(`Saved to ${args.category}: ${JSON.stringify(result.data)}`);
       },
     ),
 
@@ -74,16 +66,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "search_notion",
         "Search the Notion workspace for prospect databases, pipeline views, and deal notes.",
-        { query: z.string().describe("Search query") },
+        { query: z.string().max(200).describe("Search query") },
         async (args) => {
           try {
             const res = await notion.search({ query: args.query, page_size: 10 });
-            const results = res.results.map((r: any) => ({
+            const results = res.results.map((r) => ({
               id: r.id,
               type: r.object,
               title: r.object === "page"
-                ? (r.properties?.title?.title?.[0]?.plain_text || r.properties?.Name?.title?.[0]?.plain_text || "Untitled")
-                : (r.title?.[0]?.plain_text || "Untitled"),
+                ? ((r as PageObjectResponse).properties?.title as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || ((r as PageObjectResponse).properties?.Name as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || "Untitled"
+                : ((r as DatabaseObjectResponse).title?.[0]?.plain_text || "Untitled"),
             }));
             return text(JSON.stringify(results));
           } catch (e) {
@@ -95,14 +89,14 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "read_notion_page",
         "Read the content and properties of a Notion page (prospect profile, deal brief, etc.).",
-        { page_id: z.string().describe("Notion page ID") },
+        { page_id: z.string().max(100).describe("Notion page ID") },
         async (args) => {
           try {
             const [page, blocks] = await Promise.all([
               notion.pages.retrieve({ page_id: args.page_id }),
               notion.blocks.children.list({ block_id: args.page_id, page_size: 100 }),
             ]);
-            return text(JSON.stringify({ properties: (page as any).properties, blocks: blocks.results.slice(0, 50) }));
+            return text(JSON.stringify({ properties: (page as PageObjectResponse).properties, blocks: blocks.results.slice(0, 50) }));
           } catch (e) {
             return err(`Notion read failed: ${String(e)}`);
           }
@@ -114,42 +108,36 @@ export function createMcpServer(orgId: string, _userId: string) {
     tool(
       "web_search",
       "Search the web for prospect research, industry trends, competitive intelligence, and market data.",
-      { query: z.string().describe("Search query") },
+      { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        try {
-          const apiUrl = config.perplexityApiKey
-            ? "https://api.perplexity.ai/chat/completions"
-            : "https://openrouter.ai/api/v1/chat/completions";
-          const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-          const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-          const res = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "No results");
-        } catch (e) {
-          return err(`Web search failed: ${String(e)}`);
-        }
+        const apiUrl = config.perplexityApiKey
+          ? "https://api.perplexity.ai/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions";
+        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
+        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          apiUrl,
+          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }) },
+          "Web search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "No results found for this query.");
       },
     ),
 
     tool(
       "fetch_url",
-      "Fetch and read a web page for prospect research or competitive analysis.",
-      { url: z.string().url().describe("URL to fetch") },
+      "Fetch and read a web page for prospect research or competitive analysis. Strips HTML for clean output. Blocked for internal/private URLs.",
+      { url: z.string().url().max(2000).describe("URL to fetch") },
       async (args) => {
-        try {
-          const res = await fetch(args.url, {
-            headers: { "User-Agent": "BlockDrive-Sales/1.0" },
-            signal: AbortSignal.timeout(15000),
-          });
-          const body = await res.text();
-          return text(body.slice(0, 8000));
-        } catch (e) {
-          return err(`Fetch failed: ${String(e)}`);
-        }
+        const result = await safeFetchText(
+          args.url,
+          { headers: { "User-Agent": "BlockDrive-Sales/1.0" }, signal: AbortSignal.timeout(15000) },
+          "Fetch URL",
+        );
+        if (!result.ok) return err(result.error);
+        return text(stripHtml(result.data).slice(0, 8000));
       },
     ),
 
@@ -159,16 +147,16 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Create, update, or list deals in the sales pipeline.",
       {
         action: z.enum(["create", "update", "list"]).describe("Action to perform"),
-        company: z.string().optional().describe("Company name (required for create)"),
-        deal_id: z.string().optional().describe("Deal ID (required for update)"),
-        contact: z.string().optional().describe("Primary contact name"),
+        company: z.string().max(200).optional().describe("Company name (required for create)"),
+        deal_id: z.string().max(100).optional().describe("Deal ID (required for update)"),
+        contact: z.string().max(200).optional().describe("Primary contact name"),
         stage: z.enum(["prospect", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"]).optional(),
         value: z.number().optional().describe("Deal value in USD"),
         probability: z.number().optional().describe("Close probability (0-100)"),
-        expected_close: z.string().optional().describe("Expected close date (ISO 8601)"),
-        source: z.string().optional().describe("Lead source"),
-        tags: z.string().optional().describe("Comma-separated tags"),
-        notes: z.string().optional().describe("Deal notes"),
+        expected_close: z.string().max(30).optional().describe("Expected close date (ISO 8601)"),
+        source: z.string().max(200).optional().describe("Lead source"),
+        tags: z.string().max(500).optional().describe("Comma-separated tags"),
+        notes: z.string().max(5000).optional().describe("Deal notes"),
       },
       async (args) => {
         try {
@@ -236,30 +224,27 @@ export function createMcpServer(orgId: string, _userId: string) {
       "research_prospect",
       "Conduct structured prospect research using web search. Returns company profile, key contacts, pain points, and approach recommendations.",
       {
-        company: z.string().describe("Company name to research"),
-        contact: z.string().optional().describe("Specific contact to research"),
-        focus: z.string().optional().describe("Specific aspects to focus on (e.g., recent funding, tech stack, pain points)"),
+        company: z.string().max(200).describe("Company name to research"),
+        contact: z.string().max(200).optional().describe("Specific contact to research"),
+        focus: z.string().max(500).optional().describe("Specific aspects to focus on (e.g., recent funding, tech stack, pain points)"),
       },
       async (args) => {
-        try {
-          const prompt = args.contact
-            ? `Research ${args.contact} at ${args.company}. Provide: 1) Their role and responsibilities, 2) Professional background, 3) Recent activity (posts, talks, articles), 4) Connection points for outreach.${args.focus ? ` Focus on: ${args.focus}` : ""}`
-            : `Research ${args.company} for a B2B sales approach. Provide: 1) Company overview (size, industry, revenue), 2) Key decision makers, 3) Recent news and events, 4) Potential pain points, 5) Technology stack, 6) Recommended approach angle.${args.focus ? ` Focus on: ${args.focus}` : ""}`;
-          const apiUrl = config.perplexityApiKey
-            ? "https://api.perplexity.ai/chat/completions"
-            : "https://openrouter.ai/api/v1/chat/completions";
-          const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-          const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-          const res = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "No research results available");
-        } catch (e) {
-          return err(`Prospect research failed: ${String(e)}`);
-        }
+        const prompt = args.contact
+          ? `Research ${args.contact} at ${args.company}. Provide: 1) Their role and responsibilities, 2) Professional background, 3) Recent activity (posts, talks, articles), 4) Connection points for outreach.${args.focus ? ` Focus on: ${args.focus}` : ""}`
+          : `Research ${args.company} for a B2B sales approach. Provide: 1) Company overview (size, industry, revenue), 2) Key decision makers, 3) Recent news and events, 4) Potential pain points, 5) Technology stack, 6) Recommended approach angle.${args.focus ? ` Focus on: ${args.focus}` : ""}`;
+        const apiUrl = config.perplexityApiKey
+          ? "https://api.perplexity.ai/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions";
+        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
+        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          apiUrl,
+          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }) },
+          "Prospect research",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "No research results available");
       },
     ),
 
@@ -267,96 +252,73 @@ export function createMcpServer(orgId: string, _userId: string) {
       "prep_call",
       "Generate a structured call preparation brief for an upcoming sales call.",
       {
-        company: z.string().describe("Company name"),
-        contact: z.string().describe("Contact name and title"),
+        company: z.string().max(200).describe("Company name"),
+        contact: z.string().max(200).describe("Contact name and title"),
         call_type: z.enum(["discovery", "demo", "follow_up", "negotiation", "close"]).describe("Type of call"),
-        context: z.string().optional().describe("Additional context (previous interactions, deal stage, etc.)"),
+        context: z.string().max(5000).optional().describe("Additional context (previous interactions, deal stage, etc.)"),
       },
       async (args) => {
-        try {
-          // Search for existing knowledge about this prospect
-          const memRes = await fetch("https://api.mem0.ai/v2/memories/search/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ query: `${args.company} ${args.contact}`, top_k: 5, rerank: true, agent_id: "blockdrive-sales" }),
-          });
-          const memData = await memRes.json() as { results?: Array<{ memory: string }> };
-          const pastContext = memData.results?.map(r => r.memory).join("\n") || "No prior interactions found.";
+        // Search for existing knowledge about this prospect
+        const memResult = await safeFetch<{ results?: Array<{ memory: string }> }>(
+          "https://api.mem0.ai/v2/memories/search/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ query: `${args.company} ${args.contact}`, top_k: 5, rerank: true, agent_id: "blockdrive-sales" }) },
+          "Memory search for call prep",
+        );
+        const pastContext = memResult.ok
+          ? (memResult.data.results?.map(r => r.memory).join("\n") || "No prior interactions found.")
+          : "Could not retrieve prior interactions.";
 
-          return text(JSON.stringify({
-            call_brief: {
-              company: args.company,
-              contact: args.contact,
-              call_type: args.call_type,
-              prior_context: pastContext,
-              additional_context: args.context || "None provided",
-              prepared_at: new Date().toISOString(),
-            },
-            message: "Call brief prepared. Review prior context and prepare talking points.",
-          }));
-        } catch (e) {
-          return err(`Call prep failed: ${String(e)}`);
-        }
+        return text(JSON.stringify({
+          call_brief: {
+            company: args.company,
+            contact: args.contact,
+            call_type: args.call_type,
+            prior_context: pastContext,
+            additional_context: args.context || "None provided",
+            prepared_at: new Date().toISOString(),
+          },
+          message: "Call brief prepared. Review prior context and prepare talking points.",
+        }));
       },
     ),
 
     tool(
       "draft_proposal",
-      "Generate a proposal outline for a prospect.",
+      "Generate a proposal outline for a prospect. Returns a structured proposal for review and expansion.",
       {
-        company: z.string().describe("Company name"),
-        contact: z.string().describe("Decision maker name"),
-        problem: z.string().describe("The problem or need being addressed"),
-        solution: z.string().describe("Proposed solution overview"),
+        company: z.string().max(200).describe("Company name"),
+        contact: z.string().max(200).describe("Decision maker name"),
+        problem: z.string().max(5000).describe("The problem or need being addressed"),
+        solution: z.string().max(5000).describe("Proposed solution overview"),
         value: z.number().optional().describe("Proposed deal value"),
-        timeline: z.string().optional().describe("Implementation timeline"),
+        timeline: z.string().max(500).optional().describe("Implementation timeline"),
       },
       async (args) => {
-        try {
-          const proposal = {
-            org_id: orgId,
+        return text(JSON.stringify({
+          proposal: {
             company: args.company,
             contact: args.contact,
-            type: "email" as const,
-            content: JSON.stringify({
-              proposal_type: "sales_proposal",
-              company: args.company,
-              contact: args.contact,
-              problem: args.problem,
-              solution: args.solution,
-              value: args.value || null,
-              timeline: args.timeline || null,
-            }),
-            status: "draft" as const,
-            title: `Proposal: ${args.company}`,
-          };
-          // Store in pipeline notes rather than a separate table
-          return text(JSON.stringify({
-            proposal: {
-              company: args.company,
-              contact: args.contact,
-              problem: args.problem,
-              solution: args.solution,
-              value: args.value,
-              timeline: args.timeline,
-              status: "draft",
-            },
-            message: "Proposal outline generated. Expand with detailed content and review before sending.",
-          }));
-        } catch (e) {
-          return err(`Proposal generation failed: ${String(e)}`);
-        }
+            problem: args.problem,
+            solution: args.solution,
+            value: args.value ?? null,
+            timeline: args.timeline ?? null,
+            status: "draft",
+          },
+          message: "Proposal outline generated. Expand with detailed content and review before sending.",
+        }));
       },
     ),
 
     tool(
       "draft_email",
-      "Draft a sales outreach or follow-up email.",
+      "Draft a sales outreach or follow-up email. Saved to communications log for tracking.",
       {
-        to: z.string().describe("Recipient name and/or email"),
-        subject: z.string().describe("Email subject line"),
-        body: z.string().describe("Email body content"),
+        to: z.string().max(200).describe("Recipient name and/or email"),
+        subject: z.string().max(200).describe("Email subject line"),
+        body: z.string().max(10000).describe("Email body content"),
         type: z.enum(["cold_outreach", "follow_up", "proposal", "thank_you", "re_engagement"]).default("cold_outreach"),
+        pipeline_id: z.string().max(100).optional().describe("Pipeline deal ID to associate this email with"),
       },
       async (args) => {
         try {
@@ -364,6 +326,7 @@ export function createMcpServer(orgId: string, _userId: string) {
             .from("sales_call_logs")
             .insert({
               org_id: orgId,
+              pipeline_id: args.pipeline_id || null,
               type: "email",
               summary: JSON.stringify({ to: args.to, subject: args.subject, body: args.body, email_type: args.type }),
               action_items: [{ action: "Review and send email", status: "pending" }],
@@ -384,17 +347,19 @@ export function createMcpServer(orgId: string, _userId: string) {
       "log_call",
       "Record a call summary with action items and next steps. Always use after every sales interaction.",
       {
-        pipeline_id: z.string().optional().describe("Pipeline deal ID to link this call to"),
-        company: z.string().describe("Company name"),
-        contact: z.string().describe("Contact spoken with"),
+        pipeline_id: z.string().max(100).optional().describe("Pipeline deal ID to link this call to"),
+        company: z.string().max(200).describe("Company name"),
+        contact: z.string().max(200).describe("Contact spoken with"),
         type: z.enum(["discovery", "demo", "follow_up", "negotiation", "close", "check_in"]).describe("Call type"),
-        summary: z.string().describe("Call summary — key points discussed"),
-        action_items: z.string().describe("JSON array of action items"),
+        summary: z.string().max(10000).describe("Call summary — key points discussed"),
+        action_items: z.string().max(5000).describe("JSON array of action items"),
         sentiment: z.enum(["very_positive", "positive", "neutral", "negative", "very_negative"]).describe("Overall sentiment"),
-        next_steps: z.string().describe("Agreed next steps and timeline"),
+        next_steps: z.string().max(5000).describe("Agreed next steps and timeline"),
       },
       async (args) => {
         try {
+          const parsed = safeJsonParse(args.action_items, "action_items");
+          if (!parsed.ok) return err(parsed.error);
           const { data, error: dbError } = await supabase
             .from("sales_call_logs")
             .insert({
@@ -402,7 +367,7 @@ export function createMcpServer(orgId: string, _userId: string) {
               pipeline_id: args.pipeline_id || null,
               type: args.type,
               summary: `[${args.company} - ${args.contact}] ${args.summary}`,
-              action_items: JSON.parse(args.action_items),
+              action_items: parsed.data,
               sentiment: args.sentiment,
               next_steps: args.next_steps,
             })

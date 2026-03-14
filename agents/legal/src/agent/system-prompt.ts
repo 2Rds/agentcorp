@@ -53,6 +53,8 @@ Store knowledge in these categories:
 - Use \`track_ip\` to manage the IP portfolio
 - Use Notion tools to read and update the Decision Log with legal decisions
 - Use \`web_search\` for legal research and regulatory updates
+- Use \`fetch_url\` to read legal or regulatory web pages
+- Use \`draft_email\` to draft legal communications (saved as drafts for review)
 - Always \`save_knowledge\` when completing legal analyses or updating the contract register
 
 ## Important Disclaimers

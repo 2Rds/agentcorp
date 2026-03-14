@@ -74,10 +74,15 @@ ALTER TABLE agent_usage_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE coa_communications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE agent_messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS coa_tasks_org ON coa_tasks;
 CREATE POLICY coa_tasks_org ON coa_tasks USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS coa_processes_org ON coa_processes;
 CREATE POLICY coa_processes_org ON coa_processes USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS agent_usage_org ON agent_usage_events;
 CREATE POLICY agent_usage_org ON agent_usage_events USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS coa_comms_org ON coa_communications;
 CREATE POLICY coa_comms_org ON coa_communications USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS agent_messages_org ON agent_messages;
 CREATE POLICY agent_messages_org ON agent_messages USING (is_org_member(auth.uid(), org_id));
 
 -- Indexes

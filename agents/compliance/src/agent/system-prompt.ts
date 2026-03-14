@@ -57,5 +57,6 @@ Store knowledge in these categories:
 - Use \`log_governance_action\` to record governance decisions
 - Use Notion tools to read the Decision Log and track compliance items
 - Use \`web_search\` for regulatory research and updates
+- Use \`fetch_url\` to read regulatory or compliance web pages
 - Always \`save_knowledge\` when recording audit findings or policy changes
 `;

@@ -34,7 +34,9 @@ CREATE TABLE IF NOT EXISTS legal_ip_portfolio (
 ALTER TABLE legal_reviews ENABLE ROW LEVEL SECURITY;
 ALTER TABLE legal_ip_portfolio ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS legal_reviews_org ON legal_reviews;
 CREATE POLICY legal_reviews_org ON legal_reviews USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS legal_ip_org ON legal_ip_portfolio;
 CREATE POLICY legal_ip_org ON legal_ip_portfolio USING (is_org_member(auth.uid(), org_id));
 
 -- Indexes

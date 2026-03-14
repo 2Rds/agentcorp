@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS cma_campaigns (
 ALTER TABLE cma_content_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE cma_campaigns ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS cma_drafts_org ON cma_content_drafts;
 CREATE POLICY cma_drafts_org ON cma_content_drafts USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS cma_campaigns_org ON cma_campaigns;
 CREATE POLICY cma_campaigns_org ON cma_campaigns USING (is_org_member(auth.uid(), org_id));
 
 -- Indexes

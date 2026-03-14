@@ -9,7 +9,9 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
+import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
+import { safeFetch, safeFetchText, safeJsonParse, stripHtml } from "@waas/runtime";
 import { config } from "../config.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
@@ -25,21 +27,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       "search_knowledge",
       "Search CMA namespace memory for past campaigns, brand guidelines, content strategy, and audience insights.",
       {
-        query: z.string().describe("Search query"),
+        query: z.string().max(500).describe("Search query"),
         limit: z.number().default(10).describe("Max results"),
       },
       async (args) => {
-        try {
-          const res = await fetch("https://api.mem0.ai/v2/memories/search/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ query: args.query, top_k: args.limit, rerank: true, agent_id: "blockdrive-cma" }),
-          });
-          const data = await res.json() as { results?: Array<{ memory: string; score: number }> };
-          return text(JSON.stringify(data.results?.slice(0, args.limit) ?? []));
-        } catch (e) {
-          return err(`Memory search failed: ${String(e)}`);
-        }
+        const result = await safeFetch<{ results?: Array<{ memory: string; score: number }> }>(
+          "https://api.mem0.ai/v2/memories/search/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ query: args.query, top_k: args.limit, rerank: true, agent_id: "blockdrive-cma" }) },
+          "Memory search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(JSON.stringify(result.data.results?.slice(0, args.limit) ?? []));
       },
     ),
 
@@ -47,25 +46,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       "save_knowledge",
       "Persist marketing knowledge — content decisions, campaign results, brand guidelines, SEO findings, audience research.",
       {
-        content: z.string().describe("The knowledge to save"),
+        content: z.string().max(5000).describe("The knowledge to save"),
         category: z.enum(["content_strategy", "campaigns", "brand_guidelines", "seo_analytics", "audience_research"]),
       },
       async (args) => {
-        try {
-          const res = await fetch("https://api.mem0.ai/v2/memories/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: [{ role: "user", content: args.content }],
-              agent_id: "blockdrive-cma",
-              metadata: { category: args.category, org_id: orgId },
-            }),
-          });
-          const data = await res.json();
-          return text(`Saved to ${args.category}: ${JSON.stringify(data)}`);
-        } catch (e) {
-          return err(`Memory save failed: ${String(e)}`);
-        }
+        const result = await safeFetch(
+          "https://api.mem0.ai/v2/memories/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: [{ role: "user", content: args.content }], agent_id: "blockdrive-cma", metadata: { category: args.category, org_id: orgId } }) },
+          "Memory save",
+        );
+        if (!result.ok) return err(result.error);
+        return text(`Saved to ${args.category}: ${JSON.stringify(result.data)}`);
       },
     ),
 
@@ -74,16 +66,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "search_notion",
         "Search the Notion workspace for content calendar, campaigns, and project pages.",
-        { query: z.string().describe("Search query") },
+        { query: z.string().max(200).describe("Search query") },
         async (args) => {
           try {
             const res = await notion.search({ query: args.query, page_size: 10 });
-            const results = res.results.map((r: any) => ({
+            const results = res.results.map((r) => ({
               id: r.id,
               type: r.object,
               title: r.object === "page"
-                ? (r.properties?.title?.title?.[0]?.plain_text || r.properties?.Name?.title?.[0]?.plain_text || "Untitled")
-                : (r.title?.[0]?.plain_text || "Untitled"),
+                ? ((r as PageObjectResponse).properties?.title as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || ((r as PageObjectResponse).properties?.Name as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || "Untitled"
+                : ((r as DatabaseObjectResponse).title?.[0]?.plain_text || "Untitled"),
             }));
             return text(JSON.stringify(results));
           } catch (e) {
@@ -95,14 +89,14 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "read_notion_page",
         "Read the content and properties of a Notion page by ID.",
-        { page_id: z.string().describe("Notion page ID") },
+        { page_id: z.string().max(100).describe("Notion page ID") },
         async (args) => {
           try {
             const [page, blocks] = await Promise.all([
               notion.pages.retrieve({ page_id: args.page_id }),
               notion.blocks.children.list({ block_id: args.page_id, page_size: 100 }),
             ]);
-            return text(JSON.stringify({ properties: (page as any).properties, blocks: blocks.results.slice(0, 50) }));
+            return text(JSON.stringify({ properties: (page as PageObjectResponse).properties, blocks: blocks.results.slice(0, 50) }));
           } catch (e) {
             return err(`Notion read failed: ${String(e)}`);
           }
@@ -114,42 +108,36 @@ export function createMcpServer(orgId: string, _userId: string) {
     tool(
       "web_search",
       "Search the web for marketing trends, competitor analysis, industry benchmarks, and content ideas.",
-      { query: z.string().describe("Search query") },
+      { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        try {
-          const apiUrl = config.perplexityApiKey
-            ? "https://api.perplexity.ai/chat/completions"
-            : "https://openrouter.ai/api/v1/chat/completions";
-          const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-          const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-          const res = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "No results");
-        } catch (e) {
-          return err(`Web search failed: ${String(e)}`);
-        }
+        const apiUrl = config.perplexityApiKey
+          ? "https://api.perplexity.ai/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions";
+        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
+        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          apiUrl,
+          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }) },
+          "Web search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "No results found for this query.");
       },
     ),
 
     tool(
       "fetch_url",
-      "Fetch and read a web page URL for content research or competitive analysis.",
-      { url: z.string().url().describe("URL to fetch") },
+      "Fetch and read a web page URL for content research or competitive analysis. Strips HTML for clean output. Blocked for internal/private URLs.",
+      { url: z.string().url().max(2000).describe("URL to fetch") },
       async (args) => {
-        try {
-          const res = await fetch(args.url, {
-            headers: { "User-Agent": "BlockDrive-CMA/1.0" },
-            signal: AbortSignal.timeout(15000),
-          });
-          const body = await res.text();
-          return text(body.slice(0, 8000));
-        } catch (e) {
-          return err(`Fetch failed: ${String(e)}`);
-        }
+        const result = await safeFetchText(
+          args.url,
+          { headers: { "User-Agent": "BlockDrive-CMA/1.0" }, signal: AbortSignal.timeout(15000) },
+          "Fetch URL",
+        );
+        if (!result.ok) return err(result.error);
+        return text(stripHtml(result.data).slice(0, 8000));
       },
     ),
 
@@ -158,11 +146,11 @@ export function createMcpServer(orgId: string, _userId: string) {
       "draft_content",
       "Create a structured content draft (blog post, social media, email, or landing page).",
       {
-        title: z.string().describe("Content title"),
+        title: z.string().max(300).describe("Content title"),
         type: z.enum(["blog", "social", "email", "landing_page"]).describe("Content type"),
-        brief: z.string().describe("Content brief / key points to cover"),
-        target_audience: z.string().optional().describe("Target audience or persona"),
-        seo_keywords: z.string().optional().describe("Comma-separated SEO keywords"),
+        brief: z.string().max(10000).describe("Content brief / key points to cover"),
+        target_audience: z.string().max(200).optional().describe("Target audience or persona"),
+        seo_keywords: z.string().max(500).optional().describe("Comma-separated SEO keywords"),
         tone: z.enum(["professional", "casual", "technical", "inspirational"]).default("professional"),
       },
       async (args) => {
@@ -194,14 +182,14 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Create or update a marketing campaign with objectives, channels, and tracking.",
       {
         action: z.enum(["create", "update", "list"]).describe("Action to perform"),
-        name: z.string().optional().describe("Campaign name (required for create)"),
-        campaign_id: z.string().optional().describe("Campaign ID (required for update)"),
+        name: z.string().max(200).optional().describe("Campaign name (required for create)"),
+        campaign_id: z.string().max(100).optional().describe("Campaign ID (required for update)"),
         status: z.enum(["planning", "active", "paused", "completed"]).optional(),
-        channels: z.string().optional().describe("Comma-separated channels (e.g., twitter,linkedin,email)"),
-        start_date: z.string().optional().describe("Start date (ISO 8601)"),
-        end_date: z.string().optional().describe("End date (ISO 8601)"),
+        channels: z.string().max(500).optional().describe("Comma-separated channels (e.g., twitter,linkedin,email)"),
+        start_date: z.string().max(30).optional().describe("Start date (ISO 8601)"),
+        end_date: z.string().max(30).optional().describe("End date (ISO 8601)"),
         budget: z.number().optional().describe("Campaign budget"),
-        metrics: z.string().optional().describe("JSON string of campaign metrics"),
+        metrics: z.string().max(5000).optional().describe("JSON string of campaign metrics"),
       },
       async (args) => {
         try {
@@ -217,6 +205,12 @@ export function createMcpServer(orgId: string, _userId: string) {
           }
           if (args.action === "create") {
             if (!args.name) return err("Campaign name is required for create action");
+            let parsedMetrics = {};
+            if (args.metrics) {
+              const parsed = safeJsonParse(args.metrics, "metrics");
+              if (!parsed.ok) return err(parsed.error);
+              parsedMetrics = parsed.data as Record<string, unknown>;
+            }
             const { data, error: dbError } = await supabase
               .from("cma_campaigns")
               .insert({
@@ -227,7 +221,7 @@ export function createMcpServer(orgId: string, _userId: string) {
                 start_date: args.start_date || null,
                 end_date: args.end_date || null,
                 budget: args.budget || null,
-                metrics: args.metrics ? JSON.parse(args.metrics) : {},
+                metrics: parsedMetrics,
               })
               .select("id, name, status")
               .single();
@@ -243,7 +237,12 @@ export function createMcpServer(orgId: string, _userId: string) {
           if (args.start_date) updates.start_date = args.start_date;
           if (args.end_date) updates.end_date = args.end_date;
           if (args.budget !== undefined) updates.budget = args.budget;
-          if (args.metrics) updates.metrics = JSON.parse(args.metrics);
+          if (args.metrics) {
+            const parsed = safeJsonParse(args.metrics, "metrics");
+            if (!parsed.ok) return err(parsed.error);
+            updates.metrics = parsed.data;
+          }
+          updates.updated_at = new Date().toISOString();
           const { data, error: dbError } = await supabase
             .from("cma_campaigns")
             .update(updates)
@@ -263,39 +262,36 @@ export function createMcpServer(orgId: string, _userId: string) {
       "analyze_seo",
       "Analyze SEO potential for a topic or keyword. Combines web search with competitive analysis.",
       {
-        topic: z.string().describe("Topic or keyword to analyze"),
-        url: z.string().url().optional().describe("Optional URL to analyze for on-page SEO"),
+        topic: z.string().max(300).describe("Topic or keyword to analyze"),
+        url: z.string().url().max(2000).optional().describe("Optional URL to analyze for on-page SEO"),
       },
       async (args) => {
-        try {
-          const apiUrl = config.perplexityApiKey
-            ? "https://api.perplexity.ai/chat/completions"
-            : "https://openrouter.ai/api/v1/chat/completions";
-          const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-          const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-          const prompt = args.url
-            ? `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Content gaps in top-ranking pages, 3) Recommended content structure. Also analyze this URL for on-page SEO: ${args.url}`
-            : `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Top-ranking content analysis, 3) Content gaps and opportunities, 4) Recommended content structure and word count.`;
-          const res = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "No SEO analysis available");
-        } catch (e) {
-          return err(`SEO analysis failed: ${String(e)}`);
-        }
+        const apiUrl = config.perplexityApiKey
+          ? "https://api.perplexity.ai/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions";
+        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
+        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
+        const prompt = args.url
+          ? `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Content gaps in top-ranking pages, 3) Recommended content structure. Also analyze this URL for on-page SEO: ${args.url}`
+          : `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Top-ranking content analysis, 3) Content gaps and opportunities, 4) Recommended content structure and word count.`;
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          apiUrl,
+          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }) },
+          "SEO analysis",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "No SEO analysis available");
       },
     ),
 
     tool(
       "draft_email",
-      "Draft a marketing email — newsletter, announcement, or campaign email.",
+      "Draft a marketing email — newsletter, announcement, or campaign email. Saved to content drafts for review.",
       {
-        to: z.string().describe("Recipient or audience segment"),
-        subject: z.string().describe("Email subject line"),
-        body: z.string().describe("Email body content"),
+        to: z.string().max(200).describe("Recipient or audience segment"),
+        subject: z.string().max(200).describe("Email subject line"),
+        body: z.string().max(10000).describe("Email body content"),
         type: z.enum(["newsletter", "announcement", "campaign", "internal"]).default("campaign"),
       },
       async (args) => {
@@ -324,31 +320,25 @@ export function createMcpServer(orgId: string, _userId: string) {
       "search_x",
       "Search X/Twitter for trends, mentions, and engagement data using Grok. Use for social listening, competitor monitoring, and trend analysis.",
       {
-        query: z.string().describe("Search query for X/Twitter"),
+        query: z.string().max(500).describe("Search query for X/Twitter"),
         type: z.enum(["trends", "mentions", "hashtags", "competitor"]).default("trends").describe("Type of search"),
       },
       async (args) => {
-        try {
-          const prompt = args.type === "trends"
-            ? `What are the latest trending topics and conversations on X/Twitter related to: ${args.query}? Include engagement metrics where available.`
-            : args.type === "mentions"
-            ? `Search X/Twitter for recent mentions and discussions about: ${args.query}. Summarize sentiment and key themes.`
-            : args.type === "hashtags"
-            ? `Analyze trending hashtags on X/Twitter related to: ${args.query}. Include usage volume and related conversations.`
-            : `Analyze competitor activity on X/Twitter for: ${args.query}. Include their recent posts, engagement rates, and content strategy patterns.`;
-          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "x-ai/grok-4-1-fast",
-              messages: [{ role: "user", content: prompt }],
-            }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "No X/Twitter data available");
-        } catch (e) {
-          return err(`X/Twitter search failed: ${String(e)}`);
-        }
+        const prompt = args.type === "trends"
+          ? `What are the latest trending topics and conversations on X/Twitter related to: ${args.query}? Include engagement metrics where available.`
+          : args.type === "mentions"
+          ? `Search X/Twitter for recent mentions and discussions about: ${args.query}. Summarize sentiment and key themes.`
+          : args.type === "hashtags"
+          ? `Analyze trending hashtags on X/Twitter related to: ${args.query}. Include usage volume and related conversations.`
+          : `Analyze competitor activity on X/Twitter for: ${args.query}. Include their recent posts, engagement rates, and content strategy patterns.`;
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          "https://openrouter.ai/api/v1/chat/completions",
+          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "x-ai/grok-4-1-fast", messages: [{ role: "user", content: prompt }] }) },
+          "X/Twitter search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "No X/Twitter data available");
       },
     ),
   ];

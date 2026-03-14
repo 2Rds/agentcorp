@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS compliance_policy_register (
   owner TEXT NOT NULL,
   description TEXT,
   review_date TIMESTAMPTZ,
-  last_updated TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
@@ -46,8 +46,11 @@ ALTER TABLE compliance_policy_register ENABLE ROW LEVEL SECURITY;
 ALTER TABLE compliance_risk_assessments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE compliance_governance_log ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS compliance_policy_org ON compliance_policy_register;
 CREATE POLICY compliance_policy_org ON compliance_policy_register USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS compliance_risk_org ON compliance_risk_assessments;
 CREATE POLICY compliance_risk_org ON compliance_risk_assessments USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS compliance_gov_org ON compliance_governance_log;
 CREATE POLICY compliance_gov_org ON compliance_governance_log USING (is_org_member(auth.uid(), org_id));
 
 -- Indexes

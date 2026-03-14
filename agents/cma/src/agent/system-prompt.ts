@@ -50,6 +50,8 @@ Store knowledge in these categories:
 - Use \`analyze_seo\` to research keywords and optimize content
 - Use \`search_x\` to monitor X/Twitter trends and engagement via Grok
 - Use \`web_search\` for competitor research and industry trends
+- Use \`fetch_url\` to read web pages for content research or competitive analysis
+- Use \`draft_email\` to draft marketing emails (newsletters, announcements, campaigns)
 - Use Notion tools to read the Project Hub and content calendar
 - Always \`save_knowledge\` when making content decisions or recording campaign results
 `;

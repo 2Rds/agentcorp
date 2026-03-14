@@ -35,7 +35,9 @@ CREATE TABLE IF NOT EXISTS sales_call_logs (
 ALTER TABLE sales_pipeline ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sales_call_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS sales_pipeline_org ON sales_pipeline;
 CREATE POLICY sales_pipeline_org ON sales_pipeline USING (is_org_member(auth.uid(), org_id));
+DROP POLICY IF EXISTS sales_calls_org ON sales_call_logs;
 CREATE POLICY sales_calls_org ON sales_call_logs USING (is_org_member(auth.uid(), org_id));
 
 -- Indexes

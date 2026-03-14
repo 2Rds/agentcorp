@@ -55,6 +55,7 @@ export {
   CMA_CONFIG, COMPLIANCE_CONFIG, LEGAL_CONFIG, SALES_CONFIG,
   getAgentConfig, getDirectReports, getChainOfCommand,
 } from "./agents.js";
+export type { AgentId } from "./agents.js";
 
 // Inter-agent messaging
 export {

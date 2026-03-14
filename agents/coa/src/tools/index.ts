@@ -9,7 +9,9 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
+import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
+import { safeFetch, safeFetchText, safeJsonParse, stripHtml } from "@waas/runtime";
 import { config } from "../config.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
@@ -25,24 +27,20 @@ export function createMcpServer(orgId: string, _userId: string) {
       "search_knowledge",
       "Search persistent memory across all department namespaces (executive read-all access). Returns relevant facts, decisions, and context.",
       {
-        query: z.string().describe("Search query"),
-        namespace: z.string().optional().describe("Limit to specific namespace (cfa, cma, legal, etc.) or omit for cross-namespace"),
+        query: z.string().max(500).describe("Search query"),
+        namespace: z.string().max(50).optional().describe("Limit to specific namespace (cfa, cma, legal, etc.) or omit for cross-namespace"),
         limit: z.number().default(10).describe("Max results"),
       },
       async (args) => {
-        try {
-          const body: Record<string, unknown> = { query: args.query, top_k: args.limit, rerank: true };
-          if (args.namespace) body.agent_id = args.namespace;
-          const res = await fetch("https://api.mem0.ai/v2/memories/search/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-          const data = await res.json() as { results?: Array<{ memory: string; score: number }> };
-          return text(JSON.stringify(data.results?.slice(0, args.limit) ?? []));
-        } catch (e) {
-          return err(`Memory search failed: ${String(e)}`);
-        }
+        const body: Record<string, unknown> = { query: args.query, top_k: args.limit, rerank: true };
+        if (args.namespace) body.agent_id = args.namespace;
+        const result = await safeFetch<{ results?: Array<{ memory: string; score: number }> }>(
+          "https://api.mem0.ai/v2/memories/search/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(body) },
+          "Memory search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(JSON.stringify(result.data.results?.slice(0, args.limit) ?? []));
       },
     ),
 
@@ -50,25 +48,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       "save_knowledge",
       "Persist a fact, decision, or operational insight to memory. Categories: process_management, vendor_tracking, hr_pipeline, capacity_planning, change_management.",
       {
-        content: z.string().describe("The knowledge to save"),
+        content: z.string().max(5000).describe("The knowledge to save"),
         category: z.enum(["process_management", "vendor_tracking", "hr_pipeline", "capacity_planning", "change_management"]),
       },
       async (args) => {
-        try {
-          const res = await fetch("https://api.mem0.ai/v2/memories/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: [{ role: "user", content: args.content }],
-              agent_id: "blockdrive-coa",
-              metadata: { category: args.category, org_id: orgId },
-            }),
-          });
-          const data = await res.json();
-          return text(`Saved to ${args.category}: ${JSON.stringify(data)}`);
-        } catch (e) {
-          return err(`Memory save failed: ${String(e)}`);
-        }
+        const result = await safeFetch(
+          "https://api.mem0.ai/v2/memories/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: [{ role: "user", content: args.content }], agent_id: "blockdrive-coa", metadata: { category: args.category, org_id: orgId } }) },
+          "Memory save",
+        );
+        if (!result.ok) return err(result.error);
+        return text(`Saved to ${args.category}: ${JSON.stringify(result.data)}`);
       },
     ),
 
@@ -77,16 +68,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "search_notion",
         "Search the Notion workspace for pages, databases, and content.",
-        { query: z.string().describe("Search query") },
+        { query: z.string().max(200).describe("Search query") },
         async (args) => {
           try {
             const res = await notion.search({ query: args.query, page_size: 10 });
-            const results = res.results.map((r: any) => ({
+            const results = res.results.map((r) => ({
               id: r.id,
               type: r.object,
               title: r.object === "page"
-                ? (r.properties?.title?.title?.[0]?.plain_text || r.properties?.Name?.title?.[0]?.plain_text || "Untitled")
-                : (r.title?.[0]?.plain_text || "Untitled"),
+                ? ((r as PageObjectResponse).properties?.title as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || ((r as PageObjectResponse).properties?.Name as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || "Untitled"
+                : ((r as DatabaseObjectResponse).title?.[0]?.plain_text || "Untitled"),
             }));
             return text(JSON.stringify(results));
           } catch (e) {
@@ -98,14 +91,14 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "read_notion_page",
         "Read the content and properties of a Notion page by ID.",
-        { page_id: z.string().describe("Notion page ID") },
+        { page_id: z.string().max(100).describe("Notion page ID") },
         async (args) => {
           try {
             const [page, blocks] = await Promise.all([
               notion.pages.retrieve({ page_id: args.page_id }),
               notion.blocks.children.list({ block_id: args.page_id, page_size: 100 }),
             ]);
-            return text(JSON.stringify({ properties: (page as any).properties, blocks: blocks.results.slice(0, 50) }));
+            return text(JSON.stringify({ properties: (page as PageObjectResponse).properties, blocks: blocks.results.slice(0, 50) }));
           } catch (e) {
             return err(`Notion read failed: ${String(e)}`);
           }
@@ -116,15 +109,19 @@ export function createMcpServer(orgId: string, _userId: string) {
         "query_notion_database",
         "Query a Notion database (Decision Log, Project Hub, etc.) with optional filters.",
         {
-          database_id: z.string().describe("Notion database ID"),
-          filter: z.string().optional().describe("JSON filter string (Notion filter format)"),
+          database_id: z.string().max(100).describe("Notion database ID"),
+          filter: z.string().max(2000).optional().describe("JSON filter string (Notion filter format)"),
         },
         async (args) => {
           try {
-            const query: any = { database_id: args.database_id, page_size: 25 };
-            if (args.filter) query.filter = JSON.parse(args.filter);
-            const res = await notion.databases.query(query);
-            return text(JSON.stringify(res.results.map((r: any) => ({ id: r.id, properties: r.properties }))));
+            const query: Record<string, unknown> = { database_id: args.database_id, page_size: 25 };
+            if (args.filter) {
+              const parsed = safeJsonParse(args.filter, "filter");
+              if (!parsed.ok) return err(parsed.error);
+              query.filter = parsed.data;
+            }
+            const res = await notion.databases.query(query as Parameters<typeof notion.databases.query>[0]);
+            return text(JSON.stringify(res.results.map((r) => ({ id: r.id, properties: (r as PageObjectResponse).properties }))));
           } catch (e) {
             return err(`Notion query failed: ${String(e)}`);
           }
@@ -135,22 +132,22 @@ export function createMcpServer(orgId: string, _userId: string) {
         "create_notion_page",
         "Create a new page in a Notion database or as a child of an existing page.",
         {
-          parent_id: z.string().describe("Database ID or page ID"),
+          parent_id: z.string().max(100).describe("Database ID or page ID"),
           parent_type: z.enum(["database_id", "page_id"]).default("database_id"),
-          title: z.string().describe("Page title"),
-          content: z.string().optional().describe("Page body content"),
+          title: z.string().max(500).describe("Page title"),
+          content: z.string().max(10000).optional().describe("Page body content"),
         },
         async (args) => {
           try {
-            const body: any = {
+            const body: Record<string, unknown> = {
               parent: { [args.parent_type]: args.parent_id },
               properties: { title: { title: [{ text: { content: args.title } }] } },
             };
             if (args.content) {
               body.children = [{ object: "block", type: "paragraph", paragraph: { rich_text: [{ text: { content: args.content } }] } }];
             }
-            const res = await notion.pages.create(body);
-            return text(JSON.stringify({ id: res.id, url: (res as any).url }));
+            const res = await notion.pages.create(body as Parameters<typeof notion.pages.create>[0]);
+            return text(JSON.stringify({ id: res.id, url: (res as PageObjectResponse).url }));
           } catch (e) {
             return err(`Notion create failed: ${String(e)}`);
           }
@@ -161,12 +158,14 @@ export function createMcpServer(orgId: string, _userId: string) {
         "update_notion_page",
         "Update properties of an existing Notion page.",
         {
-          page_id: z.string().describe("Notion page ID"),
-          properties: z.string().describe("JSON string of properties to update"),
+          page_id: z.string().max(100).describe("Notion page ID"),
+          properties: z.string().max(5000).describe("JSON string of properties to update"),
         },
         async (args) => {
           try {
-            const res = await notion.pages.update({ page_id: args.page_id, properties: JSON.parse(args.properties) });
+            const parsed = safeJsonParse(args.properties, "properties");
+            if (!parsed.ok) return err(parsed.error);
+            const res = await notion.pages.update({ page_id: args.page_id, properties: parsed.data as Parameters<typeof notion.pages.update>[0]["properties"] });
             return text(JSON.stringify({ id: res.id, updated: true }));
           } catch (e) {
             return err(`Notion update failed: ${String(e)}`);
@@ -179,42 +178,36 @@ export function createMcpServer(orgId: string, _userId: string) {
     tool(
       "web_search",
       "Search the web for operational research — vendor comparisons, industry benchmarks, best practices.",
-      { query: z.string().describe("Search query") },
+      { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        try {
-          const apiUrl = config.perplexityApiKey
-            ? "https://api.perplexity.ai/chat/completions"
-            : "https://openrouter.ai/api/v1/chat/completions";
-          const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-          const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-          const res = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "No results");
-        } catch (e) {
-          return err(`Web search failed: ${String(e)}`);
-        }
+        const apiUrl = config.perplexityApiKey
+          ? "https://api.perplexity.ai/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions";
+        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
+        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          apiUrl,
+          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }) },
+          "Web search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "No results found for this query.");
       },
     ),
 
     tool(
       "fetch_url",
-      "Fetch and read a web page URL.",
-      { url: z.string().url().describe("URL to fetch") },
+      "Fetch and read a web page URL. Strips HTML tags for clean text output. Blocked for internal/private URLs.",
+      { url: z.string().url().max(2000).describe("URL to fetch") },
       async (args) => {
-        try {
-          const res = await fetch(args.url, {
-            headers: { "User-Agent": "BlockDrive-COA/1.0" },
-            signal: AbortSignal.timeout(15000),
-          });
-          const body = await res.text();
-          return text(body.slice(0, 8000));
-        } catch (e) {
-          return err(`Fetch failed: ${String(e)}`);
-        }
+        const result = await safeFetchText(
+          args.url,
+          { headers: { "User-Agent": "BlockDrive-COA/1.0" }, signal: AbortSignal.timeout(15000) },
+          "Fetch URL",
+        );
+        if (!result.ok) return err(result.error);
+        return text(stripHtml(result.data).slice(0, 8000));
       },
     ),
 
@@ -222,21 +215,27 @@ export function createMcpServer(orgId: string, _userId: string) {
     tool(
       "get_agent_status",
       "Check the health status of a department agent by querying its health endpoint.",
-      { agent_id: z.string().describe("Agent ID (e.g., blockdrive-cfa, blockdrive-cma)") },
+      { agent_id: z.string().max(50).describe("Agent ID (e.g., blockdrive-cfa, blockdrive-cma)") },
       async (args) => {
-        const portMap: Record<string, number> = {
-          "blockdrive-cfa": 3001, "blockdrive-ea": 3002, "blockdrive-coa": 3003,
-          "blockdrive-cma": 3004, "blockdrive-compliance": 3005, "blockdrive-legal": 3006, "blockdrive-sales": 3007,
+        const baseUrl = process.env.AGENT_BASE_URL || "https://cfo-agent-9glt5.ondigitalocean.app";
+        const pathMap: Record<string, string> = {
+          "blockdrive-cfa": "/health",
+          "blockdrive-ea": "/ea/health",
+          "blockdrive-coa": "/coa/health",
+          "blockdrive-cma": "/cma/health",
+          "blockdrive-compliance": "/compliance/health",
+          "blockdrive-legal": "/legal/health",
+          "blockdrive-sales": "/sales/health",
         };
-        const port = portMap[args.agent_id];
-        if (!port) return err(`Unknown agent: ${args.agent_id}`);
-        try {
-          const res = await fetch(`http://localhost:${port}/health`, { signal: AbortSignal.timeout(5000) });
-          const data = await res.json();
-          return text(JSON.stringify(data));
-        } catch (e) {
-          return err(`Agent ${args.agent_id} unreachable: ${String(e)}`);
-        }
+        const path = pathMap[args.agent_id];
+        if (!path) return err(`Unknown agent: ${args.agent_id}`);
+        const result = await safeFetch(
+          `${baseUrl}${path}`,
+          { signal: AbortSignal.timeout(5000) },
+          `Agent ${args.agent_id} health`,
+        );
+        if (!result.ok) return err(`Agent ${args.agent_id} unreachable: ${result.error}`);
+        return text(JSON.stringify(result.data));
       },
     ),
 
@@ -244,11 +243,11 @@ export function createMcpServer(orgId: string, _userId: string) {
       "create_task",
       "Create an operational task in the COA task queue.",
       {
-        title: z.string().describe("Task title"),
-        description: z.string().describe("Task description"),
+        title: z.string().max(200).describe("Task title"),
+        description: z.string().max(5000).describe("Task description"),
         priority: z.enum(["p0", "p1", "p2", "p3"]).default("p2"),
-        assigned_to: z.string().optional().describe("Agent ID to assign"),
-        due_date: z.string().optional().describe("Due date (ISO 8601)"),
+        assigned_to: z.string().max(50).optional().describe("Agent ID to assign"),
+        due_date: z.string().max(30).optional().describe("Due date (ISO 8601)"),
       },
       async (args) => {
         try {
@@ -267,11 +266,11 @@ export function createMcpServer(orgId: string, _userId: string) {
 
     tool(
       "draft_email",
-      "Draft a department communication or operational email.",
+      "Draft a department communication or operational email. Saved as draft for review before sending.",
       {
-        to: z.string().describe("Recipient (agent name or email)"),
-        subject: z.string().describe("Email subject"),
-        body: z.string().describe("Email body"),
+        to: z.string().max(200).describe("Recipient (agent name or email)"),
+        subject: z.string().max(200).describe("Email subject"),
+        body: z.string().max(10000).describe("Email body"),
         type: z.enum(["internal", "vendor", "report"]).default("internal"),
       },
       async (args) => {
@@ -291,15 +290,13 @@ export function createMcpServer(orgId: string, _userId: string) {
 
     tool(
       "message_agent",
-      "Send a message to another agent in the network. Use for cross-department coordination, task delegation, or status requests.",
+      "Send a message to another agent in the network. Messages are queued in Supabase for tracking and delivery.",
       {
-        target_agent_id: z.string().describe("Agent ID to message (e.g., blockdrive-cma, blockdrive-legal)"),
-        message: z.string().describe("Message content"),
+        target_agent_id: z.string().max(50).describe("Agent ID to message (e.g., blockdrive-cma, blockdrive-legal)"),
+        message: z.string().max(5000).describe("Message content"),
         priority: z.enum(["normal", "urgent"]).default("normal"),
       },
       async (args) => {
-        // TODO: Implement via Redis Streams (XADD to target's stream)
-        // For now, log the message to Supabase for tracking
         try {
           const { data, error: dbError } = await supabase
             .from("agent_messages")
@@ -307,7 +304,7 @@ export function createMcpServer(orgId: string, _userId: string) {
             .select("id, target_id, status")
             .single();
           if (dbError) return err(`Message send failed: ${dbError.message}`);
-          return text(JSON.stringify({ ...data, note: "Message queued for delivery via Redis Streams" }));
+          return text(JSON.stringify({ ...data, note: "Message queued for delivery" }));
         } catch (e) {
           return err(`Message send failed: ${String(e)}`);
         }

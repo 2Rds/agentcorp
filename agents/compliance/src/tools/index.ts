@@ -12,7 +12,9 @@
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
 import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
+import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
+import { safeFetch, safeFetchText, stripHtml } from "@waas/runtime";
 import { config } from "../config.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
@@ -28,25 +30,21 @@ export function createMcpServer(orgId: string, _userId: string) {
       "search_knowledge",
       "Search persistent memory across ALL department namespaces (compliance audit-read access). Use for cross-department compliance monitoring.",
       {
-        query: z.string().describe("Search query"),
-        namespace: z.string().optional().describe("Limit to specific namespace (cfa, cma, legal, etc.) or omit for cross-namespace audit"),
+        query: z.string().max(500).describe("Search query"),
+        namespace: z.string().max(50).optional().describe("Limit to specific namespace (cfa, cma, legal, etc.) or omit for cross-namespace audit"),
         limit: z.number().default(10).describe("Max results"),
       },
       async (args) => {
-        try {
-          const body: Record<string, unknown> = { query: args.query, top_k: args.limit, rerank: true };
-          if (args.namespace) body.agent_id = args.namespace;
-          // No agent_id filter when namespace is omitted = audit-read-all
-          const res = await fetch("https://api.mem0.ai/v2/memories/search/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-          const data = await res.json() as { results?: Array<{ memory: string; score: number }> };
-          return text(JSON.stringify(data.results?.slice(0, args.limit) ?? []));
-        } catch (e) {
-          return err(`Memory search failed: ${String(e)}`);
-        }
+        const body: Record<string, unknown> = { query: args.query, top_k: args.limit, rerank: true };
+        if (args.namespace) body.agent_id = args.namespace;
+        // No agent_id filter when namespace is omitted = audit-read-all
+        const result = await safeFetch<{ results?: Array<{ memory: string; score: number }> }>(
+          "https://api.mem0.ai/v2/memories/search/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" }, body: JSON.stringify(body) },
+          "Memory search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(JSON.stringify(result.data.results?.slice(0, args.limit) ?? []));
       },
     ),
 
@@ -54,25 +52,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       "save_knowledge",
       "Persist compliance findings, policy updates, risk assessments, and governance actions.",
       {
-        content: z.string().describe("The knowledge to save"),
+        content: z.string().max(5000).describe("The knowledge to save"),
         category: z.enum(["audit_log", "policy_register", "risk_assessment", "governance_actions"]),
       },
       async (args) => {
-        try {
-          const res = await fetch("https://api.mem0.ai/v2/memories/", {
-            method: "POST",
-            headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              messages: [{ role: "user", content: args.content }],
-              agent_id: "blockdrive-compliance",
-              metadata: { category: args.category, org_id: orgId },
-            }),
-          });
-          const data = await res.json();
-          return text(`Saved to ${args.category}: ${JSON.stringify(data)}`);
-        } catch (e) {
-          return err(`Memory save failed: ${String(e)}`);
-        }
+        const result = await safeFetch(
+          "https://api.mem0.ai/v2/memories/",
+          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: [{ role: "user", content: args.content }], agent_id: "blockdrive-compliance", metadata: { category: args.category, org_id: orgId } }) },
+          "Memory save",
+        );
+        if (!result.ok) return err(result.error);
+        return text(`Saved to ${args.category}: ${JSON.stringify(result.data)}`);
       },
     ),
 
@@ -81,16 +72,18 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "search_notion",
         "Search the Notion workspace for compliance documents, policies, and decision log entries.",
-        { query: z.string().describe("Search query") },
+        { query: z.string().max(200).describe("Search query") },
         async (args) => {
           try {
             const res = await notion.search({ query: args.query, page_size: 10 });
-            const results = res.results.map((r: any) => ({
+            const results = res.results.map((r) => ({
               id: r.id,
               type: r.object,
               title: r.object === "page"
-                ? (r.properties?.title?.title?.[0]?.plain_text || r.properties?.Name?.title?.[0]?.plain_text || "Untitled")
-                : (r.title?.[0]?.plain_text || "Untitled"),
+                ? ((r as PageObjectResponse).properties?.title as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || ((r as PageObjectResponse).properties?.Name as { title?: Array<{ plain_text: string }> })?.title?.[0]?.plain_text
+                  || "Untitled"
+                : ((r as DatabaseObjectResponse).title?.[0]?.plain_text || "Untitled"),
             }));
             return text(JSON.stringify(results));
           } catch (e) {
@@ -102,14 +95,14 @@ export function createMcpServer(orgId: string, _userId: string) {
       tool(
         "read_notion_page",
         "Read the content and properties of a Notion page (Decision Log, policies, etc.).",
-        { page_id: z.string().describe("Notion page ID") },
+        { page_id: z.string().max(100).describe("Notion page ID") },
         async (args) => {
           try {
             const [page, blocks] = await Promise.all([
               notion.pages.retrieve({ page_id: args.page_id }),
               notion.blocks.children.list({ block_id: args.page_id, page_size: 100 }),
             ]);
-            return text(JSON.stringify({ properties: (page as any).properties, blocks: blocks.results.slice(0, 50) }));
+            return text(JSON.stringify({ properties: (page as PageObjectResponse).properties, blocks: blocks.results.slice(0, 50) }));
           } catch (e) {
             return err(`Notion read failed: ${String(e)}`);
           }
@@ -121,57 +114,50 @@ export function createMcpServer(orgId: string, _userId: string) {
     tool(
       "web_search",
       "Search the web for regulatory updates, compliance frameworks, and governance best practices.",
-      { query: z.string().describe("Search query") },
+      { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        try {
-          const apiUrl = config.perplexityApiKey
-            ? "https://api.perplexity.ai/chat/completions"
-            : "https://openrouter.ai/api/v1/chat/completions";
-          const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-          const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-          const res = await fetch(apiUrl, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "No results");
-        } catch (e) {
-          return err(`Web search failed: ${String(e)}`);
-        }
+        const apiUrl = config.perplexityApiKey
+          ? "https://api.perplexity.ai/chat/completions"
+          : "https://openrouter.ai/api/v1/chat/completions";
+        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
+        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          apiUrl,
+          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }) },
+          "Web search",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "No results found for this query.");
       },
     ),
 
     tool(
       "fetch_url",
-      "Fetch and read a regulatory or compliance web page.",
-      { url: z.string().url().describe("URL to fetch") },
+      "Fetch and read a regulatory or compliance web page. Strips HTML for clean output. Blocked for internal/private URLs.",
+      { url: z.string().url().max(2000).describe("URL to fetch") },
       async (args) => {
-        try {
-          const res = await fetch(args.url, {
-            headers: { "User-Agent": "BlockDrive-Compliance/1.0" },
-            signal: AbortSignal.timeout(15000),
-          });
-          const body = await res.text();
-          return text(body.slice(0, 8000));
-        } catch (e) {
-          return err(`Fetch failed: ${String(e)}`);
-        }
+        const result = await safeFetchText(
+          args.url,
+          { headers: { "User-Agent": "BlockDrive-Compliance/1.0" }, signal: AbortSignal.timeout(15000) },
+          "Fetch URL",
+        );
+        if (!result.ok) return err(result.error);
+        return text(stripHtml(result.data).slice(0, 8000));
       },
     ),
 
     // ── Compliance-Specific Tools ──
     tool(
       "scan_compliance",
-      "Run a structured compliance scan across departments. Routes analysis to IBM Granite 4.0 for regulatory reasoning.",
+      "Generate a structured compliance analysis using Granite 4.0. Produces a report template based on scope and framework — combine with search_knowledge audit-read to include actual department data.",
       {
         scope: z.enum(["all", "financial", "marketing", "legal", "operations", "data"]).describe("Scan scope"),
-        framework: z.string().optional().describe("Specific framework to check against (e.g., SOX, GDPR, ISO42001)"),
-        focus_area: z.string().optional().describe("Specific area to focus the scan on"),
+        framework: z.string().max(100).optional().describe("Specific framework to check against (e.g., SOX, GDPR, ISO42001)"),
+        focus_area: z.string().max(500).optional().describe("Specific area to focus the scan on"),
       },
       async (args) => {
-        try {
-          const prompt = `You are a compliance auditor. Perform a ${args.scope} compliance scan${args.framework ? ` against ${args.framework}` : ""}${args.focus_area ? ` focusing on ${args.focus_area}` : ""}.
+        const prompt = `You are a compliance auditor. Perform a ${args.scope} compliance scan${args.framework ? ` against ${args.framework}` : ""}${args.focus_area ? ` focusing on ${args.focus_area}` : ""}.
 
 Analyze and report:
 1. **Compliance Status**: Overall assessment (Compliant, Partially Compliant, Non-Compliant)
@@ -181,19 +167,14 @@ Analyze and report:
 5. **Timeline**: Recommended remediation timeline
 
 Format as a structured compliance report.`;
-          const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "ibm/granite-4.0-8b-instruct",
-              messages: [{ role: "user", content: prompt }],
-            }),
-          });
-          const data = await res.json() as { choices?: Array<{ message: { content: string } }> };
-          return text(data.choices?.[0]?.message?.content || "Compliance scan returned no results");
-        } catch (e) {
-          return err(`Compliance scan failed: ${String(e)}`);
-        }
+        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
+          "https://openrouter.ai/api/v1/chat/completions",
+          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "ibm/granite-4.0-8b-instruct", messages: [{ role: "user", content: prompt }] }) },
+          "Compliance scan",
+        );
+        if (!result.ok) return err(result.error);
+        return text(result.data.choices?.[0]?.message?.content || "Compliance scan returned no results");
       },
     ),
 
@@ -201,12 +182,12 @@ Format as a structured compliance report.`;
       "assess_risk",
       "Create a structured risk assessment with severity scoring.",
       {
-        subject: z.string().describe("What is being assessed"),
+        subject: z.string().max(300).describe("What is being assessed"),
         risk_type: z.enum(["regulatory", "operational", "financial", "reputational", "data_privacy", "ai_governance"]),
-        description: z.string().describe("Description of the potential risk"),
+        description: z.string().max(5000).describe("Description of the potential risk"),
         likelihood: z.enum(["very_low", "low", "medium", "high", "very_high"]),
         impact: z.enum(["minimal", "minor", "moderate", "major", "severe"]),
-        mitigation: z.string().optional().describe("Proposed mitigation steps"),
+        mitigation: z.string().max(5000).optional().describe("Proposed mitigation steps"),
       },
       async (args) => {
         try {
@@ -236,9 +217,9 @@ Format as a structured compliance report.`;
       "log_governance_action",
       "Record a governance decision or enforcement action for audit trail.",
       {
-        action: z.string().describe("The governance action taken"),
-        affected_agents: z.string().describe("Comma-separated agent IDs affected"),
-        decision: z.string().describe("The decision and rationale"),
+        action: z.string().max(500).describe("The governance action taken"),
+        affected_agents: z.string().max(500).describe("Comma-separated agent IDs affected"),
+        decision: z.string().max(5000).describe("The decision and rationale"),
         severity: z.enum(["informational", "advisory", "mandatory", "enforcement"]).default("advisory"),
       },
       async (args) => {
@@ -266,16 +247,18 @@ Format as a structured compliance report.`;
       "check_policy",
       "Look up a policy in the compliance policy register.",
       {
-        query: z.string().describe("Policy name or keyword to search"),
-        category: z.string().optional().describe("Policy category filter"),
+        query: z.string().max(200).describe("Policy name or keyword to search"),
+        category: z.string().max(100).optional().describe("Policy category filter"),
       },
       async (args) => {
         try {
+          // Escape LIKE wildcards in user input
+          const escapedQuery = args.query.replace(/[%_]/g, "\\$&");
           let query = supabase
             .from("compliance_policy_register")
-            .select("id, name, category, status, owner, review_date, last_updated")
+            .select("id, name, category, status, owner, review_date, updated_at")
             .eq("org_id", orgId)
-            .ilike("name", `%${args.query}%`);
+            .ilike("name", `%${escapedQuery}%`);
           if (args.category) query = query.eq("category", args.category);
           const { data, error: dbError } = await query.limit(10);
           if (dbError) return err(`Policy lookup failed: ${dbError.message}`);

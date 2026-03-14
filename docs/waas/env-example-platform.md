@@ -1,0 +1,77 @@
+# WaaS Platform Environment Variables
+
+Reference template for agent deployments. Includes voice integration variables for Phase 2.
+
+```bash
+# ─── WaaS Agent Environment Variables ─────────────────────────────────────────
+# Copy to .env and fill in values for each agent deployment.
+
+# ─── Required ─────────────────────────────────────────────────────────────────
+
+# Claude Opus 4.6 (primary brain — direct Anthropic API)
+ANTHROPIC_API_KEY=sk-ant-...
+
+# Supabase (auth + org membership verification)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# ─── Redis (Upstash) ─────────────────────────────────────────────────────────
+# TCP connection (for Node.js agents — standard redis protocol over TLS)
+REDIS_URL=rediss://default:YOUR_PASSWORD@us1-XXXX-XXXX.upstash.io:6379
+
+# REST API (for Cloudflare Workers — HTTP-based, no TCP needed)
+UPSTASH_REDIS_REST_URL=https://us1-XXXX-XXXX.upstash.io
+UPSTASH_REDIS_REST_TOKEN=AX...
+
+# ─── Model Routing (optional — falls back to Claude-only) ────────────────────
+
+# Secondary models via OpenRouter (Kimi K2.5, Gemini, DeepSeek, Granite, Grok)
+OPENROUTER_API_KEY=sk-or-v1-...
+
+# Perplexity Sonar Pro (real-time web search)
+PERPLEXITY_API_KEY=pplx-...
+
+# Cohere (embed + rerank for plugin matching)
+COHERE_API_KEY=...
+
+# ─── Memory (optional) ───────────────────────────────────────────────────────
+
+# mem0 persistent organizational memory
+MEM0_API_KEY=m0-...
+MEM0_ORG_ID=...
+MEM0_PROJECT_ID=...
+
+# ─── Inter-Agent Messaging (optional) ────────────────────────────────────────
+
+# Per-agent Telegram bot (for human-to-agent + legacy inter-agent)
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_CHAT_ID=...
+
+# ─── Cloudflare AI Gateway (optional — analytics, caching, retries) ──────────
+
+# Route direct provider API calls through CF AI Gateway
+CF_GATEWAY_ACCOUNT_ID=...
+CF_GATEWAY_ID=...
+
+# ─── ElevenLabs (voice transport — dual-mode agents) ─────────────────────────
+
+# API key (all voice features: TTS, STT, Conversational AI, phone calls)
+ELEVENLABS_API_KEY=sk_...
+
+# Per-agent voice agent ID (created via ElevenLabs dashboard or API)
+ELEVENLABS_AGENT_ID=agent_...
+
+# Per-agent voice ID (from ElevenLabs voice library or custom clone)
+ELEVENLABS_VOICE_ID=...
+
+# Twilio phone number ID (for agents that make/receive calls)
+ELEVENLABS_PHONE_NUMBER_ID=...
+
+# ─── Agent Config ────────────────────────────────────────────────────────────
+
+# Port for this agent's Express server (each agent needs a unique port)
+PORT=3001
+
+# Knowledge-work plugins directory (relative or absolute)
+PLUGINS_DIR=./plugins
+```

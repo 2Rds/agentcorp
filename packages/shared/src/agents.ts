@@ -1,11 +1,9 @@
 /**
  * Agent Configuration Registry
  *
- * Configurations for deployed cognitive agents in the BlockDrive
- * Agentic C-Suite. Additional agents (CMA, Compliance, Legal, Sales)
- * are defined in stacks and scopes but not yet wired here.
- * Each agent gets its model stack, namespace scope, channels,
- * knowledge-work-plugins, and org hierarchy position.
+ * Configurations for all cognitive agents in the BlockDrive
+ * Agentic C-Suite. Each agent gets its model stack, namespace scope,
+ * channels, knowledge-work-plugins, and org hierarchy position.
  */
 
 import type { AgentConfig } from "./types.js";
@@ -176,6 +174,11 @@ export const SALES_CONFIG: AgentConfig = {
 };
 
 // ─── Agent Registry ─────────────────────────────────────────────────────────
+
+/** Known agent IDs */
+export type AgentId =
+  | "blockdrive-ea" | "blockdrive-coa" | "blockdrive-cfa" | "blockdrive-ir"
+  | "blockdrive-cma" | "blockdrive-compliance" | "blockdrive-legal" | "blockdrive-sales";
 
 /** All configured agents, indexed by ID */
 export const AGENT_REGISTRY: Record<string, AgentConfig> = {
