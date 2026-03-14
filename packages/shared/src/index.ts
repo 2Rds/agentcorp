@@ -69,6 +69,23 @@ export type {
   DeliveryReceipt,
 } from "./messaging/index.js";
 
+// Governance
+export type {
+  ApprovalCategory,
+  ApprovalStatus,
+  GovernanceConfig,
+  PendingApproval,
+  SpendEvent,
+  GovernanceDecision,
+} from "./governance/index.js";
+export {
+  BLOCKDRIVE_GOVERNANCE,
+  APPROVAL_TTL_SECONDS,
+  APPROVAL_KEY_PREFIX,
+  SPEND_KEY_PREFIX,
+  APPROVAL_TIMEOUT_MS,
+} from "./governance/index.js";
+
 // Plugin mapping
 export {
   PLUGIN_INVENTORY, AGENT_PLUGINS,

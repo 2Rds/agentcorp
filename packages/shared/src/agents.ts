@@ -119,11 +119,11 @@ export const CMA_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-cma"]!,
 };
 
-/** Chief Compliance Officer — regulatory, governance, audit */
+/** Chief Compliance Agent — regulatory, governance, audit */
 export const COMPLIANCE_CONFIG: AgentConfig = {
   id: "blockdrive-compliance",
-  name: "Chief Compliance Officer",
-  title: "Chief Compliance Officer",
+  name: "Parker",
+  title: "Chief Compliance Agent",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "compliance",
@@ -137,11 +137,11 @@ export const COMPLIANCE_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-compliance"]!,
 };
 
-/** Legal Counsel — contracts, IP, regulatory filings */
+/** Chief Legal Agent — contracts, IP, regulatory filings */
 export const LEGAL_CONFIG: AgentConfig = {
   id: "blockdrive-legal",
-  name: "Legal Counsel",
-  title: "Legal Counsel",
+  name: "Casey",
+  title: "Chief Legal Agent",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "legal",
@@ -155,11 +155,11 @@ export const LEGAL_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-legal"]!,
 };
 
-/** Head of Sales — pipeline, prospecting, proposals */
+/** Chief Sales Agent — pipeline, prospecting, proposals */
 export const SALES_CONFIG: AgentConfig = {
   id: "blockdrive-sales",
-  name: "Head of Sales",
-  title: "Head of Sales",
+  name: "Sam",
+  title: "Chief Sales Agent",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "sales",

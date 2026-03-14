@@ -1,5 +1,5 @@
 /**
- * Legal Agent — Casey (Legal Counsel)
+ * Legal Agent — Casey (Chief Legal Agent)
  *
  * Contract review, regulatory guidance, IP portfolio management.
  * Routes long-form contract analysis to Grok 4.1 Reasoning (2M context).

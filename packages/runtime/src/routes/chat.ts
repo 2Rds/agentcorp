@@ -18,8 +18,10 @@ import type { AuthenticatedRequest } from "../middleware/auth.js";
 import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
 import { Sentry, getPostHog } from "../lib/observability.js";
+import type { GovernanceEngine } from "../lib/governance.js";
 import type { Mem0Client } from "../lib/mem0-client.js";
 import type { ModelRouter } from "@waas/shared";
+import { MODEL_REGISTRY } from "@waas/shared";
 import type { RedisClientType } from "redis";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -42,6 +44,8 @@ export interface ChatRouteDeps {
   permissionMode?: PermissionMode;
   /** Max agent turns (default: 25) */
   maxTurns?: number;
+  /** Governance engine for spend tracking */
+  governance?: GovernanceEngine;
 }
 
 /** Allowed roles for history messages (whitelist to prevent injection) */
@@ -63,6 +67,24 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
     if (!message || typeof message !== "string") {
       res.status(400).json({ error: "Missing message in request body" });
       return;
+    }
+
+    // Governance: check spend limit before processing
+    if (deps.governance) {
+      try {
+        const spendCheck = await deps.governance.checkSpendLimit(organizationId);
+        if (!spendCheck.approved) {
+          res.status(429).json({
+            error: "spend_limit_exceeded",
+            message: spendCheck.message,
+          });
+          return;
+        }
+      } catch (spendErr) {
+        console.error(`[${deps.agentId}] Spend limit check failed:`, spendErr);
+        Sentry.captureException(spendErr);
+        // Fail-open: allow the request if spend check fails
+      }
     }
 
     const convId = conversationId ?? `conv-${Date.now().toString(36)}`;
@@ -147,6 +169,44 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
         Promise.resolve()
           .then(() => deps.onResponse!(deps.agentId, organizationId, message, fullText, convId))
           .catch((err) => console.error("Post-response hook failed:", err));
+      }
+
+      // Governance: record spend (estimated from response length)
+      if (deps.governance && fullText.length > 0) {
+        try {
+          // Estimate token counts from character lengths (rough: 1 token ≈ 4 chars)
+          // Apply 3x multiplier to account for multi-turn tool use tokens not captured
+          // in the streamed output (tool schemas, tool results, intermediate turns)
+          const TOKEN_ESTIMATION_MULTIPLIER = 3;
+          const rawInputTokens = Math.ceil((enrichedPrompt.length + prompt.length) / 4);
+          const rawOutputTokens = Math.ceil(fullText.length / 4);
+          const inputTokens = rawInputTokens * TOKEN_ESTIMATION_MULTIPLIER;
+          const outputTokens = rawOutputTokens * TOKEN_ESTIMATION_MULTIPLIER;
+          const model = MODEL_REGISTRY["opus"];
+          const estimatedCostUsd = model
+            ? (inputTokens / 1_000_000) * model.pricing.inputPerMillion +
+              (outputTokens / 1_000_000) * model.pricing.outputPerMillion
+            : 0;
+
+          const spendResult = await deps.governance.recordSpend({
+            agentId: deps.agentId,
+            orgId: organizationId,
+            model: "claude-opus-4-6",
+            inputTokens,
+            outputTokens,
+            estimatedCostUsd,
+            timestamp: new Date().toISOString(),
+          });
+
+          if (spendResult.limitBreached) {
+            console.warn(
+              `[${deps.agentId}] Daily spend limit breached: $${spendResult.totalToday.toFixed(2)}`,
+            );
+          }
+        } catch (spendErr) {
+          console.error(`[${deps.agentId}] Spend tracking failed (non-fatal):`, spendErr);
+          Sentry.captureException(spendErr);
+        }
       }
 
       // PostHog event (non-fatal — never affect user response)

@@ -1,5 +1,5 @@
 /**
- * Compliance Agent — CCO (Chief Compliance Officer)
+ * Compliance Agent — CCA (Chief Compliance Agent)
  *
  * Governance engine for BlockDrive. Audit-read access to all namespaces.
  * Routes regulatory analysis to IBM Granite 4.0.

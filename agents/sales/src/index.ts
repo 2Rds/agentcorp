@@ -1,5 +1,5 @@
 /**
- * Sales Agent — Sam (Head of Sales)
+ * Sales Agent — Sam (Chief Sales Agent)
  *
  * Pipeline management, prospect research, call prep, and outreach.
  * Energetic, relationship-focused, data-driven.

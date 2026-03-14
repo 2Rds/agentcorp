@@ -34,5 +34,9 @@ export type { FetchResult, FetchError } from "./lib/tool-helpers.js";
 export { TelegramTransport } from "./transport/telegram.js";
 export type { TelegramTransportConfig } from "./transport/telegram.js";
 
+// Governance
+export { GovernanceEngine } from "./lib/governance.js";
+export type { GovernanceEngineConfig, ApprovalRequest } from "./lib/governance.js";
+
 // Observability
 export { initSentry, initPostHog, shutdownObservability, getPostHog, Sentry } from "./lib/observability.js";

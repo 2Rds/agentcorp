@@ -31,9 +31,11 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { McpSdkServerConfigWithInstance } from "@anthropic-ai/claude-agent-sdk";
 import type {
   AgentConfig,
+  GovernanceConfig,
   ModelRouter,
 } from "@waas/shared";
-import { ModelRouter as ModelRouterImpl } from "@waas/shared";
+import { ModelRouter as ModelRouterImpl, BLOCKDRIVE_GOVERNANCE } from "@waas/shared";
+import { GovernanceEngine } from "./lib/governance.js";
 import { getRedis, disconnectRedis } from "./lib/redis-client.js";
 import { Mem0Client } from "./lib/mem0-client.js";
 import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
@@ -90,6 +92,9 @@ export interface AgentRuntimeConfig {
 
   /** Trust proxy setting for Express (defaults to 1 for single reverse proxy) */
   trustProxy?: boolean | number | string;
+
+  /** Governance config override (defaults to BLOCKDRIVE_GOVERNANCE) */
+  governance?: GovernanceConfig;
 }
 
 // ─── Runtime ───────────────────────────────────────────────────────────────
@@ -100,6 +105,7 @@ export class AgentRuntime {
   readonly supabaseAdmin: SupabaseClient;
   readonly router: ModelRouter;
   readonly mem0?: Mem0Client;
+  readonly governance: GovernanceEngine;
 
   private telegramTransport?: TelegramTransport;
   private runtimeConfig: AgentRuntimeConfig;
@@ -140,6 +146,26 @@ export class AgentRuntime {
         projectId: rtConfig.env.mem0ProjectId,
       });
     }
+
+    // ── Governance ──
+    const govConfig = rtConfig.governance ?? structuredClone(BLOCKDRIVE_GOVERNANCE);
+    // Inject C-Suite group chat ID from env if not already set
+    if (!govConfig.csuiteGroupChatId && process.env.CSUITE_TELEGRAM_CHAT_ID) {
+      govConfig.csuiteGroupChatId = process.env.CSUITE_TELEGRAM_CHAT_ID;
+    }
+    // Inject authorized approver IDs from env (comma-separated Telegram user IDs)
+    if (govConfig.authorizedApproverIds.length === 0 && process.env.GOVERNANCE_APPROVER_IDS) {
+      govConfig.authorizedApproverIds = process.env.GOVERNANCE_APPROVER_IDS
+        .split(",")
+        .map((id) => parseInt(id.trim(), 10))
+        .filter((id) => !isNaN(id));
+    }
+    this.governance = new GovernanceEngine({
+      governance: govConfig,
+      agentId: rtConfig.config.id,
+      agentName: rtConfig.config.name,
+      getRedis: () => getRedis(rtConfig.env.redisUrl),
+    });
 
     // ── Express App ──
     this.app = express();
@@ -291,6 +317,7 @@ export class AgentRuntime {
       router: this.router,
       getRedis: () => getRedis(rtConfig.env.redisUrl),
       onResponse: rtConfig.onResponse,
+      governance: this.governance,
     }));
 
     // Custom routes (each agent adds its own)
@@ -320,6 +347,13 @@ export class AgentRuntime {
     if (!this.runtimeConfig.telegram) return;
 
     this.telegramTransport = new TelegramTransport(this.runtimeConfig.telegram);
+
+    // Register governance callback handler on this agent's bot BEFORE polling starts
+    const agentBotConfig = this.runtimeConfig.telegram.agents[this.config.id];
+    if (agentBotConfig) {
+      this.governance.setupCallbackHandler(this.telegramTransport.getBot(this.config.id));
+    }
+
     await this.telegramTransport.startPolling();
     console.log(`[${this.config.id}] Telegram transport started`);
   }
