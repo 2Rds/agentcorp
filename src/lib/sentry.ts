@@ -11,7 +11,7 @@ export function initSentry() {
     Sentry.init({
       dsn,
       environment: import.meta.env.MODE,
-      release: import.meta.env.VITE_SENTRY_RELEASE || 'waas@2.0.0',
+      release: import.meta.env.VITE_SENTRY_RELEASE || 'waas@2.1.0',
       integrations: [
         Sentry.browserTracingIntegration(),
         Sentry.replayIntegration(),

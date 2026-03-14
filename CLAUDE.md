@@ -99,9 +99,9 @@ Backend: Supabase (Postgres, Auth, RLS, Edge Functions). Memory: Mem0 (org-scope
 
 ### Auth & Multi-tenancy
 
-Auth flow: `/auth` (email+password) → `ProtectedRoute` → `OrgGate` (checks org membership) → Onboarding or `AppLayout`.
+Auth flow: `/auth` (email+password) → `ProtectedRoute` → `AppLayout` (sidebar navigation for all department workspaces).
 
-Uses **native Supabase Auth** (email+password). Users belong to organizations via `user_roles` table with roles: owner, cofounder, advisor, investor. All data access scoped by organization through RLS using `is_org_member(_user_id, _org_id)` and `has_role(_user_id, _role, _org_id)` PostgreSQL helper functions with UUID params and `auth.uid()`.
+Uses **native Supabase Auth** (email+password). `AuthProvider` uses `onAuthStateChange` exclusively — the `INITIAL_SESSION` event provides the session on page load (no separate `getSession()` call). On auth, identifies user with PostHog and sets Sentry user context; on sign-out, resets both. Users belong to organizations via `user_roles` table with roles: owner, cofounder, advisor, investor. All data access scoped by organization through RLS using `is_org_member(_user_id, _org_id)` and `has_role(_user_id, _role, _org_id)` PostgreSQL helper functions with UUID params and `auth.uid()`.
 
 Org creation uses atomic RPC: `supabase.rpc("create_organization", { _name })` — creates org, assigns owner role, ensures profile, links org in a single transaction.
 
@@ -159,7 +159,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment:**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `MEM0_API_KEY`
-- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `MOONSHOT_API_KEY`, `COHERE_API_KEY`, `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (path to service account JSON key for Sheets/Drive), `NOTION_API_KEY` (enables Notion tools)
+- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `MOONSHOT_API_KEY`, `COHERE_API_KEY`, `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (path to service account JSON key for Sheets/Drive), `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
 
 ### EA Agent (`agents/ea/src/`)
 
@@ -203,7 +203,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment (see `agents/ea/.env.example`):**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MEM0_API_KEY`, `OPENROUTER_API_KEY`
-- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID`, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools)
+- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID`, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
 
 ### WaaS Platform Packages
 
@@ -219,13 +219,13 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `middleware/auth.ts` — Supabase JWT verification + org membership + token cache
 - `routes/` — health (GET /health) + chat (POST /chat, SSE streaming)
 - `transport/telegram.ts` — Telegram bot transport (grammy) for inter-agent messaging
-- `lib/` — redis-client, mem0-client, plugin-loader, stream-adapter, tool-helpers (safeFetch, SSRF protection, stripHtml)
+- `lib/` — redis-client, mem0-client, plugin-loader, stream-adapter, tool-helpers (safeFetch, SSRF protection, stripHtml), observability (Sentry + PostHog init/shutdown)
 
 ### Key Hooks (src/hooks/)
 
-- `useAuth` — Compatibility shim wrapping `useAuthContext()`
-- `useAuthContext` — Full Supabase auth context (user, session, org, signOut)
+- `useAuth` — Auth context from `AuthProvider` (user, session, org, signOut)
 - `useOrganization` — Active org ID from auth context, org creation via atomic RPC
+- `useAgentHealth` — Real-time agent status monitoring (online/offline/unknown)
 - `useModelSheet(orgId)` — Google Sheets integration
 - `useFinancialModel(orgId, scenario)` — Financial model data + derived metrics
 - `useCapTable(orgId)` — Cap table entries with computed totals
@@ -237,14 +237,15 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 | Path | Page | Purpose |
 |------|------|---------|
 | `/auth` | Auth | Supabase email+password sign-in |
-| `/sign-up` | SignUp | Account creation |
-| `/` | Chat | AI CFO agent streaming chat |
-| `/knowledge` | Knowledge | Document uploads + agent knowledge base |
-| `/model` | FinancialModel | Google Sheets financial model |
-| `/dashboard` | Dashboard | Financial charts (P&L, burn/runway, cap table) |
-| `/investors` | Investors | Shareable links + engagement analytics |
-| `/docs` | Docs | Platform documentation |
-| `/settings` | SettingsPage | User and org settings |
+| `/` | Dashboard | Agent health grid, department metrics, activity feed |
+| `/ea` | EAWorkspace | Executive Assistant chat + tasks |
+| `/finance` | FinanceWorkspace | CFO agent chat + financial tools |
+| `/operations` | OperationsWorkspace | COA agent chat + operations |
+| `/marketing` | MarketingWorkspace | CMA agent chat + campaigns |
+| `/compliance` | ComplianceWorkspace | CCO agent chat + governance |
+| `/legal` | LegalWorkspace | Legal agent chat + reviews |
+| `/sales` | SalesWorkspace | Sales agent chat + pipeline |
+| `/settings` | Settings | User and org settings |
 
 ### Edge Functions (supabase/functions/)
 
@@ -303,6 +304,7 @@ Deno runtime. Used as fallback when agent server is unreachable.
 - **Agent SDK tool pattern** (dept agents): Tools use `tool(name, description, zodRawShape, handler)` 4-arg signature with Zod schemas. All import `safeFetch`, `safeFetchText`, `safeJsonParse`, `stripHtml` from `@waas/runtime`.
 - **SSRF protection**: `isAllowedUrl()` blocks private IPs, cloud metadata, localhost, `.internal`/`.local` suffixes before any `fetch_url` call.
 - **$5 escalation threshold**: All department agents escalate to COA at $5 budget. COA escalates to Sean for strategic decisions.
+- **Observability (Sentry + PostHog)**: All SDK init wrapped in try-catch (non-fatal). Zero-config when env vars unset. Frontend: `@sentry/react` + `posthog-js`. Agents: `@sentry/node` + `posthog-node`. EA re-exports from `@waas/runtime` (DRY). `uncaughtException` → Sentry flush + `process.exit(1)`. Source maps conditional on `SENTRY_AUTH_TOKEN`.
 
 ## Agent Network
 
@@ -320,12 +322,13 @@ Deno runtime. Used as fallback when agent server is unreachable.
 ## UI Patterns
 
 - shadcn/ui (Radix primitives) in `src/components/ui/` — don't modify directly
-- Recharts for dashboard charts in `src/components/dashboard/`
+- `AgentChat` (`src/components/chat/AgentChat.tsx`) — streaming SSE chat with Markdown rendering, conversation persistence, per-agent URL routing via `VITE_*_AGENT_URL` env vars
+- `DepartmentWorkspace` (`src/components/workspace/DepartmentWorkspace.tsx`) — reusable layout for all 7 department workspace pages
 - Tailwind CSS with CSS variables for theming (light/dark)
 - `cn()` from `src/lib/utils.ts` for conditional class merging
-- React Hook Form + Zod for form validation
 - TanStack Query for server state; React Context for auth only
-- Chat.tsx uses `VITE_AGENT_URL` env var with edge function fallback
+- Sentry `ErrorBoundary` wraps all routes (falls back to `FallbackErrorBoundary` class component)
+- PostHog SPA page views tracked via `useLocation` in `PostHogPageView` component
 - `@/*` → `./src/*` path alias (tsconfig + vite config)
 
 ## Supabase Client

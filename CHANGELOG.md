@@ -2,6 +2,68 @@
 
 All notable changes to the WaaS platform.
 
+## [v2.1.0] - 2026-03-14
+
+PostHog product analytics + Sentry error monitoring across the full stack (frontend + all 7 agent servers).
+
+### Added
+
+- **Frontend Sentry** — `@sentry/react` with `BrowserTracing`, `Replay` (on error), `ErrorBoundary`, source map upload via `@sentry/vite-plugin` (conditional on `SENTRY_AUTH_TOKEN`)
+- **Frontend PostHog** — `posthog-js` with autocapture, SPA page view tracking via React Router `useLocation`, user identification on auth state change
+- **CFO Agent observability** — `@sentry/node` + `posthog-node` with Express error handler, unhandled rejection/exception handlers, `agent_query` PostHog events
+- **EA Agent observability** — Re-exports from `@waas/runtime` (DRY), same init pattern
+- **@waas/runtime observability** — Shared `initSentry(agentId)` + `initPostHog()` + `shutdownObservability()` covering all 5 department agents (COA, CMA, Compliance, Legal, Sales)
+- 3 custom PostHog events: `agent_chat_sent`, `workspace_viewed`, `agent_health_checked`
+- Sentry user context + PostHog identify/reset on auth state changes in `AuthContext`
+- Startup logs for all observability init (success/skip/failure)
+- Graceful shutdown with Sentry flush timeout logging
+
+### Fixed
+
+- Sentry Express error handler ordering (after routes, before 404 handler)
+- `uncaughtException` handlers now flush Sentry then `process.exit(1)` (process enters undefined state)
+- All SDK init calls wrapped in try-catch (non-fatal on failure — app still starts)
+- Source maps only generated when `SENTRY_AUTH_TOKEN` is set (prevents CDN exposure)
+- `Sentry.close()` flush result now logged in shutdown
+- PostHog `.capture()` wrapped in try-catch across all chat routes
+- EA observability DRY — re-exports from `@waas/runtime` instead of duplicating
+- Real `FallbackErrorBoundary` class component in `App.tsx` (was pass-through)
+- Removed `persistence: 'localStorage'` from PostHog config (default is safer)
+- Observability init moved to constructor (before async `start()` operations)
+- `PermissionMode` type imported from Claude Agent SDK (removed unsafe `as` cast)
+- Fixed `catch (err: any)` → `catch (err)` with `instanceof Error` checks
+
+## [v2.0.0] - 2026-03-14
+
+AgentCorp frontend migration — workspace UI for all 7 agents with department-specific dashboards, unified agent health monitoring, and comprehensive PR review fixes.
+
+### Added
+
+- **AgentCorp workspace UI** — 7 department workspaces (EA, Finance, Operations, Marketing, Compliance, Legal, Sales) with agent chat, task management, and department-specific dashboards
+- `DepartmentWorkspace` reusable component with agent chat, task panels, and department metrics
+- `AgentChat` streaming SSE component with Markdown rendering, conversation persistence, and per-agent URL routing
+- `AppLayout` with sidebar navigation for all department workspaces
+- `useAgentHealth` hook for real-time agent status monitoring
+- Dashboard with agent health grid, department metrics, and activity feed
+
+### Fixed
+
+- AuthContext race condition — removed separate `getSession()` call, uses `onAuthStateChange` exclusively (`INITIAL_SESSION` event)
+- AgentChat stale closure — added `messagesRef` to prevent stale messages in rapid sends
+- SSE parser error swallowing — added `console.warn` for parse errors + error payload detection
+- Supabase `{ error }` checks added across 25 query sites (Dashboard, all Workspaces, Settings)
+- AgentChat conversation persistence error handling (create, insert, load)
+- AuthContext `fetchOrg` + `signOut` error handling
+- Missing `VITE_AGENT_URL` guard in AgentChat
+- Outer catch in AgentChat logs error with agent name
+- Dashboard `formatTime` NaN guard
+- Password `minLength` 6 → 8
+- Accessibility: `aria-label` on chat textarea and send button
+- `prose-invert` → `dark:prose-invert` for dark-mode-conditional rendering
+- `DepartmentWorkspace` null guard for unknown departments
+- Excluded `_finance-archive` from vitest config
+- Removed misleading auto-generated comments from Supabase client
+
 ## [v1.2.0] - 2026-03-14
 
 Department agent deployment — 5 new agents built with @waas/runtime, shared tool-helpers for security hardening, and model stack specialization per department.
