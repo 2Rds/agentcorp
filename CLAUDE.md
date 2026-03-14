@@ -28,7 +28,7 @@ When saving memories for this project, always tag with:
 
 **WaaS (Workforce-as-a-Service)** — Cognitive agent orchestration platform. Builds namespace-isolated, memory-enriched, inter-communicating AI agents for enterprise operations.
 
-**GitHub**: `2rds/waas` (renamed from `2rds/cfo` on 2026-03-04)
+**GitHub**: `2Rds/agentcorp` (renamed from `2rds/waas` on 2026-03-14, originally `2rds/cfo`)
 
 ### Repo Structure
 
