@@ -2,6 +2,31 @@
 
 ## Current Status
 
+### Completed — v2.2.0 (2026-03-14)
+
+**Governance System (C-Suite Telegram Approval Flow)**
+- [x] Governance types in `@waas/shared/governance`: `GovernanceConfig`, `ApprovalCategory`, `PendingApproval`, `GovernanceDecision`, `SpendEvent`, `BLOCKDRIVE_GOVERNANCE` defaults
+- [x] GovernanceEngine in `@waas/runtime`: daily spend tracking (Redis), pending approval management (Telegram inline keyboards), authorized approver enforcement
+- [x] Spend tracking in chat routes: estimated token costs recorded to Redis via GovernanceEngine after every agent query
+- [x] Agent usage events bridge: `agent_usage_events` table now receives writes from chat routes (was Redis-only); Operations workspace AgentUsageTab shows real cost/latency data
+- [x] Governance directives added to all 7 agent system prompts (approval gates for external comms, marketing, social media, financial commitments)
+- [x] CCO renamed to Parker (CCA), naming standardization: CFA, CCA, CMA, COA, CSA, CLA
+
+**Supabase Realtime (Live Frontend Updates)**
+- [x] `useRealtimeSubscription` hook with unique channel IDs, `.subscribe()` status callbacks, race-condition-closing refetch on SUBSCRIBED
+- [x] 17 department tables added to `supabase_realtime` publication (idempotent DO blocks)
+- [x] All 7 workspace pages + Dashboard subscribe to their department tables, auto-invalidating TanStack Query cache on changes
+
+**Supabase Vault + Database Webhooks**
+- [x] pgsodium + pg_net extensions enabled
+- [x] `webhook-handler` Edge Function with exact Bearer token auth, Content-Type validation, reduced log verbosity
+- [x] INSERT triggers on `ea_tasks`, `agent_messages`, `compliance_governance_log` with `REVOKE EXECUTE FROM PUBLIC` and `BEGIN..EXCEPTION` handler
+- [x] Webhook trigger functions are idempotent (DROP TRIGGER IF EXISTS before CREATE)
+
+**Housekeeping**
+- [x] GitHub repo references updated to `2Rds/agentcorp`
+- [x] Frontend URL renamed from `cfo.blockdrive.co` to `corp.blockdrive.co`
+
 ### Completed — v2.1.0 (2026-03-14)
 
 **Full-Stack Observability (Sentry + PostHog)**
@@ -155,6 +180,9 @@
 - **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet
 - **Inter-agent messaging** — Designed in @waas/shared but not wired into runtime yet (COA has `message_agent` tool writing to Supabase queue, not Redis Streams yet)
 - **Department agents not yet deployed** — All 5 are built and tested locally but not yet added to DigitalOcean App Platform
+- **Governance approval flow untested end-to-end** — GovernanceEngine built but not yet wired to agent webhook routes (no `/webhook` route on agent servers yet)
+- **Database webhooks require deployed Edge Function** — `webhook-handler` exists but needs `supabase functions deploy` and `AGENT_BASE_URL` env var
+- **Realtime requires migration push** — `supabase_realtime` publication changes need `supabase db push` on the hosted project
 
 ## Technical Debt
 
@@ -172,14 +200,16 @@
 ### Near-term
 
 - [ ] Deploy 5 department agents to DigitalOcean App Platform (add service components)
+- [ ] Set up DO env vars for PostHog + Sentry + Governance on all agent services
+- [ ] Set up Vercel env vars for PostHog + Sentry
+- [ ] Push Supabase migrations (Realtime publication, Vault, Database Webhooks)
+- [ ] Deploy `webhook-handler` Edge Function (`supabase functions deploy`)
+- [ ] Add `/webhook` route to agent servers (receive Database Webhook events)
 - [ ] Self-hosted Redis 8.6 on DO droplet (replace Upstash free tier, enable Streams)
 - [ ] Redis Streams inter-agent messaging (replace Supabase queue in `message_agent`)
 - [ ] Add `message_agent` tool to EA agent (executive-tier cross-namespace messaging)
-- [ ] Create "Inside BlockDrive" Notion pages (department pages, agent databases)
-- [ ] Populate investor data room documents in DocSend
-- [ ] Wire EA into @waas/runtime (replace direct Express setup)
-- [ ] Google Calendar integration for EA (scheduling, meeting prep)
 - [ ] Slack integration for EA (channel monitoring, message sending)
+- [ ] Wire EA into @waas/runtime (replace direct Express setup)
 - [ ] Agent server test suite (Vitest + supertest)
 - [ ] Password reset flow + email verification enforcement
 - [ ] Supabase type regeneration

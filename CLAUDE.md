@@ -40,7 +40,7 @@ waas/
 │   ├── ea/                 # EA Agent "Alex" (Anthropic Messages API, port 3002)
 │   ├── coa/                # COA Agent "Jordan" (Agent SDK, 13 tools, port 3003)
 │   ├── cma/                # CMA Agent "Taylor" (Agent SDK, 11 tools, port 3004)
-│   ├── compliance/         # CCO Agent (Agent SDK, 10 tools, port 3005)
+│   ├── compliance/         # CCA Agent "Parker" (Agent SDK, 10 tools, port 3005)
 │   ├── legal/              # Legal Agent "Casey" (Agent SDK, 11 tools, port 3006)
 │   └── sales/              # Sales Agent "Sam" (Agent SDK, 12 tools, port 3007)
 ├── packages/
@@ -95,7 +95,7 @@ Tests use Vitest with jsdom. Test files live alongside source using `*.test.ts` 
 3. **EA Agent** (`agents/ea/`) — Express + Anthropic Messages API (direct), native tool loop, Telegram bot
 4. **Department Agents** (`agents/{coa,cma,compliance,legal,sales}/`) — Express + Agent SDK + @waas/runtime, specialized model stacks
 
-Backend: Supabase (Postgres, Auth, RLS, Edge Functions). Memory: Mem0 (org-scoped persistent memory with graph).
+Backend: Supabase (Postgres, Auth, RLS, Realtime, Vault, Edge Functions). Memory: Mem0 (org-scoped persistent memory with graph). Governance: GovernanceEngine (spend tracking + Telegram approval flow).
 
 ### Auth & Multi-tenancy
 
@@ -167,7 +167,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Runtime:** Express + Anthropic Messages API (direct `anthropic.messages.create()` with agentic tool loop, NOT Claude Agent SDK). Max 15 tool turns per request.
 
-**System prompt** defines Alex's role, personality, autonomous operations, escalation rules ($500+ budget, legal, hiring, investor terms, public statements, strategic pivots, access grants), and tool usage patterns.
+**System prompt** defines Alex's role, personality, autonomous operations, escalation rules (legal, hiring, investor terms, public statements, strategic pivots, access grants), governance directives (approval required for external comms), and tool usage patterns.
 
 **Tools (11, defined natively in `bridge.ts`):**
 - `search_knowledge` — Cross-namespace mem0 search (executive read access to all departments)
@@ -213,19 +213,21 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `models/` — MODEL_REGISTRY (9 models with pricing), ModelRouter, BoardSession (multi-agent deliberation + quorum voting)
 - `namespace/` — 7 AgentScopes (EA, CFA, CMA, COA, Legal, Sales, IR), ScopedRedisClient, ScopedMem0Client (fail-closed enforcement)
 - `messaging/` — MessageBus: routing, inbox, threads, escalation
+- `governance/` — GovernanceConfig, ApprovalCategory, PendingApproval, GovernanceDecision, SpendEvent types + BLOCKDRIVE_GOVERNANCE defaults
 
 **`@waas/runtime`** (`packages/runtime/`) — Express-based agent execution engine.
 - `agent-runtime.ts` — Main class: Express app, middleware, routes, lifecycle
 - `middleware/auth.ts` — Supabase JWT verification + org membership + token cache
 - `routes/` — health (GET /health) + chat (POST /chat, SSE streaming)
 - `transport/telegram.ts` — Telegram bot transport (grammy) for inter-agent messaging
-- `lib/` — redis-client, mem0-client, plugin-loader, stream-adapter, tool-helpers (safeFetch, SSRF protection, stripHtml), observability (Sentry + PostHog init/shutdown)
+- `lib/` — redis-client, mem0-client, plugin-loader, stream-adapter, tool-helpers (safeFetch, SSRF protection, stripHtml), observability (Sentry + PostHog init/shutdown), governance (GovernanceEngine: spend tracking, Telegram approval flow)
 
 ### Key Hooks (src/hooks/)
 
 - `useAuth` — Auth context from `AuthProvider` (user, session, org, signOut)
 - `useOrganization` — Active org ID from auth context, org creation via atomic RPC
 - `useAgentHealth` — Real-time agent status monitoring (online/offline/unknown)
+- `useRealtimeSubscription(table, filter, queryKeys, enabled)` — Supabase Realtime postgres_changes subscription with TanStack Query invalidation, unique channel IDs, subscribe status callbacks
 - `useModelSheet(orgId)` — Google Sheets integration
 - `useFinancialModel(orgId, scenario)` — Financial model data + derived metrics
 - `useCapTable(orgId)` — Cap table entries with computed totals
@@ -242,16 +244,17 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 | `/finance` | FinanceWorkspace | CFO agent chat + financial tools |
 | `/operations` | OperationsWorkspace | COA agent chat + operations |
 | `/marketing` | MarketingWorkspace | CMA agent chat + campaigns |
-| `/compliance` | ComplianceWorkspace | CCO agent chat + governance |
+| `/compliance` | ComplianceWorkspace | CCA agent chat + governance |
 | `/legal` | LegalWorkspace | Legal agent chat + reviews |
 | `/sales` | SalesWorkspace | Sales agent chat + pipeline |
 | `/settings` | Settings | User and org settings |
 
 ### Edge Functions (supabase/functions/)
 
-Deno runtime. Used as fallback when agent server is unreachable.
-- `chat/` — Streaming AI chat via OpenAI API format
+Deno runtime.
+- `chat/` — Streaming AI chat via OpenAI API format (fallback when agent server unreachable)
 - `track-view/` — Analytics for investor link views
+- `webhook-handler/` — Database Webhook receiver: validates Bearer token, routes pg_net trigger events to agent servers (`/ea/webhook`, `/coa/webhook`, `/compliance/webhook`)
 
 ### Supabase
 
@@ -266,6 +269,9 @@ Deno runtime. Used as fallback when agent server is unreachable.
 - Compliance tables: compliance_policy_register, compliance_risk_assessments, compliance_governance_log
 - Legal tables: legal_reviews, legal_ip_portfolio
 - Sales tables: sales_pipeline, sales_call_logs
+- Cross-cutting: agent_usage_events (cost/latency tracking, written by chat routes)
+- Realtime: 17 tables added to `supabase_realtime` publication for live frontend updates
+- Extensions: pgsodium (Vault), pg_net (Database Webhooks)
 
 ## Deployment
 
@@ -303,7 +309,9 @@ Deno runtime. Used as fallback when agent server is unreachable.
 - **PDF generation**: Playwright HTML→PDF with branded template, uploads to Supabase Storage `{orgId}/investor-docs/`, returns 1hr signed URL (matches excel-export pattern).
 - **Agent SDK tool pattern** (dept agents): Tools use `tool(name, description, zodRawShape, handler)` 4-arg signature with Zod schemas. All import `safeFetch`, `safeFetchText`, `safeJsonParse`, `stripHtml` from `@waas/runtime`.
 - **SSRF protection**: `isAllowedUrl()` blocks private IPs, cloud metadata, localhost, `.internal`/`.local` suffixes before any `fetch_url` call.
-- **$5 escalation threshold**: All department agents escalate to COA at $5 budget. COA escalates to Sean for strategic decisions.
+- **Governance system**: GovernanceEngine in `@waas/runtime` tracks daily spend per agent (Redis counters), gates external actions via Telegram inline keyboard approval in C-Suite group chat. Types + defaults in `@waas/shared/governance`. All agent system prompts include governance directives.
+- **Supabase Realtime pattern**: `useRealtimeSubscription` hook subscribes to `postgres_changes`, invalidates TanStack Query keys on change. Each component gets a unique channel ID (module-level counter) to prevent collision. Refetches on SUBSCRIBED to close race condition.
+- **Database Webhooks**: pg_net triggers → `webhook-handler` Edge Function → agent servers. Trigger function uses `SECURITY DEFINER` + `BEGIN..EXCEPTION` (never blocks INSERT). `REVOKE EXECUTE FROM PUBLIC` on trigger functions.
 - **Observability (Sentry + PostHog)**: All SDK init wrapped in try-catch (non-fatal). Zero-config when env vars unset. Frontend: `@sentry/react` + `posthog-js`. Agents: `@sentry/node` + `posthog-node`. EA re-exports from `@waas/runtime` (DRY). `uncaughtException` → Sentry flush + `process.exit(1)`. Source maps conditional on `SENTRY_AUTH_TOKEN`.
 
 ## Agent Network
@@ -314,7 +322,7 @@ Deno runtime. Used as fallback when agent server is unreachable.
 | `blockdrive-cfa` | Chief Financial Agent (Morgan) | 3001 | 31 | **Deployed** |
 | `blockdrive-coa` | Chief Operating Agent (Jordan) | 3003 | 13 | **Built** |
 | `blockdrive-cma` | Chief Marketing Agent (Taylor) | 3004 | 11 | **Built** |
-| `blockdrive-compliance` | Chief Compliance Officer | 3005 | 10 | **Built** |
+| `blockdrive-compliance` | Chief Compliance Agent Parker (CCA) | 3005 | 10 | **Built** |
 | `blockdrive-legal` | Legal Counsel (Casey) | 3006 | 11 | **Built** |
 | `blockdrive-sales` | Head of Sales (Sam) | 3007 | 12 | **Built** |
 | `blockdrive-ir` | Investor Relations (Riley) | — | — | Planned |

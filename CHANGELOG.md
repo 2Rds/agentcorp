@@ -2,6 +2,30 @@
 
 All notable changes to the WaaS platform.
 
+## [v2.2.0] - 2026-03-14
+
+Governance system with C-Suite Telegram approval flow, Supabase Realtime for live frontend updates, Vault for encrypted secret storage, and Database Webhooks for event-driven agent notifications.
+
+### Added
+
+- **Governance Engine** — Dual-mode (startup/enterprise) governance with daily spend tracking per agent (Redis counters), pending approval management via Telegram inline keyboards, and authorized approver enforcement via C-Suite group chat
+- **Governance types in `@waas/shared`** — `GovernanceConfig`, `ApprovalCategory`, `PendingApproval`, `GovernanceDecision`, `SpendEvent` types with `BLOCKDRIVE_GOVERNANCE` defaults
+- **GovernanceEngine in `@waas/runtime`** — `checkSpendLimit()`, `recordSpend()`, `requestApproval()`, `setupCallbackHandler()` methods with Redis-backed state
+- **Spend tracking in chat routes** — Estimated token costs written to Redis via GovernanceEngine after every agent query
+- **Agent usage events bridge** — `agent_usage_events` table now receives writes from chat routes (was Redis-only, table stayed empty); Operations workspace AgentUsageTab shows real cost/latency data
+- **Supabase Realtime** — `useRealtimeSubscription` hook with unique channel IDs, `.subscribe()` status callbacks, and race-condition-closing refetch on SUBSCRIBED; 17 department tables added to `supabase_realtime` publication (idempotent DO blocks)
+- **Live frontend updates** — All 7 workspace pages + Dashboard subscribe to their department tables, auto-invalidating TanStack Query cache on changes
+- **Supabase Vault** — Enabled pgsodium + pg_net extensions for encrypted secret storage and database-level HTTP calls
+- **Database Webhooks** — `webhook-handler` Edge Function receives pg_net triggers and routes events to agent servers; INSERT triggers on `ea_tasks`, `agent_messages`, `compliance_governance_log`
+- **Webhook security** — Exact Bearer token auth (not substring match), Content-Type validation, `REVOKE EXECUTE FROM PUBLIC` on trigger functions, `BEGIN..EXCEPTION` handler around `PERFORM`
+- Governance directives added to all 7 agent system prompts (approval gates for external comms, marketing, social media, financial commitments)
+
+### Changed
+
+- GitHub repo references updated from `2rds/cfo` to `2Rds/agentcorp`
+- Frontend URL renamed from `cfo.blockdrive.co` to `corp.blockdrive.co`
+- Dashboard org hierarchy updated: CCO → Parker (CCA), Legal → Casey (CLA), Sales → Sam (CSA)
+
 ## [v2.1.0] - 2026-03-14
 
 PostHog product analytics + Sentry error monitoring across the full stack (frontend + all 7 agent servers).

@@ -96,7 +96,7 @@ waas/
 | **Morgan** (CFA) | Financial modeling, cap table, investor data rooms, analytics | Claude Agent SDK + MCP | 31 | **Deployed** |
 | **Jordan** (COA) | Operations — workforce management, cross-dept coordination | Agent SDK + @waas/runtime | 13 | **Built** |
 | **Taylor** (CMA) | Marketing — content, campaigns, SEO, X/Twitter | Agent SDK + @waas/runtime | 11 | **Built** |
-| **CCO** (Compliance) | Governance — regulatory audit, risk, policy (Granite 4.0) | Agent SDK + @waas/runtime | 10 | **Built** |
+| **Parker** (CCA) | Governance — regulatory audit, risk, policy (Granite 4.0) | Agent SDK + @waas/runtime | 10 | **Built** |
 | **Casey** (Legal) | Contracts, IP portfolio, legal review (Grok 2M context) | Agent SDK + @waas/runtime | 11 | **Built** |
 | **Sam** (Sales) | Pipeline, prospecting, proposals, call prep | Agent SDK + @waas/runtime | 12 | **Built** |
 
@@ -114,6 +114,10 @@ waas/
 - **Google Sheets** — Model sync via service account with domain-wide delegation
 - **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching
 - **7-Agent Network** — EA, CFA, COA, CMA, Compliance, Legal, Sales with specialized model stacks
+- **Governance System** — Dual-mode (startup/enterprise) with daily spend tracking, C-Suite Telegram approval flow, and per-agent budget enforcement
+- **Supabase Realtime** — Live frontend updates via postgres_changes subscriptions on 17 department tables with TanStack Query cache invalidation
+- **Database Webhooks** — pg_net triggers → Edge Function → agent server notifications on high-value table events
+- **Supabase Vault** — pgsodium encrypted secret storage + pg_net for database-level HTTP calls
 - **Inter-Agent Messaging** — Redis inbox + Telegram bot-to-bot transport
 - **Namespace Isolation** — Scoped Redis + mem0 per department, fail-closed enforcement
 - **SSRF Protection** — URL validation blocking private IPs, cloud metadata, internal hosts

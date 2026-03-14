@@ -182,6 +182,9 @@ EA agent's Telegram bot transport enforces:
 | `VITE_SENTRY_DSN` | Frontend (error tracking) | `.env` |
 | `VITE_POSTHOG_KEY` | Frontend (analytics, write-only) | `.env` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Frontend (public) | `.env` |
+| `CSUITE_TELEGRAM_CHAT_ID` | All agents (governance group chat) | `agents/*/.env` |
+| `GOVERNANCE_APPROVER_IDS` | All agents (authorized Telegram user IDs) | `agents/*/.env` |
+| `WEBHOOK_SECRET` | Agent servers (webhook handler auth) | `agents/*/.env` |
 
 Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the gateway to inject API keys at the edge — keys never leave the server.
 
@@ -190,6 +193,31 @@ Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the 
 - **PostHog project token** — Write-only, cannot read data. Safe to include in frontend bundles.
 - **Sentry DSN** — Write-only, used for error reporting. Safe to include in frontend bundles.
 - **Source maps** — Only generated during build when `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` are set. Uploaded to Sentry but NOT served via CDN. `SENTRY_AUTH_TOKEN` is a build-time secret, never shipped to the browser.
+
+## Governance Controls
+
+### Spend Tracking
+
+GovernanceEngine tracks daily API spend per agent via Redis counters. Estimated token costs are computed after each agent query (character-based estimation with 3x multiplier for tool-use overhead) and recorded to both Redis (real-time limits) and Supabase `agent_usage_events` table (frontend visibility).
+
+### Approval Gates
+
+Actions in configured categories (external communications, marketing activities, social media posts, financial commitments) require CEO approval via Telegram inline keyboard in the C-Suite group chat before execution. Approvals are stored in Redis with TTL and resolved by authorized approver IDs.
+
+### Agent Directives
+
+All 7 agent system prompts include governance directives requiring approval before external-facing actions. Agents cannot bypass governance — the directives are injected into the system prompt, not agent-configurable.
+
+## Database Webhooks Security
+
+The `webhook-handler` Edge Function receives pg_net trigger events and forwards to agent servers.
+
+- **Auth:** Exact Bearer token comparison (not substring match) against `SUPABASE_SERVICE_ROLE_KEY`
+- **Content-Type:** Validates `application/json` header (415 on mismatch)
+- **Internal only:** No CORS headers — this endpoint is called by pg_net, not browsers
+- **Trigger functions:** `SECURITY DEFINER` with `REVOKE EXECUTE FROM PUBLIC` — only the postgres role (table owner) can invoke
+- **Exception handling:** `BEGIN..EXCEPTION WHEN OTHERS` around `net.http_post()` — trigger failures never block the originating INSERT
+- **Response logging:** pg_net stores request/response in `net._http_response` (postgres-role access only, auto-cleaned)
 
 ## Organization Data Isolation
 

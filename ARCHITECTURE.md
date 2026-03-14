@@ -2,7 +2,7 @@
 
 ## Overview
 
-Three-tier system: a React 18 frontend deployed to Vercel, seven Express agent servers (CFO + EA + 5 department agents), and Supabase for database, auth, storage, and edge function fallback. Full-stack observability via Sentry (error tracking) and PostHog (product analytics).
+Three-tier system: a React 18 frontend deployed to Vercel, seven Express agent servers (CFO + EA + 5 department agents), and Supabase for database, auth, storage, Realtime, Vault, Database Webhooks, and edge function fallback. Full-stack observability via Sentry (error tracking) and PostHog (product analytics). Governance via C-Suite Telegram approval flow with per-agent daily spend tracking.
 
 ```
                     ┌─────────────────┐
@@ -143,7 +143,7 @@ Five department head agents built on `@waas/runtime` with the Claude Agent SDK (
 |-------|---------|---------------|-------|--------|------|
 | COA (Jordan) | Opus 4.6 | Gemini 3.1 Pro, Grok Reasoning | Cohere v4.0 | Cohere v4.0 | 3003 |
 | CMA (Taylor) | Opus 4.6 | Gemini 3.1 Pro, Sonar Pro, Grok Fast | Cohere v4.0 | — | 3004 |
-| CCO (Compliance) | Opus 4.6 | Granite 4.0, Command A | Cohere v4.0 | Cohere v4.0 | 3005 |
+| CCA (Parker) | Opus 4.6 | Granite 4.0, Command A | Cohere v4.0 | Cohere v4.0 | 3005 |
 | Legal (Casey) | Opus 4.6 | Command A, Grok Reasoning (2M ctx) | Cohere v4.0 | Cohere v4.0 | 3006 |
 | Sales (Sam) | Opus 4.6 | Sonar Pro, Gemini 3.1 Pro | Cohere v4.0 | — | 3007 |
 
@@ -176,14 +176,27 @@ Sean (Human Principal)
 │   ├── Morgan (CFA) — financial modeling
 │   │   └── Riley (IR) — investor relations (planned)
 │   ├── Taylor (CMA) — marketing/content
-│   ├── CCO (Compliance) — governance, audit-read-all
+│   ├── Parker (CCA) — governance, audit-read-all
 │   ├── Casey (Legal) — contracts, IP
 │   └── Sam (Sales) — pipeline, prospecting
 ```
 
+### Governance
+
+Dual-mode governance system (startup/enterprise) managed by GovernanceEngine in `@waas/runtime`. Types and defaults in `@waas/shared/governance`.
+
+**Startup mode (current):** Human-configured tripwires with Telegram approval flow.
+- Daily spend tracking per agent via Redis counters (keyed by `{orgId}:{agentId}:{date}`)
+- Pending approvals stored in Redis with TTL, presented via Telegram inline keyboards in C-Suite group chat
+- Authorized approver enforcement (Sean's Telegram user ID)
+- 6 approval categories: external_communication, marketing_activity, social_media_post, financial_commitment, escalation, spend_limit_exceeded
+- All agent system prompts include governance directives requiring approval before external actions
+
+**Enterprise mode (future):** CCA (Parker) manages policy enforcement programmatically.
+
 ### Escalation
 
-All department agents escalate to COA (Jordan) at $5 budget threshold. COA escalates to Sean for strategic decisions, hiring, vendor contracts, and cross-department conflicts.
+Department agents escalate to COA (Jordan) for strategic decisions. COA escalates to Sean for hiring, vendor contracts, and cross-department conflicts.
 
 ## EA Agent Server (`agents/ea/src/`)
 
@@ -320,6 +333,27 @@ Custom events: `agent_chat_sent`, `workspace_viewed`, `agent_health_checked`.
 | CFO Agent | `agent/src/lib/observability.ts` | CFO server |
 | @waas/runtime | `packages/runtime/src/lib/observability.ts` | COA, CMA, Compliance, Legal, Sales |
 | EA Agent | `agents/ea/src/lib/observability.ts` | Re-exports from @waas/runtime |
+
+## Deployment
+
+### Supabase Realtime
+
+17 department tables added to the `supabase_realtime` publication. Frontend uses `useRealtimeSubscription` hook (unique channel IDs per component, `.subscribe()` status callbacks, race-condition-closing refetch on SUBSCRIBED). On any INSERT/UPDATE/DELETE matching the org filter, invalidates TanStack Query cache keys to trigger automatic refetch.
+
+### Supabase Vault + Database Webhooks
+
+**Vault:** pgsodium extension enabled for encrypted secret storage at the database layer.
+
+**Database Webhooks:** pg_net extension fires async HTTP requests from SQL triggers on high-value table events:
+
+```
+INSERT on ea_tasks / agent_messages / compliance_governance_log
+  → notify_webhook() trigger function (SECURITY DEFINER, BEGIN..EXCEPTION)
+  → net.http_post() to webhook-handler Edge Function
+  → Edge Function routes to agent server (/ea/webhook, /coa/webhook, /compliance/webhook)
+```
+
+Webhook handler validates exact Bearer token (not substring match), Content-Type, and forwards events with `X-Webhook-Secret`. Returns 200 even on agent errors to prevent pg_net retries.
 
 ## Deployment
 
