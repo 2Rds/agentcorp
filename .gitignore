@@ -34,5 +34,6 @@ CF_ACCOUNT_ID
 CF_GATEWAY_ID
 CF_AIG_TOKEN
 
-# DO App Platform spec (contains API keys)
+# DO App Platform specs (contain API keys)
 app-spec.yaml
+app-spec-nyc.yaml

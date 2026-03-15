@@ -7,9 +7,16 @@ let sheetsClient: sheets_v4.Sheets | null = null;
 let driveClient: drive_v3.Drive | null = null;
 
 function getAuth() {
-  if (!config.googleSheetsEnabled || !config.googleServiceAccountKeyFile) return null;
-  const keyPath = resolve(config.googleServiceAccountKeyFile);
-  const credentials = JSON.parse(readFileSync(keyPath, "utf-8"));
+  if (!config.googleSheetsEnabled) return null;
+  let credentials: { client_email: string; private_key: string };
+  if (config.googleServiceAccountKeyJson) {
+    credentials = JSON.parse(config.googleServiceAccountKeyJson);
+  } else if (config.googleServiceAccountKeyFile) {
+    const keyPath = resolve(config.googleServiceAccountKeyFile);
+    credentials = JSON.parse(readFileSync(keyPath, "utf-8"));
+  } else {
+    return null;
+  }
   // Use JWT for domain-wide delegation (impersonate a Workspace user)
   return new google.auth.JWT({
     email: credentials.client_email,

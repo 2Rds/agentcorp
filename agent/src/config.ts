@@ -45,11 +45,13 @@ export const config = {
   mem0WebhookSecret: optional("MEM0_WEBHOOK_SECRET"),
 
   // Google Sheets integration via service account with domain-wide delegation (optional)
-  // GOOGLE_SERVICE_ACCOUNT_KEY_FILE: path to service account JSON key file (relative to agent/)
+  // GOOGLE_SERVICE_ACCOUNT_KEY_FILE: path to service account JSON key file (local dev)
+  // GOOGLE_SERVICE_ACCOUNT_KEY_JSON: raw JSON content (cloud platforms that can't mount files)
   // GOOGLE_IMPERSONATE_EMAIL: Workspace user email for impersonation (required for DWD)
   googleServiceAccountKeyFile: optional("GOOGLE_SERVICE_ACCOUNT_KEY_FILE"),
+  googleServiceAccountKeyJson: optional("GOOGLE_SERVICE_ACCOUNT_KEY_JSON"),
   googleImpersonateEmail: optional("GOOGLE_IMPERSONATE_EMAIL"),
-  googleSheetsEnabled: !!process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE,
+  googleSheetsEnabled: !!(process.env.GOOGLE_SERVICE_ACCOUNT_KEY_FILE || process.env.GOOGLE_SERVICE_ACCOUNT_KEY_JSON),
 
   // Financial system integrations (all optional — each enabled when client ID/secret are set)
   quickbooksClientId: optional("QUICKBOOKS_CLIENT_ID"),
