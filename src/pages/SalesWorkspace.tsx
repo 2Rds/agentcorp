@@ -2,19 +2,19 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { motion } from 'framer-motion';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import DepartmentWorkspace from '@/components/workspace/DepartmentWorkspace';
 import { EmptyState } from '@/components/workspace/EmptyState';
+import { DataTable, type Column } from '@/components/workspace/DataTable';
 import { TrendingUp, Phone, LayoutGrid, List } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '@/lib/utils';
 
 const STAGES = ['prospect', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
-const stageColor = (s: string) => s === 'closed_won' ? 'bg-emerald-500/20 text-emerald-400' : s === 'closed_lost' ? 'bg-red-500/20 text-red-400' : 'bg-primary/20 text-primary';
+const stageColor = (s: string) => s === 'closed_won' ? 'bg-emerald-500/15 text-emerald-400' : s === 'closed_lost' ? 'bg-red-500/15 text-red-400' : 'bg-primary/15 text-primary';
 
 function PipelineTab() {
   const { orgId } = useAuth();
@@ -23,13 +23,14 @@ function PipelineTab() {
     queryKey: ['sales-pipeline', orgId], enabled: !!orgId,
     queryFn: async () => { const { data, error } = await supabase.from('sales_pipeline').select('*').eq('org_id', orgId!).order('created_at', { ascending: false }); if (error) throw new Error(error.message); return data ?? []; },
   });
+
   if (isLoading) return <Skeleton className="h-64 w-full" />;
   if (!data?.length) return <EmptyState icon={<TrendingUp className="h-6 w-6 text-muted-foreground" />} title="No pipeline deals" description="Chat with Sam to add pipeline deals." />;
 
   const fmt = (v: number | null) => v ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(v) : '$0';
   const totalValue = data.filter(d => !['closed_won', 'closed_lost'].includes(d.stage)).reduce((s, d) => s + (Number(d.value) || 0), 0);
   const weightedValue = data.filter(d => !['closed_won', 'closed_lost'].includes(d.stage)).reduce((s, d) => s + (Number(d.value) || 0) * (Number(d.probability) || 0) / 100, 0);
-  const byStage = STAGES.map(st => ({ stage: st, count: data.filter(d => d.stage === st).length }));
+  const byStage = STAGES.map(st => ({ stage: st.replace('_', ' '), count: data.filter(d => d.stage === st).length }));
 
   return (
     <div className="space-y-6">
@@ -44,32 +45,54 @@ function PipelineTab() {
         </div>
       </div>
 
-      <Card className="border-border"><CardContent className="h-40 pt-4">
-        <ResponsiveContainer width="100%" height="100%"><BarChart data={byStage} layout="vertical"><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis dataKey="stage" type="category" width={90} tick={{ fontSize: 11 }} /><Tooltip /><Bar dataKey="count" fill="hsl(var(--agent-sales))" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer>
-      </CardContent></Card>
+      {/* Chart */}
+      <div className="glass-card rounded-xl p-4 h-44">
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={byStage} layout="vertical">
+            <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+            <YAxis dataKey="stage" type="category" width={90} tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+            <Tooltip contentStyle={{ background: 'hsl(225, 45%, 5.5%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }} />
+            <Bar dataKey="count" fill="hsl(var(--agent-sales))" radius={[0, 4, 4, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
 
       {view === 'kanban' ? (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {STAGES.map(stage => (
             <div key={stage} className="space-y-2">
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{stage.replace('_', ' ')}</h3>
-              {data.filter(d => d.stage === stage).map(deal => (
-                <Card key={deal.id} className="border-border">
-                  <CardContent className="p-3">
+              <h3 className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{stage.replace('_', ' ')}</h3>
+              {data.filter(d => d.stage === stage).map((deal, i) => (
+                <motion.div
+                  key={deal.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: i * 0.04 }}
+                >
+                  <div className="glass-card rounded-lg p-3 hover:bg-white/[0.04] transition-colors cursor-pointer">
                     <p className="font-medium text-sm truncate">{deal.company}</p>
                     <p className="text-xs text-muted-foreground font-mono">{fmt(Number(deal.value))}</p>
-                    <p className="text-[10px] text-muted-foreground">{deal.probability}% prob</p>
-                  </CardContent>
-                </Card>
+                    <p className="text-[10px] text-muted-foreground/60">{deal.probability}% prob</p>
+                  </div>
+                </motion.div>
               ))}
             </div>
           ))}
         </div>
       ) : (
-        <Table><TableHeader><TableRow><TableHead>Company</TableHead><TableHead>Contact</TableHead><TableHead>Stage</TableHead><TableHead>Value</TableHead><TableHead>Prob.</TableHead><TableHead>Close</TableHead></TableRow></TableHeader>
-        <TableBody>{data.map(d => (
-          <TableRow key={d.id}><TableCell className="font-medium">{d.company}</TableCell><TableCell className="text-muted-foreground">{d.contact || '—'}</TableCell><TableCell><Badge className={cn('text-[10px]', stageColor(d.stage))}>{d.stage}</Badge></TableCell><TableCell className="font-mono text-xs">{fmt(Number(d.value))}</TableCell><TableCell className="font-mono text-xs">{d.probability}%</TableCell><TableCell className="font-mono text-xs">{d.expected_close ? new Date(d.expected_close).toLocaleDateString() : '—'}</TableCell></TableRow>
-        ))}</TableBody></Table>
+        <DataTable
+          data={data as Record<string, unknown>[]}
+          searchKeys={['company', 'contact']}
+          searchPlaceholder="Search deals..."
+          columns={[
+            { key: 'company', label: 'Company', sortable: true, className: 'font-medium' },
+            { key: 'contact', label: 'Contact', sortable: true, className: 'text-muted-foreground' },
+            { key: 'stage', label: 'Stage', sortable: true, render: (row) => <Badge className={cn('text-[10px]', stageColor(String(row.stage)))}>{String(row.stage)}</Badge> },
+            { key: 'value', label: 'Value', sortable: true, render: (row) => <span className="font-mono text-xs">{fmt(Number(row.value))}</span> },
+            { key: 'probability', label: 'Prob.', sortable: true, render: (row) => <span className="font-mono text-xs">{row.probability}%</span> },
+            { key: 'expected_close', label: 'Close', render: (row) => <span className="font-mono text-xs">{row.expected_close ? new Date(String(row.expected_close)).toLocaleDateString() : '—'}</span> },
+          ] as Column<Record<string, unknown>>[]}
+        />
       )}
     </div>
   );
@@ -83,12 +106,22 @@ function CallLogsTab() {
   });
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<Phone className="h-6 w-6 text-muted-foreground" />} title="No call logs" description="Sales call logs from Sam will appear here." />;
-  const sentimentEmoji = (s: string | null) => s === 'positive' ? '😊' : s === 'negative' ? '😟' : s === 'neutral' ? '😐' : '—';
+
   return (
-    <Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Summary</TableHead><TableHead>Sentiment</TableHead><TableHead>Next Steps</TableHead></TableRow></TableHeader>
-    <TableBody>{data.map(c => (
-      <TableRow key={c.id}><TableCell><Badge variant="outline">{c.type}</Badge></TableCell><TableCell className="max-w-xs truncate text-sm">{c.summary}</TableCell><TableCell className="text-center">{sentimentEmoji(c.sentiment)}</TableCell><TableCell className="text-muted-foreground text-sm max-w-xs truncate">{c.next_steps || '—'}</TableCell></TableRow>
-    ))}</TableBody></Table>
+    <DataTable
+      data={data as Record<string, unknown>[]}
+      searchKeys={['summary']}
+      searchPlaceholder="Search call logs..."
+      columns={[
+        { key: 'type', label: 'Type', sortable: true, render: (row) => <Badge variant="outline" className="text-[10px]">{String(row.type)}</Badge> },
+        { key: 'summary', label: 'Summary', className: 'max-w-xs truncate text-sm' },
+        { key: 'sentiment', label: 'Sentiment', render: (row) => {
+          const s = String(row.sentiment || '');
+          return s === 'positive' ? '😊' : s === 'negative' ? '😟' : s === 'neutral' ? '😐' : '—';
+        }},
+        { key: 'next_steps', label: 'Next Steps', className: 'text-muted-foreground text-sm max-w-xs truncate' },
+      ] as Column<Record<string, unknown>>[]}
+    />
   );
 }
 

@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import DepartmentWorkspace from '@/components/workspace/DepartmentWorkspace';
 import { EmptyState } from '@/components/workspace/EmptyState';
+import { DataTable, type Column } from '@/components/workspace/DataTable';
 import { Scale, FileText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -17,12 +17,20 @@ function ReviewsTab() {
   });
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<Scale className="h-6 w-6 text-muted-foreground" />} title="No legal reviews" description="Legal reviews by Casey will appear here." />;
-  const riskColor = (r: string) => r === 'critical' ? 'bg-red-500/20 text-red-400' : r === 'high' ? 'bg-orange-500/20 text-orange-400' : r === 'medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-emerald-500/20 text-emerald-400';
+  const riskColor = (r: string) => r === 'critical' ? 'bg-red-500/15 text-red-400' : r === 'high' ? 'bg-orange-500/15 text-orange-400' : r === 'medium' ? 'bg-yellow-500/15 text-yellow-400' : 'bg-emerald-500/15 text-emerald-400';
   return (
-    <Table><TableHeader><TableRow><TableHead>Type</TableHead><TableHead>Subject</TableHead><TableHead>Risk Level</TableHead><TableHead>Status</TableHead><TableHead>Summary</TableHead></TableRow></TableHeader>
-    <TableBody>{data.map(r => (
-      <TableRow key={r.id}><TableCell><Badge variant="outline">{r.type}</Badge></TableCell><TableCell className="font-medium">{r.subject}</TableCell><TableCell><Badge className={cn('text-[10px]', riskColor(r.risk_level))}>{r.risk_level}</Badge></TableCell><TableCell><Badge variant="secondary">{r.status}</Badge></TableCell><TableCell className="text-muted-foreground text-sm max-w-xs truncate">{r.summary}</TableCell></TableRow>
-    ))}</TableBody></Table>
+    <DataTable
+      data={data as Record<string, unknown>[]}
+      searchKeys={['subject', 'summary']}
+      searchPlaceholder="Search reviews..."
+      columns={[
+        { key: 'type', label: 'Type', render: (row) => <Badge variant="outline" className="text-[10px]">{String(row.type)}</Badge> },
+        { key: 'subject', label: 'Subject', sortable: true, className: 'font-medium' },
+        { key: 'risk_level', label: 'Risk', sortable: true, render: (row) => <Badge className={cn('text-[10px]', riskColor(String(row.risk_level)))}>{String(row.risk_level)}</Badge> },
+        { key: 'status', label: 'Status', sortable: true, render: (row) => <Badge variant="secondary" className="text-[10px]">{String(row.status)}</Badge> },
+        { key: 'summary', label: 'Summary', className: 'text-muted-foreground text-sm max-w-xs truncate' },
+      ] as Column<Record<string, unknown>>[]}
+    />
   );
 }
 
@@ -35,10 +43,19 @@ function IPTab() {
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<FileText className="h-6 w-6 text-muted-foreground" />} title="No IP assets" description="IP portfolio items will appear here." />;
   return (
-    <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Reg. #</TableHead><TableHead>Filed</TableHead><TableHead>Expires</TableHead></TableRow></TableHeader>
-    <TableBody>{data.map(ip => (
-      <TableRow key={ip.id}><TableCell className="font-medium">{ip.name}</TableCell><TableCell><Badge variant="outline">{ip.type}</Badge></TableCell><TableCell><Badge variant="secondary">{ip.status}</Badge></TableCell><TableCell className="font-mono text-xs">{ip.registration_number || '—'}</TableCell><TableCell className="font-mono text-xs">{ip.filing_date ? new Date(ip.filing_date).toLocaleDateString() : '—'}</TableCell><TableCell className="font-mono text-xs">{ip.expiry_date ? new Date(ip.expiry_date).toLocaleDateString() : '—'}</TableCell></TableRow>
-    ))}</TableBody></Table>
+    <DataTable
+      data={data as Record<string, unknown>[]}
+      searchKeys={['name']}
+      searchPlaceholder="Search IP..."
+      columns={[
+        { key: 'name', label: 'Name', sortable: true, className: 'font-medium' },
+        { key: 'type', label: 'Type', render: (row) => <Badge variant="outline" className="text-[10px]">{String(row.type)}</Badge> },
+        { key: 'status', label: 'Status', sortable: true, render: (row) => <Badge variant="secondary" className="text-[10px]">{String(row.status)}</Badge> },
+        { key: 'registration_number', label: 'Reg. #', render: (row) => <span className="font-mono text-xs">{row.registration_number ? String(row.registration_number) : '—'}</span> },
+        { key: 'filing_date', label: 'Filed', render: (row) => <span className="font-mono text-xs">{row.filing_date ? new Date(String(row.filing_date)).toLocaleDateString() : '—'}</span> },
+        { key: 'expiry_date', label: 'Expires', render: (row) => <span className="font-mono text-xs">{row.expiry_date ? new Date(String(row.expiry_date)).toLocaleDateString() : '—'}</span> },
+      ] as Column<Record<string, unknown>>[]}
+    />
   );
 }
 

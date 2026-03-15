@@ -1,17 +1,20 @@
-import { Home, Bot, DollarSign, Settings as SettingsIcon, Megaphone, Shield, Scale, TrendingUp, LogOut, Cog } from 'lucide-react';
+import { Home, Bot, DollarSign, Settings as SettingsIcon, Megaphone, Shield, Scale, TrendingUp, Cog } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAgentHealth, AgentHealth } from '@/hooks/useAgentHealth';
+import { getDeptTheme } from '@/lib/department-theme';
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
-  SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarSeparator, useSidebar,
+  SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarMenuBadge, SidebarSeparator, useSidebar,
 } from '@/components/ui/sidebar';
-import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const navItems = [
+const overviewItems = [
   { title: 'Dashboard', url: '/', icon: Home, dept: null },
+];
+
+const agentItems = [
   { title: 'EA Alex', url: '/ea', icon: Bot, dept: 'ea' },
   { title: 'Finance', url: '/finance', icon: DollarSign, dept: 'finance' },
   { title: 'Operations', url: '/operations', icon: SettingsIcon, dept: 'operations' },
@@ -21,36 +24,70 @@ const navItems = [
   { title: 'Sales', url: '/sales', icon: TrendingUp, dept: 'sales' },
 ];
 
-function StatusDot({ dept, healthData }: { dept: string | null; healthData?: AgentHealth[] }) {
+function AnimatedStatusDot({ dept, healthData }: { dept: string | null; healthData?: AgentHealth[] }) {
   if (!dept || !healthData) return null;
   const h = healthData.find(a => a.agent.department === dept);
-  const color = h?.status === 'online' ? 'bg-emerald-500' : h?.status === 'offline' ? 'bg-red-500' : 'bg-muted-foreground/40';
-  return <span className={cn('ml-auto h-2 w-2 rounded-full shrink-0', color)} />;
+  const isOnline = h?.status === 'online';
+  const isOffline = h?.status === 'offline';
+  const theme = getDeptTheme(dept);
+
+  return (
+    <span className="ml-auto relative flex h-2.5 w-2.5 shrink-0">
+      {isOnline && (
+        <span
+          className={cn(
+            'absolute inset-0 rounded-full animate-pulse-ring',
+            theme.bg,
+            'opacity-60'
+          )}
+        />
+      )}
+      <span
+        className={cn(
+          'relative inline-flex h-2.5 w-2.5 rounded-full',
+          isOnline ? theme.bg : isOffline ? 'bg-red-500' : 'bg-muted-foreground/40'
+        )}
+      />
+    </span>
+  );
 }
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
-  const { user, signOut, orgName } = useAuth();
+  const { orgName } = useAuth();
   const { data: healthData } = useAgentHealth();
 
+  const isActive = (url: string) =>
+    location.pathname === url || (url !== '/' && location.pathname.startsWith(url));
+
+  const getActiveBorder = (dept: string | null) => {
+    if (!dept) return '';
+    const theme = getDeptTheme(dept);
+    return theme.borderLeft;
+  };
+
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="bg-sidebar/90 backdrop-blur-xl border-r border-white/[0.06]">
       <SidebarHeader className="p-4">
         {!collapsed ? (
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center shrink-0">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shrink-0 shadow-glow-sm">
               <Bot className="h-5 w-5 text-primary-foreground" />
             </div>
             <div className="min-w-0">
               <p className="font-semibold text-sm truncate">AgentCorp</p>
-              <p className="text-[10px] text-muted-foreground truncate">Workforce-as-a-Service</p>
+              {orgName ? (
+                <p className="text-[10px] text-muted-foreground truncate">{orgName}</p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground truncate">Workforce-as-a-Service</p>
+              )}
             </div>
           </div>
         ) : (
           <div className="flex justify-center">
-            <div className="h-8 w-8 rounded-md bg-primary flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-glow-sm">
               <Bot className="h-5 w-5 text-primary-foreground" />
             </div>
           </div>
@@ -58,17 +95,22 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent>
+        {/* Overview Group */}
         <SidebarGroup>
-          <SidebarGroupLabel>Navigation</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60">Overview</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map(item => (
+              {overviewItems.map(item => (
                 <SidebarMenuItem key={item.url}>
-                  <SidebarMenuButton asChild isActive={location.pathname === item.url || (item.url !== '/' && location.pathname.startsWith(item.url))}>
-                    <NavLink to={item.url} end={item.url === '/'} className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium">
+                  <SidebarMenuButton asChild isActive={isActive(item.url)}>
+                    <NavLink
+                      to={item.url}
+                      end={item.url === '/'}
+                      className="hover:bg-white/[0.04] transition-colors"
+                      activeClassName="bg-white/[0.06] text-foreground font-medium"
+                    >
                       <item.icon className="h-4 w-4 shrink-0" />
                       {!collapsed && <span className="truncate">{item.title}</span>}
-                      {!collapsed && <StatusDot dept={item.dept} healthData={healthData} />}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -76,28 +118,59 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarSeparator className="bg-white/[0.04]" />
+
+        {/* Agents Group */}
+        <SidebarGroup>
+          <SidebarGroupLabel className="text-[10px] uppercase tracking-wider text-muted-foreground/60">Agents</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {agentItems.map(item => {
+                const active = isActive(item.url);
+                return (
+                  <SidebarMenuItem key={item.url}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={active}
+                      className={cn(
+                        active && item.dept ? `border-l-2 ${getActiveBorder(item.dept)} rounded-l-none` : ''
+                      )}
+                    >
+                      <NavLink
+                        to={item.url}
+                        className="hover:bg-white/[0.04] transition-colors"
+                        activeClassName="bg-white/[0.06] text-foreground font-medium"
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.title}</span>}
+                        {!collapsed && <AnimatedStatusDot dept={item.dept} healthData={healthData} />}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
 
-      <SidebarSeparator />
+      <SidebarSeparator className="bg-white/[0.04]" />
       <SidebarFooter className="p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={location.pathname === '/settings'}>
-              <NavLink to="/settings" className="hover:bg-sidebar-accent" activeClassName="bg-sidebar-accent font-medium">
+              <NavLink
+                to="/settings"
+                className="hover:bg-white/[0.04] transition-colors"
+                activeClassName="bg-white/[0.06] font-medium"
+              >
                 <Cog className="h-4 w-4 shrink-0" />
                 {!collapsed && <span>Settings</span>}
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        {!collapsed && (
-          <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-xs text-muted-foreground truncate max-w-[140px]">{user?.email}</span>
-            <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={signOut}>
-              <LogOut className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        )}
       </SidebarFooter>
     </Sidebar>
   );

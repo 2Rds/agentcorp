@@ -1,12 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import DepartmentWorkspace from '@/components/workspace/DepartmentWorkspace';
 import { EmptyState } from '@/components/workspace/EmptyState';
+import { DataTable, type Column } from '@/components/workspace/DataTable';
 import { ClipboardList, Cog, BarChart3, MessageSquare, Mail } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -18,12 +17,20 @@ function TasksTab() {
   });
   if (isLoading) return <div className="space-y-2">{[...Array(5)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<ClipboardList className="h-6 w-6 text-muted-foreground" />} title="No tasks" description="Chat with Jordan to create tasks." />;
-  const pColor = (p: string) => p === 'p0' ? 'destructive' : p === 'p1' ? 'default' : 'secondary';
+  const pColor = (p: string) => p === 'p0' ? 'bg-red-500/15 text-red-400' : p === 'p1' ? 'bg-orange-500/15 text-orange-400' : 'bg-white/[0.06] text-muted-foreground';
   return (
-    <Table><TableHeader><TableRow><TableHead>Title</TableHead><TableHead>Priority</TableHead><TableHead>Status</TableHead><TableHead>Assigned</TableHead><TableHead>Due</TableHead></TableRow></TableHeader>
-    <TableBody>{data.map(t => (
-      <TableRow key={t.id}><TableCell className="font-medium">{t.title}</TableCell><TableCell><Badge variant={pColor(t.priority)}>{t.priority}</Badge></TableCell><TableCell><Badge variant="outline">{t.status}</Badge></TableCell><TableCell className="text-muted-foreground text-sm">{t.assigned_to || '—'}</TableCell><TableCell className="font-mono text-xs">{t.due_date ? new Date(t.due_date).toLocaleDateString() : '—'}</TableCell></TableRow>
-    ))}</TableBody></Table>
+    <DataTable
+      data={data as Record<string, unknown>[]}
+      searchKeys={['title', 'assigned_to']}
+      searchPlaceholder="Search tasks..."
+      columns={[
+        { key: 'title', label: 'Title', sortable: true, className: 'font-medium' },
+        { key: 'priority', label: 'Priority', sortable: true, render: (row) => <Badge className={`text-[10px] ${pColor(String(row.priority))}`}>{String(row.priority)}</Badge> },
+        { key: 'status', label: 'Status', sortable: true, render: (row) => <Badge variant="outline" className="text-[10px]">{String(row.status)}</Badge> },
+        { key: 'assigned_to', label: 'Assigned', className: 'text-muted-foreground text-sm' },
+        { key: 'due_date', label: 'Due', sortable: true, render: (row) => <span className="font-mono text-xs">{row.due_date ? new Date(String(row.due_date)).toLocaleDateString() : '—'}</span> },
+      ] as Column<Record<string, unknown>>[]}
+    />
   );
 }
 
@@ -36,10 +43,16 @@ function ProcessesTab() {
   if (isLoading) return <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
   if (!data?.length) return <EmptyState icon={<Cog className="h-6 w-6 text-muted-foreground" />} title="No processes" description="Processes managed by Jordan will appear here." />;
   return (
-    <Table><TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Owner</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-    <TableBody>{data.map(p => (
-      <TableRow key={p.id}><TableCell className="font-medium">{p.name}</TableCell><TableCell className="text-muted-foreground">{p.owner_agent_id}</TableCell><TableCell><Badge variant="outline">{p.status}</Badge></TableCell></TableRow>
-    ))}</TableBody></Table>
+    <DataTable
+      data={data as Record<string, unknown>[]}
+      searchKeys={['name']}
+      searchPlaceholder="Search processes..."
+      columns={[
+        { key: 'name', label: 'Name', sortable: true, className: 'font-medium' },
+        { key: 'owner_agent_id', label: 'Owner', className: 'text-muted-foreground' },
+        { key: 'status', label: 'Status', sortable: true, render: (row) => <Badge variant="outline" className="text-[10px]">{String(row.status)}</Badge> },
+      ] as Column<Record<string, unknown>>[]}
+    />
   );
 }
 
@@ -57,13 +70,30 @@ function AgentUsageTab() {
 
   return (
     <div className="space-y-6">
-      <Card className="border-border"><CardHeader><CardTitle className="text-sm">Cost by Agent</CardTitle></CardHeader><CardContent className="h-64">
-        <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><XAxis dataKey="name" tick={{ fontSize: 12 }} /><YAxis tick={{ fontSize: 12 }} /><Tooltip /><Bar dataKey="cost" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
-      </CardContent></Card>
-      <Table><TableHeader><TableRow><TableHead>Agent</TableHead><TableHead>Model</TableHead><TableHead>Tokens In</TableHead><TableHead>Tokens Out</TableHead><TableHead>Cost</TableHead><TableHead>Latency</TableHead></TableRow></TableHeader>
-      <TableBody>{data.slice(0, 20).map(e => (
-        <TableRow key={e.id}><TableCell className="font-mono text-xs">{e.agent_id}</TableCell><TableCell className="text-xs">{e.model}</TableCell><TableCell className="font-mono text-xs">{e.input_tokens}</TableCell><TableCell className="font-mono text-xs">{e.output_tokens}</TableCell><TableCell className="font-mono text-xs">${Number(e.cost_usd).toFixed(4)}</TableCell><TableCell className="font-mono text-xs">{e.latency_ms}ms</TableCell></TableRow>
-      ))}</TableBody></Table>
+      <div className="glass-card rounded-xl p-4">
+        <h3 className="text-sm font-semibold mb-3">Cost by Agent</h3>
+        <div className="h-56">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+              <YAxis tick={{ fontSize: 11, fill: 'hsl(215, 20%, 55%)' }} />
+              <Tooltip contentStyle={{ background: 'hsl(225, 45%, 5.5%)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 }} />
+              <Bar dataKey="cost" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <DataTable
+        data={(data.slice(0, 20)) as Record<string, unknown>[]}
+        columns={[
+          { key: 'agent_id', label: 'Agent', render: (row) => <span className="font-mono text-xs">{String(row.agent_id).replace('blockdrive-', '')}</span> },
+          { key: 'model', label: 'Model', className: 'text-xs' },
+          { key: 'input_tokens', label: 'Tokens In', render: (row) => <span className="font-mono text-xs">{String(row.input_tokens)}</span> },
+          { key: 'output_tokens', label: 'Tokens Out', render: (row) => <span className="font-mono text-xs">{String(row.output_tokens)}</span> },
+          { key: 'cost_usd', label: 'Cost', sortable: true, render: (row) => <span className="font-mono text-xs">${Number(row.cost_usd).toFixed(4)}</span> },
+          { key: 'latency_ms', label: 'Latency', sortable: true, render: (row) => <span className="font-mono text-xs">{row.latency_ms}ms</span> },
+        ] as Column<Record<string, unknown>>[]}
+      />
     </div>
   );
 }
@@ -77,10 +107,18 @@ function MessagesTab() {
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<MessageSquare className="h-6 w-6 text-muted-foreground" />} title="No messages" description="Inter-agent messages will appear here." />;
   return (
-    <Table><TableHeader><TableRow><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Message</TableHead><TableHead>Priority</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
-    <TableBody>{data.map(m => (
-      <TableRow key={m.id}><TableCell className="text-xs">{m.sender_id}</TableCell><TableCell className="text-xs">{m.target_id}</TableCell><TableCell className="max-w-xs truncate text-sm">{m.message}</TableCell><TableCell><Badge variant={m.priority === 'high' ? 'destructive' : 'secondary'}>{m.priority}</Badge></TableCell><TableCell><Badge variant="outline">{m.status}</Badge></TableCell></TableRow>
-    ))}</TableBody></Table>
+    <DataTable
+      data={data as Record<string, unknown>[]}
+      searchKeys={['message']}
+      searchPlaceholder="Search messages..."
+      columns={[
+        { key: 'sender_id', label: 'From', className: 'text-xs' },
+        { key: 'target_id', label: 'To', className: 'text-xs' },
+        { key: 'message', label: 'Message', className: 'max-w-xs truncate text-sm' },
+        { key: 'priority', label: 'Priority', render: (row) => <Badge variant={String(row.priority) === 'high' ? 'destructive' : 'secondary'} className="text-[10px]">{String(row.priority)}</Badge> },
+        { key: 'status', label: 'Status', render: (row) => <Badge variant="outline" className="text-[10px]">{String(row.status)}</Badge> },
+      ] as Column<Record<string, unknown>>[]}
+    />
   );
 }
 
@@ -93,10 +131,18 @@ function CommsTab() {
   if (isLoading) return <Skeleton className="h-40 w-full" />;
   if (!data?.length) return <EmptyState icon={<Mail className="h-6 w-6 text-muted-foreground" />} title="No communications" description="Operational communications will appear here." />;
   return (
-    <Table><TableHeader><TableRow><TableHead>Recipient</TableHead><TableHead>Subject</TableHead><TableHead>Type</TableHead><TableHead>Status</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
-    <TableBody>{data.map(c => (
-      <TableRow key={c.id}><TableCell>{c.recipient}</TableCell><TableCell className="font-medium">{c.subject}</TableCell><TableCell><Badge variant="outline">{c.type}</Badge></TableCell><TableCell><Badge variant="secondary">{c.status}</Badge></TableCell><TableCell className="font-mono text-xs">{c.created_at ? new Date(c.created_at).toLocaleDateString() : '—'}</TableCell></TableRow>
-    ))}</TableBody></Table>
+    <DataTable
+      data={data as Record<string, unknown>[]}
+      searchKeys={['subject', 'recipient']}
+      searchPlaceholder="Search comms..."
+      columns={[
+        { key: 'recipient', label: 'Recipient' },
+        { key: 'subject', label: 'Subject', sortable: true, className: 'font-medium' },
+        { key: 'type', label: 'Type', render: (row) => <Badge variant="outline" className="text-[10px]">{String(row.type)}</Badge> },
+        { key: 'status', label: 'Status', render: (row) => <Badge variant="secondary" className="text-[10px]">{String(row.status)}</Badge> },
+        { key: 'created_at', label: 'Date', render: (row) => <span className="font-mono text-xs">{row.created_at ? new Date(String(row.created_at)).toLocaleDateString() : '—'}</span> },
+      ] as Column<Record<string, unknown>>[]}
+    />
   );
 }
 
