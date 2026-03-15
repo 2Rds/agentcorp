@@ -14,6 +14,7 @@ import chatRouter from "./routes/chat.js";
 import knowledgeRouter from "./routes/knowledge.js";
 import webhooksRouter from "./routes/webhooks.js";
 import { createAgentQuery } from "./agent/ea-agent.js";
+import { startSlackBot, stopSlackBot } from "./transport/slack.js";
 
 const app = express();
 
@@ -100,6 +101,7 @@ app.listen(config.port, async () => {
     initializeMem0Project(),
     initializeRedisIndexes(),
     startTelegramBot(),
+    startSlackBot(),
   ]);
   for (const result of results) {
     if (result.status === "rejected") {
@@ -123,6 +125,6 @@ process.on("uncaughtException", (err) => {
 process.on("SIGTERM", async () => {
   console.log("SIGTERM received, shutting down...");
   telegramBot?.stop();
-  await Promise.allSettled([disconnectRedis(), shutdownObservability()]);
+  await Promise.allSettled([stopSlackBot(), disconnectRedis(), shutdownObservability()]);
   process.exit(0);
 });

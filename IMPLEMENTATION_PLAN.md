@@ -2,6 +2,34 @@
 
 ## Current Status
 
+### Completed — v2.3.1 (2026-03-15)
+
+**PR Review Fixes (21 issues)**
+- [x] Fixed broken imports in KnowledgeGraph.tsx and KnowledgeDocuments.tsx
+- [x] Fixed `enable_data_room` silently dropped in useInvestorLinks mutation
+- [x] Replaced `Math.random()` with `crypto.getRandomValues()` for slug generation
+- [x] Added missing `workforce-compliance` to WORKFORCE_CHANNELS
+- [x] Added Slack thread history cap (MAX_THREADS=500 with FIFO eviction)
+- [x] sendSlackMessage/readSlackChannel now throw when bot not initialized
+- [x] DM channel detection via `/^D[A-Z0-9]+$/` regex
+- [x] useInvestorLinks realtime uses unique channel ID (HMR-safe)
+- [x] KnowledgeBaseTab error handling for fetch and upload
+- [x] DataRoom input validation (agentUrl/slug early check)
+- [x] CapTableTab renamed to FinancialOverviewTab
+
+**Pure Function Extraction + Test Coverage**
+- [x] `channel-config.ts` extracted from `slack.ts` (zero runtime deps)
+- [x] `computeDerivedMetrics()` extracted from `useFinancialModel` hook
+- [x] `computeCapTableSummary()` extracted from `useCapTable` hook
+- [x] `computeLinkAnalytics()` + `generateSlug()` extracted from `useInvestorLinks` hook
+- [x] 59 unit tests across 4 test files (all passing)
+
+**Infrastructure Consolidation (NYC3 → NYC1)**
+- [x] Redis droplet migrated to NYC1 (`waas-redis-nyc1`, 67.205.165.14)
+- [x] n8n droplet migrated to NYC1 (`n8n-nyc1`, 134.209.67.70, Docker + Caddy)
+- [x] Old NYC3 Redis and n8n droplets deleted
+- [x] DNS updated via Cloudflare API (`n8n.blockdrive.co` → NYC1 IP)
+
 ### Completed — v2.3.0 (2026-03-14)
 
 **DO App Platform Migration (ATL → NYC3)**
@@ -190,7 +218,7 @@
 ### Completed — Infrastructure (2026-03-04 → 2026-03-09)
 
 - [x] DigitalOcean App Platform for agent deployment (auto-deploy from GitHub)
-- [x] n8n automation hub on DO droplet (167.172.24.255, `n8n.blockdrive.co`)
+- [x] n8n automation hub on DO droplet NYC1 (134.209.67.70, `n8n.blockdrive.co`)
 - [x] Google Sheets switched from OAuth to service account + domain-wide delegation
 - [x] `doctl` CLI installed and authenticated locally
 
@@ -216,7 +244,7 @@
 - `investor-readonly.ts` tool file exists but isn't imported in the tool index
 - Edge function `chat/` uses OpenAI API format, not Claude SDK
 - `dataroom_interactions` table referenced in code but not in migration SQL
-- No automated tests for any agent server (only frontend has Vitest)
+- Limited automated tests — 59 frontend/EA unit tests added in v2.3.1, but no agent server integration tests
 - CFO agent still uses Claude Agent SDK; EA uses Anthropic Messages API directly — should standardize
 - `@waas/runtime` exists but EA agent was built with direct Express setup (not using runtime package yet)
 - Department agent tools have no automated tests (manual testing only)
@@ -231,7 +259,8 @@
 - [ ] Push Supabase migrations (Realtime publication, Vault, Database Webhooks)
 - [ ] Deploy `webhook-handler` Edge Function (`supabase functions deploy`)
 - [ ] Add `/webhook` route to agent servers (receive Database Webhook events)
-- [ ] Self-hosted Redis 8.6 on DO droplet (replace Upstash free tier, enable Streams)
+- [x] ~~Self-hosted Redis 8.4 on DO droplet NYC1~~ (v2.3.1)
+- [ ] Upgrade Redis to 8.6 (enable Streams)
 - [ ] Redis Streams inter-agent messaging (replace Supabase queue in `message_agent`)
 - [ ] Add `message_agent` tool to EA agent (executive-tier cross-namespace messaging)
 - [ ] Slack integration for EA (channel monitoring, message sending)

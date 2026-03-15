@@ -92,7 +92,7 @@ Tests use Vitest with jsdom. Test files live alongside source using `*.test.ts` 
 
 1. **React 18 Frontend** — Vite + shadcn/ui + Tailwind, deployed to Vercel at `corp.blockdrive.co`
 2. **CFO Agent** (`agent/`) — Express + Claude Agent SDK, 31 MCP tools, multi-model orchestration
-3. **EA Agent** (`agents/ea/`) — Express + Anthropic Messages API (direct), native tool loop, Telegram bot
+3. **EA Agent** (`agents/ea/`) — Express + Anthropic Messages API (direct), native tool loop, Telegram bot + Slack (BlockDrive Bot)
 4. **Department Agents** (`agents/{coa,cma,compliance,legal,sales}/`) — Express + Agent SDK + @waas/runtime, specialized model stacks
 
 Backend: Supabase (Postgres, Auth, RLS, Realtime, Vault, Edge Functions). Memory: Mem0 (org-scoped persistent memory with graph). Governance: GovernanceEngine (spend tracking + Telegram approval flow).
@@ -169,7 +169,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **System prompt** defines Alex's role, personality, autonomous operations, escalation rules (legal, hiring, investor terms, public statements, strategic pivots, access grants), governance directives (approval required for external comms), and tool usage patterns.
 
-**Tools (11, defined natively in `bridge.ts`):**
+**Tools (up to 14, defined natively in `bridge.ts`):**
 - `search_knowledge` — Cross-namespace mem0 search (executive read access to all departments)
 - `save_knowledge` — Persist facts/decisions to mem0 (9 categories: scheduling, communications, contacts, etc.)
 - `create_task` — Create tasks in `ea_tasks` table
@@ -177,6 +177,9 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `save_meeting_notes` — Structured meeting notes with action items in `ea_meeting_notes`
 - `draft_email` — Email drafts stored in `ea_communications_log`
 - `web_search` — Real-time web search via Perplexity Sonar (OpenRouter)
+- `send_slack_message` — Send to any Slack channel (conditional on `SLACK_BOT_TOKEN`)
+- `read_slack_channel` — Read recent messages from any channel (EA admin access)
+- `list_slack_channels` — List all channels with type/description classification
 - `search_notion` — Search Notion workspace by query (conditional on `NOTION_API_KEY`)
 - `read_notion_page` — Read page content and properties by ID
 - `create_notion_page` — Create in database or as child page
@@ -188,7 +191,9 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `tool-mapping.json` maps `~~placeholder` tokens to EA's actual tools
 - Registry: `agents/ea/plugins/registry.json` (built by `npm run build:registry`)
 
-**Transport:** Telegram bot (`@alex_executive_assistant_bot`) via grammy. Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
+**Transport:**
+- Telegram bot (`@alex_executive_assistant_bot`) via grammy. Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
+- Slack bot (BlockDrive Bot) via `@slack/bolt` Socket Mode. Channel-aware routing with department context injection. EA has admin access to all channels. Workforce channels: `#workforce-{alex,finance,ops,marketing,legal,sales}`. Purpose channels: `#brain-dump`, `#command-center`, `#agents`, `#brand`, `#data-room`, `#fundraise`, `#gtm`, `#waitlist-signups`, `#general`. Feed channels (notification-only): `#feed-ops`, `#feed-pipeline`.
 
 **Enrichment pipeline (parallel, Promise.allSettled):**
 1. EA-scoped mem0 memories (top 10, rerank + keyword)
@@ -203,7 +208,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment (see `agents/ea/.env.example`):**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MEM0_API_KEY`, `OPENROUTER_API_KEY`
-- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID`, `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
+- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID` (enables Slack transport + tools), `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
 
 ### WaaS Platform Packages
 
@@ -278,18 +283,18 @@ Deno runtime.
 | Service | Platform | URL/Port |
 |---------|----------|----------|
 | Frontend | Vercel | `corp.blockdrive.co` |
-| CFO Agent | DO App Platform NYC3 (shared $12/mo) | Port 3001 |
-| EA Agent | DO App Platform NYC3 (dedicated $29/mo) | Port 3002, ingress `/ea` |
-| COA Agent | DO App Platform NYC3 (shared $12/mo) | Port 3003, ingress `/coa` |
-| CMA Agent | DO App Platform NYC3 (shared $12/mo) | Port 3004, ingress `/cma` |
-| Compliance Agent | DO App Platform NYC3 (shared $12/mo) | Port 3005, ingress `/compliance` |
-| Legal Agent | DO App Platform NYC3 (shared $12/mo) | Port 3006, ingress `/legal` |
-| Sales Agent | DO App Platform NYC3 (dedicated $29/mo, auto-scales 1→3) | Port 3007, ingress `/sales` |
-| Redis | DO Droplet NYC3 (104.248.1.157) | Password-protected, public IP |
-| n8n | DO Droplet NYC3 (167.172.24.255) | `n8n.blockdrive.co` |
+| CFO Agent | DO App Platform NYC1 (shared $12/mo) | Port 3001 |
+| EA Agent | DO App Platform NYC1 (dedicated $29/mo) | Port 3002, ingress `/ea` |
+| COA Agent | DO App Platform NYC1 (shared $12/mo) | Port 3003, ingress `/coa` |
+| CMA Agent | DO App Platform NYC1 (shared $12/mo) | Port 3004, ingress `/cma` |
+| Compliance Agent | DO App Platform NYC1 (shared $12/mo) | Port 3005, ingress `/compliance` |
+| Legal Agent | DO App Platform NYC1 (shared $12/mo) | Port 3006, ingress `/legal` |
+| Sales Agent | DO App Platform NYC1 (dedicated $29/mo, auto-scales 1→3) | Port 3007, ingress `/sales` |
+| Redis | DO Droplet NYC1 (67.205.165.14) | Password-protected, VPC `10.116.0.2` |
+| n8n | DO Droplet NYC1 (134.209.67.70) | `n8n.blockdrive.co`, Docker + Caddy |
 
 **DigitalOcean App Platform:**
-- App ID: `2742c227-ee68-44a3-b157-0a991bd3a522` (NYC3, `agentcorp-ghgvq.ondigitalocean.app`)
+- App ID: `2742c227-ee68-44a3-b157-0a991bd3a522` (NYC1, `agentcorp-ghgvq.ondigitalocean.app`)
 - Health check: `https://agentcorp-ghgvq.ondigitalocean.app/ea/health`
 - Auto-deploy enabled from GitHub (`2Rds/agentcorp`, branch `main`)
 - `doctl` CLI installed and authenticated locally
@@ -308,7 +313,9 @@ Deno runtime.
 - **Provider Keys mode**: When `CF_AIG_TOKEN` is set, Cloudflare AI Gateway injects API keys at edge — provider keys become optional.
 - **Google Sheets**: Service account with domain-wide delegation. Supports `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (raw JSON content for cloud platforms) or `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (file path for local dev). Service account JSON must never be committed (gitignored).
 - **Notion scope enforcement** (CFO): CFA_SCOPE Notion access rules inlined in `agent/src/lib/notion-client.ts` (agent package is outside npm workspaces, cannot import `@waas/shared`). EA agent has executive-tier access without scope enforcement.
-- **Conditional tool loading**: Notion tools only register when `NOTION_API_KEY` is set (`config.notionEnabled`). All agents check this at tool factory time.
+- **Conditional tool loading**: Notion and Slack tools only register when their env vars are set (`config.notionEnabled`, `config.slackEnabled`). All agents check this at tool factory time.
+- **Three-tier communication**: Telegram (top, personal/push 70-80%) → Slack (middle, business ops 20-30%) → corp.blockdrive.co (base, full workspace). Slack transport injects channel context (department, purpose, routing guidance) into each message so the EA knows which channel it's operating in.
+- **Channel-per-agent architecture**: Each agent has a `#workforce-*` channel. EA (Alex) has admin access to ALL channels. At startup, the Slack transport discovers channel IDs via `conversations.list` and builds a routing map. Messages in workforce channels get department context injected; feed channels are notification-only (no responses).
 - **PDF generation**: Playwright HTML→PDF with branded template, uploads to Supabase Storage `{orgId}/investor-docs/`, returns 1hr signed URL (matches excel-export pattern).
 - **Agent SDK tool pattern** (dept agents): Tools use `tool(name, description, zodRawShape, handler)` 4-arg signature with Zod schemas. All import `safeFetch`, `safeFetchText`, `safeJsonParse`, `stripHtml` from `@waas/runtime`.
 - **SSRF protection**: `isAllowedUrl()` blocks private IPs, cloud metadata, localhost, `.internal`/`.local` suffixes before any `fetch_url` call.
@@ -321,7 +328,7 @@ Deno runtime.
 
 | Agent ID | Role | Port | Tools | Status |
 |----------|------|------|-------|--------|
-| `blockdrive-ea` | Executive Assistant (Alex) | 3002 | 11 | **Deployed** |
+| `blockdrive-ea` | Executive Assistant (Alex) | 3002 | 7-14 | **Deployed** |
 | `blockdrive-cfa` | Chief Financial Agent (Morgan) | 3001 | 31 | **Deployed** |
 | `blockdrive-coa` | Chief Operating Agent (Jordan) | 3003 | 13 | **Built** |
 | `blockdrive-cma` | Chief Marketing Agent (Taylor) | 3004 | 11 | **Built** |

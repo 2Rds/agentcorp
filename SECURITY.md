@@ -167,6 +167,14 @@ EA agent's Telegram bot transport enforces:
 - `TELEGRAM_CHAT_ID` whitelist — only authorized chat IDs can interact
 - 20-message conversation history limit per chat
 
+### Slack Bot Security
+
+EA agent's Slack integration (`@slack/bolt` Socket Mode):
+- Admin access to all channels — channel classification determines response behavior
+- Feed channels (`feed-ops`, `feed-pipeline`) are notification-only — bot ignores messages
+- Thread history capped at 500 threads (FIFO eviction) to prevent memory leaks
+- Channel context injected into prompts for department-aware responses
+
 ## API Key Management
 
 | Key | Scope | Storage |

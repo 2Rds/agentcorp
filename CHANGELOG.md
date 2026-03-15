@@ -2,6 +2,39 @@
 
 All notable changes to the WaaS platform.
 
+## [v2.3.1] - 2026-03-15
+
+PR review fixes (21 issues), pure function extraction for testability, 59 unit tests, Slack channel classification, infrastructure consolidation to NYC1.
+
+### Added
+
+- **59 unit tests** across 4 test files — `channel-config.test.ts` (16 tests), `useFinancialModel.test.ts` (9 tests), `useCapTable.test.ts` (5 tests), `useInvestorLinks.test.ts` (11 tests)
+- **`channel-config.ts`** — Pure channel classification extracted from `slack.ts` (zero runtime deps, testable): `classifyChannel()`, `buildSlackContext()`, `WORKFORCE_CHANNELS`, `PURPOSE_CHANNELS`, `FEED_CHANNELS`
+- **`computeDerivedMetrics()`** — Pure function extracted from `useFinancialModel` hook (burn rate, runway, MRR, gross margin, monthly aggregates, breakdowns)
+- **`computeCapTableSummary()`** — Pure function extracted from `useCapTable` hook (totals, by-type grouping)
+- **`computeLinkAnalytics()`** — Pure function extracted from `useInvestorLinks` hook (views, unique viewers, avg duration, completion)
+- **`generateSlug()`** — Crypto-secure slug generation exported from `useInvestorLinks`
+- **DM channel detection** — `/^D[A-Z0-9]+$/` regex in `classifyChannel()` for Slack DM channel IDs
+- **`workforce-compliance`** added to `WORKFORCE_CHANNELS` (was missing)
+- **`#waitlist-signups`** and **`#general`** added to `PURPOSE_CHANNELS`
+- **Slack thread history cap** — `MAX_THREADS = 500` with FIFO eviction (`evictOldThreads()`)
+
+### Fixed
+
+- **Broken imports** in `KnowledgeGraph.tsx` and `KnowledgeDocuments.tsx` — imported from non-existent `@/pages/Knowledge`, now import from `@/components/finance/KnowledgeBaseTab`
+- **`enable_data_room` silently dropped** in `useInvestorLinks` `createLink` mutation — now included in insert call
+- **`Math.random()` slug generation** replaced with `crypto.getRandomValues()` (cryptographically secure)
+- **`sendSlackMessage`/`readSlackChannel`** now throw when bot not initialized (was silent no-op / empty return)
+- **`useInvestorLinks` realtime** uses unique `useRef` channel ID (prevents HMR collisions)
+- **`KnowledgeBaseTab`** — `fetchDocuments` checks Supabase error, `handleUpload` surfaces failures via toast notification
+- **`DataRoom`** validates `agentUrl` and `slug` early with error states, removes non-null assertions
+
+### Changed
+
+- **`CapTableTab` renamed to `FinancialOverviewTab`** — file, component, and imports updated to match actual purpose
+- **CLAUDE.md** — EA tool count "14" → "7-14" (conditional Slack + Notion tools)
+- **Infrastructure consolidated to NYC1** — All droplets (Redis, n8n) migrated from NYC3 to NYC1 VPC; n8n runs Docker + Caddy with auto-TLS at `n8n.blockdrive.co`
+
 ## [v2.3.0] - 2026-03-14
 
 DO App Platform migration (ATL → NYC3), Google Sheets cloud deployment fix, governance engine hardening from 21-issue PR review, and webhook security improvements.

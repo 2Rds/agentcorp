@@ -43,7 +43,7 @@ React 18 + TypeScript + Vite. Uses shadcn/ui (Radix primitives) with Tailwind CS
 | `/finance` | FinanceWorkspace | Protected — CFO agent chat + financial tools |
 | `/operations` | OperationsWorkspace | Protected — COA agent chat + operations |
 | `/marketing` | MarketingWorkspace | Protected — CMA agent chat + campaigns |
-| `/compliance` | ComplianceWorkspace | Protected — CCO agent chat + governance |
+| `/compliance` | ComplianceWorkspace | Protected — CCA agent chat + governance |
 | `/legal` | LegalWorkspace | Protected — Legal agent chat + reviews |
 | `/sales` | SalesWorkspace | Protected — Sales agent chat + pipeline |
 | `/settings` | Settings | Protected — user/org settings |
@@ -217,7 +217,9 @@ Tools are defined as native Anthropic API `Tool` definitions + handler functions
 
 ### Transport
 
-Primary interface: Telegram bot (`@alex_executive_assistant_bot`) via grammy. Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
+**Telegram:** Primary interface via grammy (`@alex_executive_assistant_bot`). Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
+
+**Slack:** Channel-aware EA integration via `@slack/bolt` Socket Mode. Admin access to all channels. Channel classification (`channel-config.ts`): workforce (per-agent), purpose (topic-specific), feed (notification-only), DM. Thread history capped at 500 (FIFO eviction). Context builder enriches messages with channel purpose and department info.
 
 ### Enrichment Pipeline
 
@@ -358,10 +360,10 @@ Webhook handler uses timing-safe comparison for `WEBHOOK_SECRET` (or `SUPABASE_S
 ## Deployment
 
 - **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `corp.blockdrive.co`)
-- **All 7 Agents:** DigitalOcean App Platform NYC3 (`agentcorp-ghgvq.ondigitalocean.app`), auto-deploy from GitHub
+- **All 7 Agents:** DigitalOcean App Platform NYC1 (`agentcorp-ghgvq.ondigitalocean.app`), auto-deploy from GitHub
   - EA Agent — dedicated `apps-d-1vcpu-0.5gb` ($29/mo), port 3002, `/ea` ingress
   - Sales Agent — dedicated `apps-d-1vcpu-0.5gb` ($29/mo), auto-scales 1→3 at 75% CPU, port 3007, `/sales` ingress
   - CFO Agent — shared `apps-s-1vcpu-1gb` ($12/mo), port 3001, `/` ingress
   - COA, CMA, Compliance, Legal — shared `apps-s-1vcpu-1gb` ($12/mo each), ports 3003-3006
-- **Redis:** DigitalOcean Droplet NYC3 (`waas-redis`, 104.248.1.157), password-protected
-- **n8n:** DigitalOcean Droplet NYC3 (167.172.24.255, `n8n.blockdrive.co`)
+- **Redis:** DigitalOcean Droplet NYC1 (`waas-redis-nyc1`, 67.205.165.14), password-protected, VPC `10.116.0.2`
+- **n8n:** DigitalOcean Droplet NYC1 (`n8n-nyc1`, 134.209.67.70, `n8n.blockdrive.co`), Docker + Caddy reverse proxy with auto-TLS

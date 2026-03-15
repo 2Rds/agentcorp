@@ -79,7 +79,7 @@ waas/
 ├── agents/ea/              # EA Agent "Alex" — Anthropic Messages API, 11 tools (port 3002)
 ├── agents/coa/             # COA Agent "Jordan" — Agent SDK, 13 tools (port 3003)
 ├── agents/cma/             # CMA Agent "Taylor" — Agent SDK, 11 tools (port 3004)
-├── agents/compliance/      # CCO Agent — Agent SDK, 10 tools (port 3005)
+├── agents/compliance/      # CCA Agent "Parker" — Agent SDK, 10 tools (port 3005)
 ├── agents/legal/           # Legal Agent "Casey" — Agent SDK, 11 tools (port 3006)
 ├── agents/sales/           # Sales Agent "Sam" — Agent SDK, 12 tools (port 3007)
 ├── packages/shared/        # @waas/shared — types, model registry, namespace, messaging
@@ -137,7 +137,7 @@ waas/
 | Search | Redis 8.4 (vector search, semantic cache) |
 | Memory | Mem0 (graph memory, org-scoped, cross-namespace read for EA) |
 | Observability | Sentry (@sentry/react + @sentry/node), PostHog (posthog-js + posthog-node) |
-| Deployment | Vercel (frontend), DigitalOcean App Platform (agents), n8n (automation) |
+| Deployment | Vercel (frontend), DigitalOcean App Platform NYC1 (agents), n8n NYC1 (automation) |
 
 ## Documentation
 

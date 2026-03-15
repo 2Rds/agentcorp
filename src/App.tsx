@@ -19,6 +19,7 @@ import ComplianceWorkspace from "@/pages/ComplianceWorkspace";
 import LegalWorkspace from "@/pages/LegalWorkspace";
 import SalesWorkspace from "@/pages/SalesWorkspace";
 import Settings from "@/pages/Settings";
+import DataRoom from "@/pages/DataRoom";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -63,6 +64,7 @@ const App = () => (
                 <Route path="sales" element={<SalesWorkspace />} />
                 <Route path="settings" element={<Settings />} />
               </Route>
+              <Route path="/dataroom/:slug" element={<DataRoom />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

@@ -43,6 +43,7 @@ export const config = {
 
   // Slack integration (optional)
   slackBotToken: optional("SLACK_BOT_TOKEN"),
+  slackAppToken: optional("SLACK_APP_TOKEN"),
   slackSigningSecret: optional("SLACK_SIGNING_SECRET"),
   slackAppId: optional("SLACK_APP_ID"),
   slackEnabled: !!process.env.SLACK_BOT_TOKEN,
