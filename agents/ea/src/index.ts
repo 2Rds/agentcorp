@@ -66,7 +66,7 @@ async function startTelegramBot() {
       // Use the EA agent directly (returns string)
       const fullResponse = await createAgentQuery({
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        organizationId: "telegram-direct",
+        organizationId: config.blockdriveOrgId || "telegram-direct",
         userId: `telegram-${chatId}`,
         conversationId: `tg-${chatId}`,
       });

@@ -119,6 +119,7 @@ Public investor data rooms (`/dataroom/:slug`) have additional controls:
 - **Expiry dates** — Links can be time-limited
 - **Link-level document access** — `allowedDocumentIds` restricts which documents are visible
 - **View tracking** — All views logged to `link_views` with IP, user agent, timestamp
+- **Credential transport** — Auth credentials sent via POST body and `x-viewer-*` headers (not query params) to prevent leaking in server logs and browser history
 
 ## Service Role Key
 
@@ -206,7 +207,7 @@ Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the 
 
 ### Spend Tracking
 
-GovernanceEngine tracks daily API spend per agent via Redis counters. Estimated token costs are computed after each agent query (character-based estimation with 3x multiplier for tool-use overhead) and recorded to both Redis (real-time limits) and Supabase `agent_usage_events` table (frontend visibility).
+GovernanceEngine tracks daily API spend per agent via Redis counters. Estimated token costs are computed after each agent query (character-based estimation with 3x input multiplier for tool-use overhead, output tokens counted at face value) and recorded to both Redis (real-time limits) and Supabase `agent_usage_events` table (frontend visibility). When Redis is unavailable, an in-memory fallback counter prevents unlimited spend (resets on process restart).
 
 ### Approval Gates
 

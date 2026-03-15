@@ -106,16 +106,26 @@ export class ScopeEnforcer {
 
 // ─── Scoped Redis Client ────────────────────────────────────────────────────
 
+export interface StreamEntry {
+  id: string;
+  message: Record<string, string>;
+}
+
 export interface RedisClient {
   get(key: string): Promise<string | null>;
   set(key: string, value: string, opts?: { ex?: number }): Promise<void>;
   del(key: string): Promise<void>;
   keys(pattern: string): Promise<string[]>;
-  // List operations for atomic inbox/thread management
+  // List operations (legacy — kept for backwards compat with LIST fallback)
   rpush(key: string, ...values: string[]): Promise<number>;
   lrange(key: string, start: number, stop: number): Promise<string[]>;
   ltrim(key: string, start: number, stop: number): Promise<void>;
   expire(key: string, seconds: number): Promise<void>;
+  // Stream operations for MessageBus (optional — MessageBus falls back to LIST ops when absent)
+  xadd?(key: string, id: string, fields: Record<string, string>, maxlen?: number): Promise<string>;
+  xrange?(key: string, start: string, end: string, count?: number): Promise<StreamEntry[]>;
+  xlen?(key: string): Promise<number>;
+  xtrim?(key: string, maxlen: number): Promise<number>;
 }
 
 /** Redis client wrapper that enforces namespace scoping */
@@ -184,5 +194,39 @@ export class ScopedRedisClient {
       throw new Error(`Access denied: cannot set expiry on Redis key '${key}'`);
     }
     return this.redis.expire(key, seconds);
+  }
+
+  // Stream operations (scoped) — only available when underlying client supports them
+
+  async xadd(key: string, id: string, fields: Record<string, string>, maxlen?: number): Promise<string> {
+    if (!this.redis.xadd) throw new Error("Stream operations not supported by this Redis client");
+    if (!this.enforcer.checkRedisAccess(key, "readwrite")) {
+      throw new Error(`Access denied: cannot write to Redis stream '${key}'`);
+    }
+    return this.redis.xadd(key, id, fields, maxlen);
+  }
+
+  async xrange(key: string, start: string, end: string, count?: number): Promise<StreamEntry[]> {
+    if (!this.redis.xrange) throw new Error("Stream operations not supported by this Redis client");
+    if (!this.enforcer.checkRedisAccess(key, "read")) {
+      throw new Error(`Access denied: cannot read Redis stream '${key}'`);
+    }
+    return this.redis.xrange(key, start, end, count);
+  }
+
+  async xlen(key: string): Promise<number> {
+    if (!this.redis.xlen) throw new Error("Stream operations not supported by this Redis client");
+    if (!this.enforcer.checkRedisAccess(key, "read")) {
+      throw new Error(`Access denied: cannot read Redis stream '${key}'`);
+    }
+    return this.redis.xlen(key);
+  }
+
+  async xtrim(key: string, maxlen: number): Promise<number> {
+    if (!this.redis.xtrim) throw new Error("Stream operations not supported by this Redis client");
+    if (!this.enforcer.checkRedisAccess(key, "readwrite")) {
+      throw new Error(`Access denied: cannot trim Redis stream '${key}'`);
+    }
+    return this.redis.xtrim(key, maxlen);
   }
 }

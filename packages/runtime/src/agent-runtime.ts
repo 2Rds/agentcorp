@@ -38,12 +38,20 @@ import { ModelRouter as ModelRouterImpl, BLOCKDRIVE_GOVERNANCE } from "@waas/sha
 import { GovernanceEngine } from "./lib/governance.js";
 import { getRedis, disconnectRedis } from "./lib/redis-client.js";
 import { Mem0Client } from "./lib/mem0-client.js";
+import { RedisMemoryClient, type MemoryClient } from "./lib/redis-memory.js";
+import { TelemetryClient } from "./lib/telemetry.js";
 import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
 import { setPluginsDir, loadPluginRegistry } from "./lib/plugin-loader.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createHealthRouter } from "./routes/health.js";
 import { createChatRouter } from "./routes/chat.js";
 import { TelegramTransport, type TelegramTransportConfig } from "./transport/telegram.js";
+import { createWebhookRouter, type WebhookHandler } from "./routes/webhook.js";
+import {
+  MessageBus, ScopeEnforcer, AGENT_SCOPES,
+  type AgentMessage, type InboundHandler,
+  type RedisClient as SharedRedisClient,
+} from "@waas/shared";
 
 // ─── Configuration ─────────────────────────────────────────────────────────
 
@@ -65,6 +73,11 @@ export interface AgentRuntimeConfig {
     mem0OrgId?: string;
     mem0ProjectId?: string;
     pluginsDir?: string;
+
+    /** CF Analytics Engine telemetry endpoint (optional — falls back to Supabase) */
+    telemetryEndpoint?: string;
+    /** Bearer token for the telemetry endpoint */
+    telemetryApiKey?: string;
 
     /** Provider API keys for the model router */
     anthropicApiKey: string;
@@ -95,6 +108,12 @@ export interface AgentRuntimeConfig {
 
   /** Governance config override (defaults to BLOCKDRIVE_GOVERNANCE) */
   governance?: GovernanceConfig;
+
+  /** Webhook secret for X-Webhook-Secret header verification */
+  webhookSecret?: string;
+
+  /** Handler for inbound inter-agent messages via MessageBus */
+  onAgentMessage?: InboundHandler;
 }
 
 // ─── Runtime ───────────────────────────────────────────────────────────────
@@ -104,10 +123,13 @@ export class AgentRuntime {
   readonly config: AgentConfig;
   readonly supabaseAdmin: SupabaseClient;
   readonly router: ModelRouter;
-  readonly mem0?: Mem0Client;
+  private _memory?: MemoryClient;
   readonly governance: GovernanceEngine;
+  readonly telemetry: TelemetryClient;
 
   private telegramTransport?: TelegramTransport;
+  private messageBus?: MessageBus;
+  private webhookHandlers = new Map<string, WebhookHandler>();
   private runtimeConfig: AgentRuntimeConfig;
   private server?: ReturnType<Express["listen"]>;
   private shutdownRegistered = false;
@@ -138,14 +160,22 @@ export class AgentRuntime {
     };
     this.router = new ModelRouterImpl(rtConfig.config.modelStack, creds);
 
-    // ── mem0 ──
+    // ── Memory (Mem0Client as initial fallback — RedisMemoryClient created in start() after Redis connects) ──
     if (rtConfig.env.mem0ApiKey) {
-      this.mem0 = new Mem0Client({
+      this._memory = new Mem0Client({
         apiKey: rtConfig.env.mem0ApiKey,
         organizationId: rtConfig.env.mem0OrgId,
         projectId: rtConfig.env.mem0ProjectId,
       });
     }
+
+    // ── Telemetry ──
+    this.telemetry = new TelemetryClient({
+      agentId: rtConfig.config.id,
+      endpoint: rtConfig.env.telemetryEndpoint,
+      apiKey: rtConfig.env.telemetryApiKey,
+      supabase: this.supabaseAdmin,
+    });
 
     // ── Governance ──
     const govConfig = rtConfig.governance ?? structuredClone(BLOCKDRIVE_GOVERNANCE);
@@ -174,12 +204,29 @@ export class AgentRuntime {
   }
 
   /**
+   * Register a webhook handler for a Supabase table.
+   * Called before start() by agent entry points.
+   */
+  onWebhook(table: string, handler: WebhookHandler): void {
+    this.webhookHandlers.set(table, handler);
+  }
+
+  /**
+   * Get the MessageBus instance for inter-agent communication.
+   * Available after start() completes. Returns undefined if Redis is not configured.
+   */
+  getMessageBus(): MessageBus | undefined {
+    return this.messageBus;
+  }
+
+  /**
    * Start the agent runtime:
    *   1. Connect Redis
    *   2. Load plugin registry
    *   3. Start Telegram bots
-   *   4. Start Express server
-   *   5. Register graceful shutdown
+   *   4. Initialize MessageBus
+   *   5. Start Express server
+   *   6. Register graceful shutdown
    */
   async start(): Promise<void> {
     const agentId = this.config.id;
@@ -196,6 +243,18 @@ export class AgentRuntime {
 
     if (redisResult.status === "fulfilled" && redisResult.value) {
       console.log(`[${agentId}] Redis connected`);
+
+      // Upgrade memory to RedisMemoryClient (replaces Mem0Client if it was set as fallback)
+      try {
+        this._memory = new RedisMemoryClient({
+          redis: redisResult.value,
+          router: this.router,
+          organizationId: this.runtimeConfig.env.mem0OrgId,
+        });
+        console.log(`[${agentId}] Memory upgraded to Redis`);
+      } catch (memErr) {
+        console.error(`[${agentId}] RedisMemoryClient creation failed, keeping fallback:`, memErr);
+      }
     } else if (redisResult.status === "rejected") {
       console.error(`[${agentId}] Redis initialization failed:`, redisResult.reason);
     }
@@ -205,6 +264,9 @@ export class AgentRuntime {
     if (telegramResult.status === "rejected") {
       console.error(`[${agentId}] Telegram initialization failed:`, telegramResult.reason);
     }
+
+    // Initialize MessageBus (requires Telegram transport + Redis)
+    await this.initializeMessageBus();
 
     // Start Express
     this.server = this.app.listen(port, () => {
@@ -294,32 +356,46 @@ export class AgentRuntime {
     }));
   }
 
+  /** Public accessor — returns current memory client (may upgrade from Mem0 → Redis after start()) */
+  get memory(): MemoryClient | undefined {
+    return this._memory;
+  }
+
   private setupRoutes(rtConfig: AgentRuntimeConfig): void {
     // Instance-scoped token cache (not module-level singleton)
     const tokenCache = new Map<string, { userId: string; expiresAt: number }>();
     const authMiddleware = createAuthMiddleware(this.supabaseAdmin, { tokenCache });
+    // Capture `this` for closures inside object literals
+    const runtime = this;
 
     // Public routes
     this.app.use(createHealthRouter({
       agentId: this.config.id,
       agentName: this.config.name,
       version: "0.1.0",
-      hasMem0: !!this.mem0,
+      hasMemory: !!this._memory,
       hasTelegram: !!rtConfig.telegram,
     }));
 
-    // Protected routes
+    // Protected routes (memory uses getter so it picks up RedisMemoryClient after start())
     this.app.use(authMiddleware, createChatRouter({
       agentId: this.config.id,
       systemPrompt: rtConfig.systemPrompt,
       createMcpServer: rtConfig.createMcpServer,
-      mem0: this.mem0,
+      get memory() { return runtime._memory; },
       router: this.router,
       getRedis: () => getRedis(rtConfig.env.redisUrl),
       onResponse: rtConfig.onResponse,
       governance: this.governance,
+      telemetry: this.telemetry,
       supabase: this.supabaseAdmin,
     }));
+
+    // Webhook route (public — verified by X-Webhook-Secret header, not auth middleware)
+    this.app.use(createWebhookRouter(
+      { agentId: this.config.id, webhookSecret: rtConfig.webhookSecret ?? process.env.WEBHOOK_SECRET },
+      this.webhookHandlers,
+    ));
 
     // Custom routes (each agent adds its own)
     if (rtConfig.customRoutes) {
@@ -362,5 +438,100 @@ export class AgentRuntime {
 
     await this.telegramTransport.startPolling();
     console.log(`[${this.config.id}] Telegram transport started`);
+  }
+
+  private async initializeMessageBus(): Promise<void> {
+    if (!this.telegramTransport) return;
+
+    const agentId = this.config.id;
+
+    try {
+      // Get Redis client (may be null if not configured)
+      const redisRaw = this.runtimeConfig.env.redisUrl
+        ? await getRedis(this.runtimeConfig.env.redisUrl)
+        : undefined;
+
+      // Adapt redis npm client (v4+ PascalCase: rPush, lRange, xAdd, xRange) to
+      // @waas/shared RedisClient interface (lowercase: rpush, lrange, xadd, xrange).
+      // Return types adapted: set/del → void, rpush wraps rest args as array,
+      // xRange maps entries to { id, message } shape. All methods MUST be awaited.
+      const redis: SharedRedisClient | undefined = redisRaw ? {
+        get: (k: string) => redisRaw.get(k),
+        set: (k: string, v: string, opts?: { ex?: number }) =>
+          opts?.ex ? redisRaw.set(k, v, { EX: opts.ex }).then(() => {}) : redisRaw.set(k, v).then(() => {}),
+        del: (k: string) => redisRaw.del(k).then(() => {}),
+        keys: (p: string) => redisRaw.keys(p),
+        rpush: (k: string, ...vals: string[]) => redisRaw.rPush(k, vals),
+        lrange: (k: string, s: number, e: number) => redisRaw.lRange(k, s, e),
+        ltrim: (k: string, s: number, e: number) => redisRaw.lTrim(k, s, e).then(() => {}),
+        expire: (k: string, secs: number) => redisRaw.expire(k, secs).then(() => {}),
+        // Stream operations for MessageBus
+        xadd: (k: string, id: string, fields: Record<string, string>, maxlen?: number) =>
+          redisRaw.xAdd(k, id, fields, maxlen ? { TRIM: { strategy: "MAXLEN", threshold: maxlen } } : undefined) as Promise<string>,
+        xrange: async (k: string, start: string, end: string, count?: number) => {
+          const entries = await redisRaw.xRange(k, start, end, count ? { COUNT: count } : undefined);
+          return entries.map(e => ({ id: e.id, message: e.message }));
+        },
+        xlen: (k: string) => redisRaw.xLen(k),
+        xtrim: (k: string, maxlen: number) => redisRaw.xTrim(k, "MAXLEN", maxlen),
+      } : undefined;
+
+      // Create MessageBus with Telegram transport + Redis for persistence
+      this.messageBus = new MessageBus(this.telegramTransport, { redis });
+
+      // Get this agent's scope and create enforcer
+      const scope = AGENT_SCOPES[agentId];
+      if (scope) {
+        const enforcer = new ScopeEnforcer(agentId, scope);
+        this.messageBus.registerAgent(agentId, enforcer);
+      }
+
+      // Register app-level inbound message handler
+      const appHandler = this.runtimeConfig.onAgentMessage;
+      if (appHandler) {
+        this.messageBus.onMessage(agentId, appHandler);
+      } else {
+        // Default handler: log + save to mem0 as cross-department context
+        this.messageBus.onMessage(agentId, async (message: AgentMessage) => {
+          console.log(
+            `[${agentId}] Inbound message from ${message.from}: ${message.payload.subject}`,
+          );
+
+          // Persist to memory as cross-department knowledge
+          if (this._memory) {
+            try {
+              await this._memory.addMemory(
+                `Inter-agent message from ${message.from}: ${message.payload.subject} — ${message.payload.body}`,
+                agentId,
+                { metadata: { category: "inter_agent", from: message.from, messageId: message.metadata.id } },
+              );
+            } catch (memErr) {
+              console.error(`[${agentId}] Failed to persist inbound message to memory:`, memErr);
+            }
+          }
+
+          // Write audit log to agent_messages table
+          try {
+            const { error: dbError } = await this.supabaseAdmin.from("agent_messages").insert({
+              sender_id: message.from,
+              target_id: message.to,
+              message: `${message.payload.subject}: ${message.payload.body}`,
+              priority: message.priority,
+              status: "delivered",
+            });
+            if (dbError) {
+              console.error(`[${agentId}] Failed to write audit log: ${dbError.message}`);
+            }
+          } catch (dbErr) {
+            console.error(`[${agentId}] Failed to write audit log:`, dbErr);
+          }
+        });
+      }
+
+      console.log(`[${agentId}] MessageBus initialized`);
+    } catch (err) {
+      console.error(`[${agentId}] MessageBus initialization failed:`, err);
+      Sentry.captureException(err);
+    }
   }
 }

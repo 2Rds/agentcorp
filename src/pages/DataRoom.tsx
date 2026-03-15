@@ -57,11 +57,12 @@ export default function DataRoom() {
 
   const handleAuth = async (email: string, code: string) => {
     if (!slug || !agentUrl) throw new Error("Data room not configured");
-    const params = new URLSearchParams();
-    if (email) params.set("email", email);
-    if (code) params.set("passcode", code);
 
-    const resp = await fetch(`${agentUrl}/dataroom/${slug}?${params}`);
+    const resp = await fetch(`${agentUrl}/dataroom/${slug}/auth`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email || undefined, passcode: code || undefined }),
+    });
     const data = await resp.json();
     if (!resp.ok) throw new Error(data.error);
 
@@ -108,10 +109,11 @@ export default function DataRoom() {
     );
   }
 
-  const queryParams = new URLSearchParams();
-  if (viewerEmail) queryParams.set("email", viewerEmail);
-  if (passcode) queryParams.set("passcode", passcode);
-  const authQuery = queryParams.toString();
+  // Pass credentials via headers (not query params) to avoid leaking in logs/history
+  const authHeaders: Record<string, string> = {};
+  if (viewerEmail) authHeaders["x-viewer-email"] = viewerEmail;
+  if (passcode) authHeaders["x-viewer-passcode"] = passcode;
+  const authQuery = ""; // deprecated — credentials sent via headers now
 
   return (
     <DataRoomLayout companyName={config?.organizationName ?? "Company"} linkName={config?.linkName ?? ""}>

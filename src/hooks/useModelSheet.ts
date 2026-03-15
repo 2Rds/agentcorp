@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface ModelSheet {
   spreadsheetId: string;
@@ -25,16 +26,16 @@ interface UseModelSheetReturn {
 
 const agentUrl = import.meta.env.VITE_AGENT_URL;
 
-async function getAuthHeaders(): Promise<{ "Content-Type": string; Authorization: string }> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) throw new Error("Not authenticated — please sign in again");
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${session.access_token}`,
-  };
-}
-
 export function useModelSheet(orgId: string | null): UseModelSheetReturn {
+  const { session } = useAuth();
+
+  const getAuthHeaders = useCallback((): { "Content-Type": string; Authorization: string } => {
+    if (!session) throw new Error("Not authenticated — please sign in again");
+    return {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
+    };
+  }, [session]);
   const [sheet, setSheet] = useState<ModelSheet | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
         }
 
         // Fetch existing sheet for this org
-        const headers = await getAuthHeaders();
+        const headers = getAuthHeaders();
         const sheetRes = await fetch(`${agentUrl}/api/model/get-sheet`, {
           method: "POST",
           headers,
@@ -76,7 +77,7 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
     };
 
     init();
-  }, [orgId]);
+  }, [orgId, getAuthHeaders]);
 
   const createSheet = useCallback(
     async (templateSheetId: string, templateName: string): Promise<CreateSheetResult> => {
@@ -85,7 +86,7 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
       setError(null);
 
       try {
-        const headers = await getAuthHeaders();
+        const headers = getAuthHeaders();
         const res = await fetch(`${agentUrl}/api/model/create-sheet`, {
           method: "POST",
           headers,
@@ -119,7 +120,7 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
         return { ok: false, error: msg };
       }
     },
-    [orgId]
+    [orgId, getAuthHeaders]
   );
 
   const uploadXlsx = useCallback(
@@ -142,7 +143,7 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
         }
 
         // Call agent to convert to Google Sheet
-        const headers = await getAuthHeaders();
+        const headers = getAuthHeaders();
         const res = await fetch(`${agentUrl}/api/model/upload-xlsx`, {
           method: "POST",
           headers,
@@ -176,13 +177,13 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
         return { ok: false, error: msg };
       }
     },
-    [orgId]
+    [orgId, getAuthHeaders]
   );
 
   const deleteSheet = useCallback(async () => {
     if (!orgId || !agentUrl) return;
     try {
-      const headers = await getAuthHeaders();
+      const headers = getAuthHeaders();
       const res = await fetch(`${agentUrl}/api/model/delete-sheet`, {
         method: "POST",
         headers,
@@ -196,7 +197,7 @@ export function useModelSheet(orgId: string | null): UseModelSheetReturn {
     } catch (err: any) {
       setError(err.message);
     }
-  }, [orgId]);
+  }, [orgId, getAuthHeaders]);
 
   return { sheet, loading, error, googleSheetsEnabled, createSheet, uploadXlsx, deleteSheet };
 }

@@ -2,6 +2,47 @@
 
 ## Current Status
 
+### Completed — v2.4.0 (2026-03-15)
+
+**MessageBus Dual-Mode + Stream Operations**
+- [x] MessageBus dual-mode persistence: Redis Streams (XADD/XRANGE/MAXLEN) with automatic LIST fallback
+- [x] `StreamEntry` type exported from `@waas/shared/namespace`
+- [x] `ScopedRedisClient` stream operations (`xadd`, `xrange`, `xlen`, `xtrim`) with namespace enforcement
+- [x] Agent-runtime stream adapters (maps `redis` npm PascalCase to `@waas/shared` lowercase)
+- [x] MessageBus safe JSON parsing (`safeParseMessage`, `safeParseMessages`)
+- [x] MessageBus persistence mode logging on first message
+
+**Governance + Reliability**
+- [x] GovernanceEngine in-memory spend fallback when Redis unavailable
+- [x] Governance callback handler calls `next()` for non-governance callbacks
+- [x] Spend limits tightened: $10→$5/agent/day, $100→$50 global/day
+- [x] Chat route token estimation: 3x multiplier on input only (output at face value)
+
+**EA Agent Org-Scoping**
+- [x] `BLOCKDRIVE_ORG_ID` config added to EA agent
+- [x] Slack transport uses real org UUID (was hardcoded `"slack-workspace"`)
+- [x] Telegram transport uses real org UUID (was hardcoded `"telegram-direct"`)
+- [x] `BLOCKDRIVE_ORG_ID` env var set in DO App Platform
+
+**Inter-Agent Messaging**
+- [x] `message_agent` tool added to CMA, Compliance, Legal, Sales agents via MessageBus
+- [x] COA `message_agent` Supabase fallback removed (MessageBus-only)
+
+**25-Issue Code Review Fixes**
+- [x] Telemetry Worker fail-closed auth (was accepting unauthenticated requests when API key unset)
+- [x] Telemetry Worker split error responses: JSON parse → 400, write → 500
+- [x] RedisMemoryClient circuit breaker: `ensureIndex()` stops after 3 failures
+- [x] Zero-vector embedding guard: skip embedding on failure, return NOOP event
+- [x] `updateMemory` keeps existing embedding on re-embed failure
+- [x] `hashToMemory` empty catch → `console.warn` with key
+- [x] `RedisMemoryClient` declares `implements MemoryClient`
+- [x] Supabase audit log INSERT checks `{ error }` field
+- [x] Webhook handler includes `fetchErr` in logs, warns when `AGENT_BASE_URL` not configured
+- [x] Track-view Worker type-safe input validation
+- [x] Sales `prep_call` bare catch → error logging
+- [x] DataRoom auth credentials moved from GET query params to POST body + headers
+- [x] `useModelSheet` uses `useAuth()` context instead of `supabase.auth.getSession()`
+
 ### Completed — v2.3.1 (2026-03-15)
 
 **PR Review Fixes (21 issues)**
@@ -233,7 +274,7 @@
 - **Redis optional** — Vector search, semantic cache, plugin matching degrade to fallbacks without it
 - **Mem0 dependency** — Knowledge base entirely Mem0-dependent
 - **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet
-- **Inter-agent messaging** — Designed in @waas/shared but not wired into runtime yet (COA has `message_agent` tool writing to Supabase queue, not Redis Streams yet)
+- **Inter-agent messaging** — MessageBus supports dual-mode persistence (Redis Streams + LIST fallback) and all 6 department agents have `message_agent` tool, but MessageBus is not yet instantiated in AgentRuntime (`bus.send()` delivery not wired)
 - **Governance approval flow untested end-to-end** — GovernanceEngine built and hardened, but agent webhook routes (`/webhook`) not yet implemented
 - **Database webhooks require deployed Edge Function** — `webhook-handler` exists but needs `supabase functions deploy` and `AGENT_BASE_URL` env var
 - **Realtime requires migration push** — `supabase_realtime` publication changes need `supabase db push` on the hosted project
@@ -260,10 +301,10 @@
 - [ ] Deploy `webhook-handler` Edge Function (`supabase functions deploy`)
 - [ ] Add `/webhook` route to agent servers (receive Database Webhook events)
 - [x] ~~Self-hosted Redis 8.4 on DO droplet NYC1~~ (v2.3.1)
-- [ ] Upgrade Redis to 8.6 (enable Streams)
-- [ ] Redis Streams inter-agent messaging (replace Supabase queue in `message_agent`)
+- [x] ~~MessageBus dual-mode persistence (Redis Streams + LIST fallback)~~ (v2.4.0)
+- [x] ~~`message_agent` tool added to all 6 department agents via MessageBus~~ (v2.4.0)
+- [x] ~~Slack integration for EA (channel monitoring, message sending)~~ (v2.3.1)
 - [ ] Add `message_agent` tool to EA agent (executive-tier cross-namespace messaging)
-- [ ] Slack integration for EA (channel monitoring, message sending)
 - [ ] Wire EA into @waas/runtime (replace direct Express setup)
 - [ ] Agent server test suite (Vitest + supertest)
 - [ ] Password reset flow + email verification enforcement

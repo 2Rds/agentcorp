@@ -13,6 +13,7 @@ import { COA_CONFIG } from "@waas/shared";
 import { config } from "./config.js";
 import { SYSTEM_PROMPT } from "./agent/system-prompt.js";
 import { createMcpServer } from "./tools/index.js";
+import { setRuntime } from "./runtime-ref.js";
 
 const runtime = new AgentRuntime({
   config: COA_CONFIG,
@@ -39,6 +40,13 @@ const runtime = new AgentRuntime({
       },
     },
   } : undefined,
+});
+
+setRuntime(runtime);
+
+// ── Webhook Handlers ──
+runtime.onWebhook("agent_messages", (payload) => {
+  console.log(`[blockdrive-coa] Webhook: ${payload.type} on agent_messages — target: ${payload.record.target_id}`);
 });
 
 runtime.start().catch((err) => {

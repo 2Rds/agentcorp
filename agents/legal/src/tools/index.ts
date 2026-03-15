@@ -15,6 +15,7 @@ import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/clien
 import { z } from "zod";
 import { safeFetch, safeFetchText, safeJsonParse, stripHtml } from "@waas/runtime";
 import { config } from "../config.js";
+import { getRuntime } from "../runtime-ref.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const err = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
@@ -33,14 +34,12 @@ export function createMcpServer(orgId: string, _userId: string) {
         limit: z.number().default(10).describe("Max results"),
       },
       async (args) => {
-        const result = await safeFetch<{ results?: Array<{ memory: string; score: number }> }>(
-          "https://api.mem0.ai/v2/memories/search/",
-          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ query: args.query, top_k: args.limit, rerank: true, agent_id: "blockdrive-legal" }) },
-          "Memory search",
-        );
-        if (!result.ok) return err(result.error);
-        return text(JSON.stringify(result.data.results?.slice(0, args.limit) ?? []));
+        const memory = getRuntime()?.memory;
+        if (!memory) return err("Memory system not available");
+        try {
+          const results = await memory.searchAgentMemories("blockdrive-legal", orgId, args.query, args.limit);
+          return text(JSON.stringify(results.map(m => ({ memory: m.memory, metadata: m.metadata }))));
+        } catch (e) { return err(`Memory search failed: ${e}`); }
       },
     ),
 
@@ -52,14 +51,12 @@ export function createMcpServer(orgId: string, _userId: string) {
         category: z.enum(["contracts", "compliance_tracking", "ip_portfolio", "regulatory", "policy"]),
       },
       async (args) => {
-        const result = await safeFetch(
-          "https://api.mem0.ai/v2/memories/",
-          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: [{ role: "user", content: args.content }], agent_id: "blockdrive-legal", metadata: { category: args.category, org_id: orgId } }) },
-          "Memory save",
-        );
-        if (!result.ok) return err(result.error);
-        return text(`Saved to ${args.category}: ${JSON.stringify(result.data)}`);
+        const memory = getRuntime()?.memory;
+        if (!memory) return err("Memory system not available");
+        try {
+          const events = await memory.addAgentMemory("blockdrive-legal", orgId, args.content, "general", { category: args.category });
+          return text(`Saved to ${args.category}: ${JSON.stringify(events)}`);
+        } catch (e) { return err(`Memory save failed: ${e}`); }
       },
     ),
 
@@ -330,6 +327,37 @@ ${args.contract_text}`;
         );
         if (!result.ok) return err(result.error);
         return text(result.data.choices?.[0]?.message?.content || "Contract analysis returned no results");
+      },
+    ),
+
+    // ── Inter-Agent Messaging ──
+    tool(
+      "message_agent",
+      "Send a message to another agent via the inter-agent MessageBus. Scope-enforced: can message EA, COA.",
+      {
+        target_agent_id: z.string().max(50).describe("Agent ID to message"),
+        subject: z.string().max(200).describe("Message subject"),
+        message: z.string().max(4000).describe("Message content"),
+        priority: z.enum(["normal", "urgent"]).default("normal"),
+        requires_response: z.boolean().default(false).describe("Whether you need a reply"),
+      },
+      async (args) => {
+        try {
+          const { getRuntime } = await import("../runtime-ref.js");
+          const bus = getRuntime()?.getMessageBus();
+          if (!bus) return err("MessageBus not available — agent messaging requires Redis + Telegram transport");
+          const receipt = await bus.send({
+            from: "blockdrive-legal",
+            to: args.target_agent_id,
+            type: args.requires_response ? "request" : "notification",
+            priority: args.priority,
+            subject: args.subject,
+            body: args.message,
+          });
+          return text(`Message ${receipt.messageId} sent to ${args.target_agent_id}`);
+        } catch (e) {
+          return err(`Message send failed: ${String(e)}`);
+        }
       },
     ),
   ];

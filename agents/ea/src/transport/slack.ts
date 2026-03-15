@@ -144,7 +144,7 @@ export async function startSlackBot(): Promise<void> {
 
       const fullResponse = await createAgentQuery({
         messages: enrichedMessages,
-        organizationId: "slack-workspace",
+        organizationId: config.blockdriveOrgId || "slack-workspace",
         userId: `slack-${msg.user}`,
         conversationId: `slack-${channelName}-${key}`,
       });
@@ -209,7 +209,7 @@ export async function startSlackBot(): Promise<void> {
 
       const fullResponse = await createAgentQuery({
         messages: enrichedMessages,
-        organizationId: "slack-workspace",
+        organizationId: config.blockdriveOrgId || "slack-workspace",
         userId: `slack-${event.user}`,
         conversationId: `slack-${channelName}-${key}`,
       });

@@ -27,6 +27,8 @@ export type {
   VoiceConfig,
   BatchCallRecipient,
   ConversationResult,
+  // NextGenSwitch / telephony types
+  NextGenSwitchConfig,
 } from "./types.js";
 
 // Model registry and stacks

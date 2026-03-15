@@ -1,0 +1,10 @@
+name = "waas-telemetry"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+
+[analytics_engine_datasets]
+TELEMETRY = { dataset = "waas_agent_usage" }
+
+[vars]
+# Set via `wrangler secret put TELEMETRY_API_KEY`
+# TELEMETRY_API_KEY = ""

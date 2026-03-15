@@ -13,6 +13,7 @@ import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/clien
 import { z } from "zod";
 import { safeFetch, safeFetchText, safeJsonParse, stripHtml } from "@waas/runtime";
 import { config } from "../config.js";
+import { getRuntime } from "../runtime-ref.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const err = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
@@ -31,14 +32,12 @@ export function createMcpServer(orgId: string, _userId: string) {
         limit: z.number().default(10).describe("Max results"),
       },
       async (args) => {
-        const result = await safeFetch<{ results?: Array<{ memory: string; score: number }> }>(
-          "https://api.mem0.ai/v2/memories/search/",
-          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ query: args.query, top_k: args.limit, rerank: true, agent_id: "blockdrive-sales" }) },
-          "Memory search",
-        );
-        if (!result.ok) return err(result.error);
-        return text(JSON.stringify(result.data.results?.slice(0, args.limit) ?? []));
+        const memory = getRuntime()?.memory;
+        if (!memory) return err("Memory system not available");
+        try {
+          const results = await memory.searchAgentMemories("blockdrive-sales", orgId, args.query, args.limit);
+          return text(JSON.stringify(results.map(m => ({ memory: m.memory, metadata: m.metadata }))));
+        } catch (e) { return err(`Memory search failed: ${e}`); }
       },
     ),
 
@@ -50,14 +49,12 @@ export function createMcpServer(orgId: string, _userId: string) {
         category: z.enum(["deal_pipeline", "prospect_research", "call_transcripts", "objections", "competitive_intel"]),
       },
       async (args) => {
-        const result = await safeFetch(
-          "https://api.mem0.ai/v2/memories/",
-          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ messages: [{ role: "user", content: args.content }], agent_id: "blockdrive-sales", metadata: { category: args.category, org_id: orgId } }) },
-          "Memory save",
-        );
-        if (!result.ok) return err(result.error);
-        return text(`Saved to ${args.category}: ${JSON.stringify(result.data)}`);
+        const memory = getRuntime()?.memory;
+        if (!memory) return err("Memory system not available");
+        try {
+          const events = await memory.addAgentMemory("blockdrive-sales", orgId, args.content, "operational", { category: args.category });
+          return text(`Saved to ${args.category}: ${JSON.stringify(events)}`);
+        } catch (e) { return err(`Memory save failed: ${e}`); }
       },
     ),
 
@@ -259,15 +256,19 @@ export function createMcpServer(orgId: string, _userId: string) {
       },
       async (args) => {
         // Search for existing knowledge about this prospect
-        const memResult = await safeFetch<{ results?: Array<{ memory: string }> }>(
-          "https://api.mem0.ai/v2/memories/search/",
-          { method: "POST", headers: { "Authorization": `Token ${config.mem0ApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ query: `${args.company} ${args.contact}`, top_k: 5, rerank: true, agent_id: "blockdrive-sales" }) },
-          "Memory search for call prep",
-        );
-        const pastContext = memResult.ok
-          ? (memResult.data.results?.map(r => r.memory).join("\n") || "No prior interactions found.")
-          : "Could not retrieve prior interactions.";
+        const memory = getRuntime()?.memory;
+        let pastContext = "Memory system not available.";
+        if (memory) {
+          try {
+            const results = await memory.searchAgentMemories("blockdrive-sales", orgId, `${args.company} ${args.contact}`, 5);
+            pastContext = results.length > 0
+              ? results.map(r => r.memory).join("\n")
+              : "No prior interactions found.";
+          } catch (memErr) {
+            console.error(`[blockdrive-sales] prep_call memory lookup failed:`, memErr);
+            pastContext = "Could not retrieve prior interactions (memory service error).";
+          }
+        }
 
         return text(JSON.stringify({
           call_brief: {
@@ -377,6 +378,172 @@ export function createMcpServer(orgId: string, _userId: string) {
           return text(JSON.stringify({ ...data, company: args.company, contact: args.contact, message: "Call logged successfully." }));
         } catch (e) {
           return err(`Call log failed: ${String(e)}`);
+        }
+      },
+    ),
+
+    // ── Voice Tools ──
+    tool(
+      "make_call",
+      "Initiate an outbound voice call to a prospect via NextGenSwitch. The voice pipeline handles STT → Claude → TTS automatically.",
+      {
+        phone_number: z.string().max(20).describe("Phone number in E.164 format (e.g., +15551234567)"),
+        name: z.string().max(200).optional().describe("Prospect name for call context"),
+        company: z.string().max(200).optional().describe("Company name for call context"),
+        purpose: z.string().max(500).optional().describe("Call purpose (discovery, follow-up, demo, close)"),
+        pipeline_id: z.string().max(100).optional().describe("Pipeline deal ID to associate this call with"),
+      },
+      async (args) => {
+        try {
+          const { getRuntime } = await import("../runtime-ref.js");
+          const runtime = getRuntime();
+          if (!runtime) return err("Voice transport not available — runtime not initialized");
+          const voiceTransport = (runtime as unknown as { voiceTransport?: { initiateCall: (params: { phoneNumber: string; params?: Record<string, string> }) => Promise<{ callId: string }> } }).voiceTransport;
+          if (!voiceTransport) return err("Voice transport not configured — requires NEXTGENSWITCH_URL and ELEVENLABS_API_KEY");
+          const result = await voiceTransport.initiateCall({
+            phoneNumber: args.phone_number,
+            params: {
+              ...(args.name && { prospect_name: args.name }),
+              ...(args.company && { company: args.company }),
+              ...(args.purpose && { call_purpose: args.purpose }),
+              ...(args.pipeline_id && { pipeline_id: args.pipeline_id }),
+            },
+          });
+          return text(`Call initiated: ${result.callId} → ${args.phone_number}${args.name ? ` (${args.name})` : ""}`);
+        } catch (e) {
+          return err(`Call initiation failed: ${String(e)}`);
+        }
+      },
+    ),
+
+    tool(
+      "get_call_transcript",
+      "Retrieve the transcript of a completed or active voice call from Redis.",
+      {
+        call_id: z.string().max(100).describe("Call ID to retrieve transcript for"),
+      },
+      async (args) => {
+        try {
+          const { getRuntime } = await import("../runtime-ref.js");
+          const runtime = getRuntime();
+          if (!runtime) return err("Runtime not initialized");
+          const bus = runtime.getMessageBus();
+          // Access Redis via the runtime's Redis connection
+          const { getRedis } = await import("@waas/runtime");
+          const redis = await getRedis(process.env.REDIS_URL);
+          if (!redis) return err("Redis not available — call transcripts stored in Redis");
+          const key = `voice:blockdrive-sales:call:${args.call_id}`;
+          const data = await redis.get(key);
+          if (!data) return err(`No call data found for ${args.call_id} — may have expired (1hr TTL)`);
+          const callState = JSON.parse(data);
+          return text(JSON.stringify({
+            callId: callState.callId,
+            from: callState.from,
+            to: callState.to,
+            status: callState.status,
+            startTime: callState.startTime,
+            transcript: callState.transcript,
+            turnCount: callState.transcript?.length ?? 0,
+          }));
+        } catch (e) {
+          return err(`Transcript retrieval failed: ${String(e)}`);
+        }
+      },
+    ),
+
+    tool(
+      "update_pipeline_from_call",
+      "Update a sales pipeline deal based on a completed call outcome. Logs the call and advances the deal stage.",
+      {
+        pipeline_id: z.string().max(100).describe("Pipeline deal ID to update"),
+        call_id: z.string().max(100).optional().describe("Call ID to link"),
+        outcome: z.enum(["qualified", "demo_scheduled", "proposal_requested", "negotiating", "closed_won", "closed_lost", "no_answer", "follow_up"]).describe("Call outcome"),
+        summary: z.string().max(5000).describe("Call summary — key points discussed"),
+        next_steps: z.string().max(2000).describe("Agreed next steps"),
+        sentiment: z.enum(["very_positive", "positive", "neutral", "negative", "very_negative"]).default("neutral"),
+      },
+      async (args) => {
+        try {
+          // Map outcome to pipeline stage
+          const stageMap: Record<string, string> = {
+            qualified: "qualified",
+            demo_scheduled: "qualified",
+            proposal_requested: "proposal",
+            negotiating: "negotiation",
+            closed_won: "closed_won",
+            closed_lost: "closed_lost",
+            no_answer: "", // Don't change stage
+            follow_up: "", // Don't change stage
+          };
+          const newStage = stageMap[args.outcome];
+
+          // Update pipeline stage if applicable
+          if (newStage) {
+            const { error: pipeError } = await supabase
+              .from("sales_pipeline")
+              .update({ stage: newStage, updated_at: new Date().toISOString() })
+              .eq("id", args.pipeline_id)
+              .eq("org_id", orgId);
+            if (pipeError) return err(`Pipeline update failed: ${pipeError.message}`);
+          }
+
+          // Log the call
+          const { data: logData, error: logError } = await supabase
+            .from("sales_call_logs")
+            .insert({
+              org_id: orgId,
+              pipeline_id: args.pipeline_id,
+              type: "voice_call",
+              summary: args.summary,
+              action_items: [{ outcome: args.outcome, call_id: args.call_id }],
+              sentiment: args.sentiment,
+              next_steps: args.next_steps,
+            })
+            .select("id")
+            .single();
+          if (logError) return err(`Call log failed: ${logError.message}`);
+
+          return text(JSON.stringify({
+            pipeline_id: args.pipeline_id,
+            outcome: args.outcome,
+            stage_updated: !!newStage,
+            new_stage: newStage || "unchanged",
+            call_log_id: logData?.id,
+            message: `Pipeline updated: ${args.outcome}${newStage ? ` → stage: ${newStage}` : ""}`,
+          }));
+        } catch (e) {
+          return err(`Pipeline update from call failed: ${String(e)}`);
+        }
+      },
+    ),
+
+    // ── Inter-Agent Messaging ──
+    tool(
+      "message_agent",
+      "Send a message to another agent via the inter-agent MessageBus. Scope-enforced: can message EA, COA.",
+      {
+        target_agent_id: z.string().max(50).describe("Agent ID to message"),
+        subject: z.string().max(200).describe("Message subject"),
+        message: z.string().max(4000).describe("Message content"),
+        priority: z.enum(["normal", "urgent"]).default("normal"),
+        requires_response: z.boolean().default(false).describe("Whether you need a reply"),
+      },
+      async (args) => {
+        try {
+          const { getRuntime } = await import("../runtime-ref.js");
+          const bus = getRuntime()?.getMessageBus();
+          if (!bus) return err("MessageBus not available — agent messaging requires Redis + Telegram transport");
+          const receipt = await bus.send({
+            from: "blockdrive-sales",
+            to: args.target_agent_id,
+            type: args.requires_response ? "request" : "notification",
+            priority: args.priority,
+            subject: args.subject,
+            body: args.message,
+          });
+          return text(`Message ${receipt.messageId} sent to ${args.target_agent_id}`);
+        } catch (e) {
+          return err(`Message send failed: ${String(e)}`);
         }
       },
     ),

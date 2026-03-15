@@ -57,6 +57,9 @@ export const config = {
   notionApiKey: optional("NOTION_API_KEY"),
   notionEnabled: !!process.env.NOTION_API_KEY,
 
+  // Organization context (required for Slack/Telegram transports to scope DB + mem0 queries)
+  blockdriveOrgId: optional("BLOCKDRIVE_ORG_ID"),
+
   // Inter-agent messaging
   agentMessageSecret: optional("AGENT_MESSAGE_SECRET"),
 } as const;

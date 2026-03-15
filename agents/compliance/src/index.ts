@@ -12,6 +12,7 @@ import { COMPLIANCE_CONFIG } from "@waas/shared";
 import { config } from "./config.js";
 import { SYSTEM_PROMPT } from "./agent/system-prompt.js";
 import { createMcpServer } from "./tools/index.js";
+import { setRuntime } from "./runtime-ref.js";
 
 const runtime = new AgentRuntime({
   config: COMPLIANCE_CONFIG,
@@ -38,6 +39,13 @@ const runtime = new AgentRuntime({
       },
     },
   } : undefined,
+});
+
+setRuntime(runtime);
+
+// ── Webhook Handlers ──
+runtime.onWebhook("compliance_governance_log", (payload) => {
+  console.log(`[blockdrive-compliance] Webhook: ${payload.type} on compliance_governance_log — action: ${payload.record.action_type}`);
 });
 
 runtime.start().catch((err) => {

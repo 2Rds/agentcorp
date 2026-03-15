@@ -2,9 +2,11 @@
 export { AgentRuntime } from "./agent-runtime.js";
 export type { AgentRuntimeConfig } from "./agent-runtime.js";
 
-// Lib
+// Memory
+export { RedisMemoryClient } from "./lib/redis-memory.js";
+export type { MemoryClient, Memory, MemoryEvent, MemoryCategory, GraphRelation, GraphMemoryResponse } from "./lib/redis-memory.js";
 export { Mem0Client } from "./lib/mem0-client.js";
-export type { Mem0Config, Memory, MemoryEvent, GraphRelation, GraphMemoryResponse } from "./lib/mem0-client.js";
+export type { Mem0Config } from "./lib/mem0-client.js";
 export { getRedis, isRedisAvailable, disconnectRedis, createIndex, vectorSearch } from "./lib/redis-client.js";
 export type { VectorSearchResult, IndexFieldSchema } from "./lib/redis-client.js";
 export { sdkMessageToSSE, extractAssistantText } from "./lib/stream-adapter.js";
@@ -23,6 +25,8 @@ export { createHealthRouter } from "./routes/health.js";
 export type { HealthDeps } from "./routes/health.js";
 export { createChatRouter } from "./routes/chat.js";
 export type { ChatRouteDeps } from "./routes/chat.js";
+export { createWebhookRouter } from "./routes/webhook.js";
+export type { WebhookPayload, WebhookHandler, WebhookRouteDeps } from "./routes/webhook.js";
 
 // Tool helpers (shared across all agents)
 export {
@@ -37,6 +41,20 @@ export type { TelegramTransportConfig } from "./transport/telegram.js";
 // Governance
 export { GovernanceEngine } from "./lib/governance.js";
 export type { GovernanceEngineConfig, ApprovalRequest } from "./lib/governance.js";
+
+// Voice
+export { VoicePipeline } from "./voice/index.js";
+export type { VoicePipelineConfig, CallState, CallResult, TranscriptEntry } from "./voice/index.js";
+export { VoiceTransport } from "./voice/index.js";
+export type { VoiceTransportConfig, OutboundCallParams } from "./voice/index.js";
+
+// ElevenLabs
+export { ElevenLabsClient } from "./lib/elevenlabs-client.js";
+export type { ElevenLabsConfig, STTSession, TranscriptEvent, Voice } from "./lib/elevenlabs-client.js";
+
+// Telemetry
+export { TelemetryClient } from "./lib/telemetry.js";
+export type { TelemetryConfig, UsageEvent } from "./lib/telemetry.js";
 
 // Observability
 export { initSentry, initPostHog, shutdownObservability, getPostHog, Sentry } from "./lib/observability.js";

@@ -2,7 +2,7 @@
  * Governance Defaults — BlockDrive Production Config
  *
  * Sean's exact preferences for startup-mode governance:
- * - $10/agent/day spend limit
+ * - $5/agent/day spend limit (max control during initial deploy)
  * - All external actions require CEO approval
  * - C-Suite Telegram group for approvals
  * - 9am/5pm ET async CCA audit cron
@@ -15,8 +15,8 @@ export const BLOCKDRIVE_GOVERNANCE: GovernanceConfig = {
   mode: "startup",
 
   // ── Spend Controls ──
-  spendLimitPerAgentPerDay: 10,   // $10 USD per agent per day
-  spendLimitGlobalPerDay: 100,    // $100 USD all agents combined
+  spendLimitPerAgentPerDay: 5,    // $5 USD per agent per day
+  spendLimitGlobalPerDay: 50,     // $50 USD all agents combined
 
   // ── Approval Requirements (#14: keyed on ApprovalCategory) ──
   requireApproval: {

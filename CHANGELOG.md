@@ -2,6 +2,47 @@
 
 All notable changes to the WaaS platform.
 
+## [v2.4.0] - 2026-03-15
+
+Infrastructure hardening: MessageBus dual-mode (Redis Streams + LIST fallback), scoped stream operations, governance spend fallback, 25 review issue fixes across all agents and packages, EA org-scoping for Slack/Telegram transports.
+
+### Added
+
+- **MessageBus dual-mode persistence** — Redis Streams (XADD/XRANGE with MAXLEN auto-trimming) with automatic LIST fallback when Streams unavailable; runtime logging of active persistence mode
+- **ScopedRedisClient stream operations** — `xadd`, `xrange`, `xlen`, `xtrim` with namespace enforcement (access-checked, fail-closed)
+- **Agent-runtime stream adapters** — Maps `redis` npm PascalCase API (`xAdd`, `xRange`, `xLen`, `xTrim`) to `@waas/shared` lowercase interface
+- **RedisMemoryClient circuit breaker** — `ensureIndex()` stops retrying after 3 failures (prevents hot loop of failing Redis commands)
+- **In-memory governance spend fallback** — GovernanceEngine tracks spend in memory when Redis is unavailable (resets on restart, prevents unlimited spend)
+- **Safe JSON parsing in MessageBus** — `safeParseMessage()` and `safeParseMessages()` helpers prevent corrupt messages from crashing the bus
+- **EA `BLOCKDRIVE_ORG_ID` config** — Org UUID sourced from env var for Slack/Telegram transports (replaces hardcoded strings)
+- **`message_agent` tool** — Added to CMA, Compliance, Legal, Sales agents via MessageBus (COA already had it)
+- **`StreamEntry` type export** — Exported from `@waas/shared/namespace` for consumers
+
+### Changed
+
+- **MessageBus** updated module docstring documenting dual Streams/LIST mode, persistence mode logging, `getInbox()` returns chronological (oldest-first) order
+- **Governance spend limits** — `spendLimitPerAgentPerDay` $10→$5, `spendLimitGlobalPerDay` $100→$50 (tighter control during initial deploy)
+- **Chat route token estimation** — 3x multiplier applied only to input tokens (output tokens fully captured, no multiplier needed)
+- **DataRoom auth** — Credentials sent via POST body + `x-viewer-*` headers instead of GET query params (prevents leaking in logs/URL history)
+- **useModelSheet** — Replaced `supabase.auth.getSession()` with `useAuth()` context hook (Supabase warns against direct `getSession()` usage)
+- **COA `message_agent`** — Removed Supabase INSERT fallback (no consumer reads queued messages); aligned with other 5 agents that require MessageBus
+- **GovernanceEngine callback handler** — Calls `next()` for non-governance callbacks (was swallowing unrelated `callback_query:data` events)
+
+### Fixed
+
+- **Telemetry Worker fail-closed auth** — Rejects all requests when API key is unset (was fail-open, accepting unauthenticated telemetry)
+- **Telemetry Worker error responses** — Split try-catch: JSON parse → 400, writeDataPoint → 500 (was 500 for all)
+- **Zero-vector embedding guard** — When embedding generation fails, skip embedding field entirely and return NOOP event (was storing zero-vector producing meaningless KNN results)
+- **RedisMemoryClient `updateMemory`** — Keeps existing embedding on re-embed failure (was overwriting with zero-vector)
+- **RedisMemoryClient `hashToMemory`** — Empty catch replaced with `console.warn` including key for debuggability
+- **Supabase audit log error checking** — `agent_messages` INSERT now checks `{ error }` field (Supabase JS v2 doesn't throw)
+- **Webhook handler logging** — Includes `fetchErr` in error log and response; warns when `AGENT_BASE_URL` not configured
+- **Track-view Worker** — Type-safe input validation for all body fields (was trusting `body as any`)
+- **Sales `prep_call` bare catch** — Now logs error with agent prefix instead of silently swallowing
+- **EA Slack transport org ID** — `"slack-workspace"` → `config.blockdriveOrgId` (was causing all DB-scoped tools to return empty results via Slack)
+- **EA Telegram transport org ID** — `"telegram-direct"` → `config.blockdriveOrgId` (same fix for Telegram transport)
+- **`RedisMemoryClient` class declaration** — Now declares `implements MemoryClient` for compile-time interface enforcement
+
 ## [v2.3.1] - 2026-03-15
 
 PR review fixes (21 issues), pure function extraction for testability, 59 unit tests, Slack channel classification, infrastructure consolidation to NYC1.

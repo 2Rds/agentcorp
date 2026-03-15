@@ -208,7 +208,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment (see `agents/ea/.env.example`):**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `MEM0_API_KEY`, `OPENROUTER_API_KEY`
-- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID` (enables Slack transport + tools), `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
+- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID` (enables Slack transport + tools), `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools), `BLOCKDRIVE_ORG_ID` (real org UUID for Slack/Telegram transports), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
 
 ### WaaS Platform Packages
 
@@ -217,7 +217,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `agents.ts` — Agent registry (AGENT_CONFIGS) + department scopes
 - `models/` — MODEL_REGISTRY (9 models with pricing), ModelRouter, BoardSession (multi-agent deliberation + quorum voting)
 - `namespace/` — 7 AgentScopes (EA, CFA, CMA, COA, Legal, Sales, IR), ScopedRedisClient, ScopedMem0Client (fail-closed enforcement)
-- `messaging/` — MessageBus: routing, inbox, threads, escalation
+- `messaging/` — MessageBus: dual-mode persistence (Redis Streams + LIST fallback), routing, inbox, threads, escalation
 - `governance/` — GovernanceConfig, ApprovalCategory, PendingApproval, GovernanceDecision, SpendEvent types + BLOCKDRIVE_GOVERNANCE defaults
 
 **`@waas/runtime`** (`packages/runtime/`) — Express-based agent execution engine.
@@ -309,7 +309,7 @@ Deno runtime.
 - **Enrichment pipeline**: System prompt enriched with org memories + cross-namespace memories + session memories + matched skills (all via `Promise.allSettled` for resilience).
 - **Namespace isolation**: Each agent department gets `ScopedRedisClient` + `ScopedMem0Client` that auto-prefix keys. Cross-department access denied by default.
 - **Dual-mode agents**: Agents can run cognitive (Claude + tools + streaming) + conversational (ElevenLabs voice) modes sharing identity and memory. Voice deferred to Phase 2.
-- **Inter-agent messaging**: MessageBus via Redis LISTs + Telegram bot-to-bot DMs (transitioning to CF Queues).
+- **Inter-agent messaging**: MessageBus with dual-mode persistence (Redis Streams + LIST fallback) + Telegram transport. All 6 department agents have `message_agent` tool; bus not yet instantiated in AgentRuntime.
 - **Provider Keys mode**: When `CF_AIG_TOKEN` is set, Cloudflare AI Gateway injects API keys at edge — provider keys become optional.
 - **Google Sheets**: Service account with domain-wide delegation. Supports `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (raw JSON content for cloud platforms) or `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (file path for local dev). Service account JSON must never be committed (gitignored).
 - **Notion scope enforcement** (CFO): CFA_SCOPE Notion access rules inlined in `agent/src/lib/notion-client.ts` (agent package is outside npm workspaces, cannot import `@waas/shared`). EA agent has executive-tier access without scope enforcement.

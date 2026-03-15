@@ -92,7 +92,7 @@ waas/
 
 | Agent | Role | Runtime | Tools | Status |
 |-------|------|---------|-------|--------|
-| **Alex** (EA) | Executive Assistant — scheduling, comms, cross-dept coordination | Anthropic Messages API + tool loop | 11 | **Deployed** |
+| **Alex** (EA) | Executive Assistant — scheduling, comms, cross-dept coordination | Anthropic Messages API + tool loop | 7-14 | **Deployed** |
 | **Morgan** (CFA) | Financial modeling, cap table, investor data rooms, analytics | Claude Agent SDK + MCP | 31 | **Deployed** |
 | **Jordan** (COA) | Operations — workforce management, cross-dept coordination | Agent SDK + @waas/runtime | 13 | **Built** |
 | **Taylor** (CMA) | Marketing — content, campaigns, SEO, X/Twitter | Agent SDK + @waas/runtime | 11 | **Built** |
@@ -118,7 +118,7 @@ waas/
 - **Supabase Realtime** — Live frontend updates via postgres_changes subscriptions on 17 department tables with TanStack Query cache invalidation
 - **Database Webhooks** — pg_net triggers → Edge Function → agent server notifications on high-value table events
 - **Supabase Vault** — pgsodium encrypted secret storage + pg_net for database-level HTTP calls
-- **Inter-Agent Messaging** — Redis inbox + Telegram bot-to-bot transport
+- **Inter-Agent Messaging** — MessageBus with dual-mode persistence (Redis Streams + LIST fallback) + Telegram transport
 - **Namespace Isolation** — Scoped Redis + mem0 per department, fail-closed enforcement
 - **SSRF Protection** — URL validation blocking private IPs, cloud metadata, internal hosts
 - **Observability** — Sentry error tracking + PostHog product analytics across frontend and all 7 agent servers (zero-config when env vars unset)
@@ -130,7 +130,7 @@ waas/
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts |
 | Backend | Supabase (Postgres, Auth, RLS, Edge Functions) |
 | CFO Agent | Express, Claude Agent SDK, 31 MCP tools (incl. Notion + PDF) |
-| EA Agent | Express, Anthropic Messages API, 11 native tools, grammy (Telegram) |
+| EA Agent | Express, Anthropic Messages API, 7-14 native tools, grammy (Telegram), Slack (Socket Mode) |
 | Dept Agents | Express, Agent SDK + @waas/runtime, org-scoped MCP tools |
 | Platform | @waas/shared (types), @waas/runtime (execution engine + tool-helpers) |
 | Models | Claude Opus 4.6, Gemini 3.1 Pro, Sonar Pro, Grok 4.1 Fast, Granite 4.0, Command A |

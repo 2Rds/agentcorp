@@ -19,7 +19,8 @@ import { sdkMessageToSSE } from "../lib/stream-adapter.js";
 import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
 import { Sentry, getPostHog } from "../lib/observability.js";
 import type { GovernanceEngine } from "../lib/governance.js";
-import type { Mem0Client } from "../lib/mem0-client.js";
+import type { TelemetryClient } from "../lib/telemetry.js";
+import type { MemoryClient } from "../lib/redis-memory.js";
 import type { ModelRouter } from "@waas/shared";
 import { MODEL_REGISTRY } from "@waas/shared";
 import type { RedisClientType } from "redis";
@@ -33,8 +34,8 @@ export interface ChatRouteDeps {
   systemPrompt: string;
   /** Function that creates org-scoped MCP tools for the Claude SDK */
   createMcpServer: (orgId: string, userId: string) => McpSdkServerConfigWithInstance;
-  /** mem0 client for memory enrichment */
-  mem0?: Mem0Client;
+  /** Memory client for enrichment (RedisMemoryClient or Mem0Client) */
+  memory?: MemoryClient;
   /** Model router for embeddings (plugin matching) */
   router: ModelRouter;
   /** Redis client (for plugin vector search) */
@@ -47,7 +48,9 @@ export interface ChatRouteDeps {
   maxTurns?: number;
   /** Governance engine for spend tracking */
   governance?: GovernanceEngine;
-  /** Supabase service client for writing usage events */
+  /** Telemetry client for usage event tracking */
+  telemetry?: TelemetryClient;
+  /** Supabase service client (legacy — use telemetry instead) */
   supabase?: SupabaseClient;
 }
 
@@ -187,13 +190,14 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
         void (async () => {
           try {
             // Estimate token counts from character lengths (rough: 1 token ≈ 4 chars)
-            // Apply 3x multiplier to account for multi-turn tool use tokens not captured
-            // in the streamed output (tool schemas, tool results, intermediate turns)
-            const TOKEN_ESTIMATION_MULTIPLIER = 3;
+            // 3x multiplier on INPUT only — accounts for tool schemas, tool results,
+            // and intermediate turns not captured in the prompt text.
+            // Output is fully captured in fullText — no multiplier needed.
+            const INPUT_TOKEN_MULTIPLIER = 3;
             const rawInputTokens = Math.ceil(spendPromptLen / 4);
             const rawOutputTokens = Math.ceil(spendResponseLen / 4);
-            const inputTokens = rawInputTokens * TOKEN_ESTIMATION_MULTIPLIER;
-            const outputTokens = rawOutputTokens * TOKEN_ESTIMATION_MULTIPLIER;
+            const inputTokens = rawInputTokens * INPUT_TOKEN_MULTIPLIER;
+            const outputTokens = rawOutputTokens;
             const model = MODEL_REGISTRY["opus"];
             const estimatedCostUsd = model
               ? (inputTokens / 1_000_000) * model.pricing.inputPerMillion +
@@ -216,20 +220,17 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
               );
             }
 
-            // Persist usage event to Supabase for frontend visibility
-            if (deps.supabase) {
-              const { error: insertErr } = await deps.supabase
-                .from("agent_usage_events")
-                .insert({
-                  org_id: spendOrgId,
-                  agent_id: deps.agentId,
-                  model: "claude-opus-4-6",
-                  input_tokens: inputTokens,
-                  output_tokens: outputTokens,
-                  cost_usd: estimatedCostUsd,
-                  latency_ms: Date.now() - spendStartTime,
-                });
-              if (insertErr) console.error(`[${deps.agentId}] Failed to write usage event:`, insertErr.message);
+            // Record usage event via telemetry (CF Analytics Engine → Supabase fallback)
+            if (deps.telemetry) {
+              await deps.telemetry.record({
+                orgId: spendOrgId,
+                agentId: deps.agentId,
+                model: "claude-opus-4-6",
+                inputTokens,
+                outputTokens,
+                costUsd: estimatedCostUsd,
+                latencyMs: Date.now() - spendStartTime,
+              });
             }
           } catch (spendErr) {
             console.error(`[${deps.agentId}] Spend tracking failed (non-fatal):`, spendErr);
@@ -274,9 +275,9 @@ async function enrichSystemPrompt(
 
   const [memoriesResult, sessionResult, skillsResult] = await Promise.allSettled([
     // Organization memories
-    deps.mem0?.searchAgentMemories(deps.agentId, orgId, userMessage, 5),
+    deps.memory?.searchAgentMemories(deps.agentId, orgId, userMessage, 5),
     // Session memories
-    deps.mem0?.getSessionMemories(deps.agentId, conversationId, 10),
+    deps.memory?.getSessionMemories(deps.agentId, conversationId, 10),
     // Matched skills
     (async () => {
       const redis = await deps.getRedis();

@@ -186,7 +186,7 @@ Sean (Human Principal)
 Dual-mode governance system (startup/enterprise) managed by GovernanceEngine in `@waas/runtime`. Types and defaults in `@waas/shared/governance`.
 
 **Startup mode (current):** Human-configured tripwires with Telegram approval flow.
-- Daily spend tracking per agent via Redis counters (keyed by `{orgId}:{agentId}:{date}`)
+- Daily spend tracking per agent via Redis counters (keyed by `{orgId}:{agentId}:{date}`), with in-memory fallback when Redis is unavailable
 - Pending approvals stored in Redis with TTL, resolved via Lua atomic check-and-set (no TOCTOU race), presented via Telegram inline keyboards in C-Suite group chat
 - Authorized approver enforcement (Sean's Telegram user ID)
 - 6 approval categories: external_communication, marketing_activity, social_media_post, financial_commitment, escalation, spend_limit_exceeded
@@ -202,18 +202,19 @@ Department agents escalate to COA (Jordan) for strategic decisions. COA escalate
 
 Express server using the Anthropic Messages API directly (not Claude Agent SDK). Claude Opus 4.6 as the primary model with an agentic tool loop (max 15 turns).
 
-### Tools (11 total)
+### Tools (7-14 total, conditional)
 
-| Domain | Count | Tools |
-|--------|-------|-------|
-| Knowledge | 2 | search_knowledge (cross-namespace), save_knowledge |
-| Tasks | 2 | create_task, list_tasks |
-| Meeting Notes | 1 | save_meeting_notes |
-| Communications | 1 | draft_email |
-| Web Search | 1 | web_search (Perplexity Sonar) |
-| Notion | 4 | search_notion, read_notion_page, create_notion_page, update_notion_page |
+| Domain | Count | Tools | Condition |
+|--------|-------|-------|-----------|
+| Knowledge | 2 | search_knowledge (cross-namespace), save_knowledge | Always |
+| Tasks | 2 | create_task, list_tasks | Always |
+| Meeting Notes | 1 | save_meeting_notes | Always |
+| Communications | 1 | draft_email | Always |
+| Web Search | 1 | web_search (Perplexity Sonar) | Always |
+| Slack | 3 | send_slack_message, read_slack_channel, list_slack_channels | `SLACK_BOT_TOKEN` |
+| Notion | 4 | search_notion, read_notion_page, create_notion_page, update_notion_page | `NOTION_API_KEY` |
 
-Tools are defined as native Anthropic API `Tool` definitions + handler functions in `bridge.ts` (tool bridge pattern). Notion tools are conditional — only registered when `NOTION_API_KEY` is set.
+Tools are defined as native Anthropic API `Tool` definitions + handler functions in `bridge.ts` (tool bridge pattern). Slack and Notion tools are conditional — only registered when their respective env vars are set.
 
 ### Transport
 

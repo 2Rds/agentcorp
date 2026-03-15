@@ -426,6 +426,44 @@ function createTools(orgId: string, _userId: string): ToolEntry[] {
         },
       },
     ] as ToolEntry[] : []),
+
+    // ─── Inter-Agent Messaging ─────────────────────────────────────────
+    {
+      def: {
+        name: "message_agent",
+        description: "Send a message to another agent in the network. Executive-tier: can message COA, CFA, CMA, Legal, Sales. Messages are queued for delivery.",
+        input_schema: {
+          type: "object" as const,
+          properties: {
+            target_agent_id: { type: "string", description: "Agent ID to message (e.g., blockdrive-coa, blockdrive-cma, blockdrive-legal)" },
+            subject: { type: "string", description: "Message subject (max 200 chars)" },
+            message: { type: "string", description: "Message content (max 4000 chars)" },
+            priority: { type: "string", enum: ["normal", "urgent"], description: "Message priority" },
+          },
+          required: ["target_agent_id", "subject", "message"],
+        },
+      },
+      handler: async (args: Record<string, any>) => {
+        try {
+          const { data, error } = await supabaseAdmin
+            .from("agent_messages")
+            .insert({
+              org_id: orgId,
+              sender_id: "blockdrive-ea",
+              target_id: args.target_agent_id,
+              message: `${args.subject}: ${args.message}`,
+              priority: args.priority || "normal",
+              status: "queued",
+            })
+            .select("id, target_id, status")
+            .single();
+          if (error) return `Message send failed: ${error.message}`;
+          return `Message sent to ${args.target_agent_id} (ID: ${data.id}, status: ${data.status})`;
+        } catch (e: any) {
+          return `Message send failed: ${e.message}`;
+        }
+      },
+    },
   ];
 }
 

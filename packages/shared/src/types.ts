@@ -334,6 +334,22 @@ export interface ConversationResult {
   timestamp: string;
 }
 
+// ─── NextGenSwitch / Telephony Types ─────────────────────────────────────
+
+/** NextGenSwitch PBX configuration for voice telephony */
+export interface NextGenSwitchConfig {
+  /** NextGenSwitch base URL (e.g., https://sales.blockdrive.co) */
+  baseUrl: string;
+  /** API key for NextGenSwitch REST API authentication */
+  apiKey: string;
+  /** AI Assistant ID for inbound call routing */
+  assistantId?: string;
+  /** Campaign ID for outbound calling */
+  campaignId?: string;
+  /** WebSocket path for media streams (default: /voice/ws) */
+  wsPath?: string;
+}
+
 // ─── Provider Credentials ───────────────────────────────────────────────────
 
 /** All provider API credentials */

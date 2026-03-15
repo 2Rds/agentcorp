@@ -155,11 +155,11 @@ export const LEGAL_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-legal"]!,
 };
 
-/** Chief Sales Agent — pipeline, prospecting, proposals */
+/** Sales SDR / Sales Assistant — pipeline, prospecting, proposals, desk work for sales agents */
 export const SALES_CONFIG: AgentConfig = {
   id: "blockdrive-sales",
   name: "Sam",
-  title: "Chief Sales Agent",
+  title: "Sales Assistant / SDR",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "sales",
@@ -169,8 +169,17 @@ export const SALES_CONFIG: AgentConfig = {
     { type: "web", channelId: "sales-dashboard", canSend: true },
     { type: "telegram", channelId: "blockdrive_sales_bot", canSend: true },
     { type: "slack", channelId: "blockdrive-sales", canSend: true },
+    { type: "voice", channelId: "sales-phone", canSend: true },
   ],
   plugins: AGENT_PLUGINS["blockdrive-sales"]!,
+  voice: {
+    voiceId: "",  // Set via ELEVENLABS_VOICE_ID env var per deployment
+    mode: "conversational",
+    ttsModel: "eleven_flash_v2_5",
+    sttModel: "scribe_v2_realtime",
+    firstMessage: "Hi, this is Sam from BlockDrive. Am I catching you at a good time?",
+    maxCallDurationSecs: 600,
+  },
 };
 
 // ─── Agent Registry ─────────────────────────────────────────────────────────

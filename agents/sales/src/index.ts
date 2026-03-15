@@ -12,6 +12,7 @@ import { SALES_CONFIG } from "@waas/shared";
 import { config } from "./config.js";
 import { SYSTEM_PROMPT } from "./agent/system-prompt.js";
 import { createMcpServer } from "./tools/index.js";
+import { setRuntime } from "./runtime-ref.js";
 
 const runtime = new AgentRuntime({
   config: SALES_CONFIG,
@@ -39,6 +40,8 @@ const runtime = new AgentRuntime({
     },
   } : undefined,
 });
+
+setRuntime(runtime);
 
 runtime.start().catch((err) => {
   console.error("Sales Agent failed to start:", err);

@@ -64,6 +64,9 @@ export class GovernanceEngine {
   private agentId: string;
   private agentName: string;
   private getRedis: () => Promise<RedisClientType | null>;
+  /** In-memory spend fallback when Redis is unavailable (reset daily) */
+  private fallbackSpend = 0;
+  private fallbackSpendDate = "";
 
   constructor(engineConfig: GovernanceEngineConfig) {
     this.config = engineConfig.governance;
@@ -79,15 +82,25 @@ export class GovernanceEngine {
    * Increments the daily Redis counter for this agent (scoped by orgId).
    * Returns the new daily total and whether the limit is breached.
    *
-   * Fail-open with Sentry alert when Redis is unavailable.
+   * When Redis is unavailable, falls back to in-memory counter
+   * (rough tracking — resets on process restart, but prevents unlimited spend).
    */
   async recordSpend(event: SpendEvent): Promise<{ totalToday: number; limitBreached: boolean }> {
     const redis = await this.getRedis();
     if (!redis) {
-      const msg = `[${this.agentId}] Governance DEGRADED: Redis unavailable — spend tracking disabled`;
+      const msg = `[${this.agentId}] Governance DEGRADED: Redis unavailable — using in-memory spend fallback`;
       console.warn(msg);
       Sentry.captureMessage(msg, "warning");
-      return { totalToday: 0, limitBreached: false };
+      const today = new Date().toISOString().slice(0, 10);
+      if (this.fallbackSpendDate !== today) {
+        this.fallbackSpend = 0;
+        this.fallbackSpendDate = today;
+      }
+      this.fallbackSpend += event.estimatedCostUsd;
+      return {
+        totalToday: this.fallbackSpend,
+        limitBreached: this.fallbackSpend >= this.config.spendLimitPerAgentPerDay,
+      };
     }
 
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
@@ -419,18 +432,18 @@ export class GovernanceEngine {
    * Call this once during agent startup, BEFORE bot.start().
    */
   setupCallbackHandler(bot: Bot): void {
-    bot.on("callback_query:data", async (ctx) => {
+    bot.on("callback_query:data", async (ctx, next) => {
       try {
         const data = ctx.callbackQuery.data;
-        if (!data.startsWith("gov:")) return;
+        if (!data.startsWith("gov:")) return next();
 
         const parts = data.split(":");
-        if (parts.length !== 3) return;
+        if (parts.length !== 3) return next();
 
         const action = parts[1];
         const approvalId = parts[2];
 
-        if (action !== "approve" && action !== "deny") return;
+        if (action !== "approve" && action !== "deny") return next();
 
         // Authorization check — only authorized approvers can resolve
         const fromId = ctx.callbackQuery.from.id;
