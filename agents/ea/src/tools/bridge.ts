@@ -7,7 +7,7 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { searchOrgMemories, addOrgMemory, searchCrossNamespaceMemories } from "../lib/mem0-client.js";
+import { searchOrgMemories, addOrgMemory, searchCrossNamespaceMemories } from "../lib/memory-client.js";
 import { chatCompletion } from "../lib/model-router.js";
 import { config } from "../config.js";
 import * as notion from "../lib/notion-client.js";

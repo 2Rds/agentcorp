@@ -4,7 +4,7 @@ import { supabaseAdmin } from "../lib/supabase.js";
 import { config } from "../config.js";
 import { parseDocumentWithVision } from "../lib/gemini-client.js";
 import { indexDocument } from "../lib/document-indexer.js";
-import { addOrgMemory } from "../lib/mem0-client.js";
+import { addOrgMemory } from "../lib/memory-client.js";
 import * as XLSX from "xlsx";
 import { PDFParse } from "pdf-parse";
 import mammoth from "mammoth";
@@ -203,7 +203,7 @@ export function documentsTools(orgId: string) {
             metadata: { source: "document", document_id: doc.id, document_name: doc.name },
             timestamp: Math.floor(Date.now() / 1000),
           },
-        ).catch(e => console.error("Mem0 memory store failed (document):", e));
+        ).catch(e => console.error("Memory store failed (document):", e));
 
         return { content: [{ type: "text" as const, text: result }] };
       } catch (parseError: any) {

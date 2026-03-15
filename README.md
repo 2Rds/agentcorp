@@ -56,8 +56,9 @@ ANTHROPIC_API_KEY=...              # Claude Opus 4.6
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENROUTER_API_KEY=...             # Non-Claude models
-MEM0_API_KEY=...                   # Persistent memory
-# Optional: PORT, CORS_ORIGINS, COHERE_API_KEY, REDIS_URL, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, GOOGLE_SERVICE_ACCOUNT_KEY_JSON, NOTION_API_KEY, SENTRY_DSN, POSTHOG_API_KEY, POSTHOG_HOST
+REDIS_URL=...                      # Persistent memory + vector search
+COHERE_API_KEY=...                 # Embeddings + reranking
+# Optional: PORT, CORS_ORIGINS, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, GOOGLE_SERVICE_ACCOUNT_KEY_JSON, NOTION_API_KEY, SENTRY_DSN, POSTHOG_API_KEY, POSTHOG_HOST
 ```
 
 **EA Agent (`agents/ea/.env`):**
@@ -66,7 +67,8 @@ ANTHROPIC_API_KEY=...              # Claude Opus 4.6
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENROUTER_API_KEY=...
-MEM0_API_KEY=...
+REDIS_URL=...                      # Persistent memory + vector search
+COHERE_API_KEY=...                 # Embeddings + reranking
 # Optional: PORT (3002), TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN, AGENT_MESSAGE_SECRET, NOTION_API_KEY
 ```
 
@@ -108,7 +110,7 @@ waas/
 - **Financial Model** — SaaS-template with scenario toggling, derived metrics (burn, runway, MRR)
 - **Cap Table** — Equity tracking across funding rounds
 - **Investor Portal** — DocSend-style links with password gating and analytics
-- **Knowledge Base** — Document uploads with Gemini vision, semantic search, graph memory
+- **Knowledge Base** — Document uploads with Gemini vision, semantic search, vector search via Redis
 - **Notion Integration** — Read/write access to Notion databases (Decision Log, Project Hub, Investor Pipeline) with scope enforcement
 - **PDF Generation** — Branded investor documents (exec summaries, metrics one-pagers) via Playwright HTML→PDF
 - **Google Sheets** — Model sync via service account with domain-wide delegation
@@ -119,7 +121,7 @@ waas/
 - **Database Webhooks** — pg_net triggers → Edge Function → agent server notifications on high-value table events
 - **Supabase Vault** — pgsodium encrypted secret storage + pg_net for database-level HTTP calls
 - **Inter-Agent Messaging** — MessageBus with dual-mode persistence (Redis Streams + LIST fallback) + Telegram transport
-- **Namespace Isolation** — Scoped Redis + mem0 per department, fail-closed enforcement
+- **Namespace Isolation** — Scoped Redis per department, fail-closed enforcement
 - **SSRF Protection** — URL validation blocking private IPs, cloud metadata, internal hosts
 - **Observability** — Sentry error tracking + PostHog product analytics across frontend and all 7 agent servers (zero-config when env vars unset)
 
@@ -135,7 +137,7 @@ waas/
 | Platform | @waas/shared (types), @waas/runtime (execution engine + tool-helpers) |
 | Models | Claude Opus 4.6, Gemini 3.1 Pro, Sonar Pro, Grok 4.1 Fast, Granite 4.0, Command A |
 | Search | Redis 8.4 (vector search, semantic cache) |
-| Memory | Mem0 (graph memory, org-scoped, cross-namespace read for EA) |
+| Memory | Redis (persistent memory with vector search, org-scoped) |
 | Observability | Sentry (@sentry/react + @sentry/node), PostHog (posthog-js + posthog-node) |
 | Deployment | Vercel (frontend), DigitalOcean App Platform NYC1 (agents), n8n NYC1 (automation) |
 

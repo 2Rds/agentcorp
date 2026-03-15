@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
-import { searchOrgMemories, getSessionMemories, searchCrossNamespaceMemories } from "../lib/mem0-client.js";
+import { searchOrgMemories, getSessionMemories, searchCrossNamespaceMemories } from "../lib/memory-client.js";
 import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
 import { createEaTools } from "../tools/bridge.js";
 import { config } from "../config.js";

@@ -1,7 +1,7 @@
 /**
  * Namespace Enforcement Layer
  *
- * Runtime enforcement of namespace isolation. Wraps Redis, mem0,
+ * Runtime enforcement of namespace isolation. Wraps Redis, memory,
  * and Supabase clients with scope checks. Agents receive pre-scoped
  * clients that physically cannot access unauthorized namespaces.
  */
@@ -40,9 +40,9 @@ export class ScopeEnforcer {
     });
   }
 
-  /** Check if agent can query another agent's mem0 memories */
-  checkMem0Access(targetAgentId: string, requiredAccess: AccessLevel): boolean {
-    return this.scope.mem0Namespaces.some(ns => {
+  /** Check if agent can query another agent's memories */
+  checkMemoryAccess(targetAgentId: string, requiredAccess: AccessLevel): boolean {
+    return this.scope.memoryNamespaces.some(ns => {
       if (ns.agentId !== "*" && ns.agentId !== targetAgentId) return false;
       if (requiredAccess === "readwrite" && ns.access === "read") return false;
       return true;
@@ -68,9 +68,9 @@ export class ScopeEnforcer {
     return ownNs.prefix;
   }
 
-  /** Build mem0 search filters scoped to this agent's access */
-  buildMem0Filters(additionalFilters?: Record<string, unknown>): Record<string, unknown> {
-    const hasWildcardRead = this.scope.mem0Namespaces.some(ns => ns.agentId === "*");
+  /** Build memory search filters scoped to this agent's access */
+  buildMemoryFilters(additionalFilters?: Record<string, unknown>): Record<string, unknown> {
+    const hasWildcardRead = this.scope.memoryNamespaces.some(ns => ns.agentId === "*");
 
     if (hasWildcardRead) {
       // Executive/compliance: can search all agents, no agent_id filter
@@ -83,7 +83,7 @@ export class ScopeEnforcer {
     }
 
     // Department-scoped: only own agent_id + readable parent
-    const readableIds = this.scope.mem0Namespaces.map(ns => ns.agentId);
+    const readableIds = this.scope.memoryNamespaces.map(ns => ns.agentId);
     return {
       AND: [
         { user_id: "project-waas" },
@@ -93,8 +93,8 @@ export class ScopeEnforcer {
     };
   }
 
-  /** Build mem0 write metadata for this agent */
-  buildMem0WriteMetadata(category: string, extra?: Record<string, unknown>): Record<string, unknown> {
+  /** Build memory write metadata for this agent */
+  buildMemoryWriteMetadata(category: string, extra?: Record<string, unknown>): Record<string, unknown> {
     return {
       namespace: this.agentId.replace("blockdrive-", ""),
       agent_id: this.agentId,

@@ -2,7 +2,7 @@
  * SSE Streaming Chat Route
  *
  * The main conversation endpoint for every agent. Takes a user message,
- * enriches the system prompt with mem0 memories + matched skills,
+ * enriches the system prompt with persistent memories + matched skills,
  * creates a Claude Agent SDK query with org-scoped MCP tools,
  * and streams the response as Server-Sent Events.
  *
@@ -34,7 +34,7 @@ export interface ChatRouteDeps {
   systemPrompt: string;
   /** Function that creates org-scoped MCP tools for the Claude SDK */
   createMcpServer: (orgId: string, userId: string) => McpSdkServerConfigWithInstance;
-  /** Memory client for enrichment (RedisMemoryClient or Mem0Client) */
+  /** Memory client for enrichment (RedisMemoryClient) */
   memory?: MemoryClient;
   /** Model router for embeddings (plugin matching) */
   router: ModelRouter;
@@ -259,7 +259,7 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
 
 /**
  * Enrich the base system prompt with:
- *   1. Organization memories from mem0
+ *   1. Organization memories from memory store
  *   2. Session memories from current conversation
  *   3. Matched domain knowledge (plugin skills)
  *

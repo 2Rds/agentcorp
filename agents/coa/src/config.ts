@@ -22,7 +22,6 @@ export const config = {
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:8080").split(",").map(s => s.trim()),
 
   openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
-  mem0ApiKey: required("MEM0_API_KEY"),
 
   // Cloudflare AI Gateway (optional)
   cfAccountId: optional("CF_ACCOUNT_ID"),
@@ -47,6 +46,9 @@ export const config = {
 
   // Perplexity (optional)
   perplexityApiKey: optional("PERPLEXITY_API_KEY"),
+
+  // Agent network (health checks)
+  agentBaseUrl: optional("AGENT_BASE_URL", "https://agentcorp-ghgvq.ondigitalocean.app"),
 } as const;
 
 // Startup validation

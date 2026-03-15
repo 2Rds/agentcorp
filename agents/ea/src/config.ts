@@ -24,7 +24,6 @@ export const config = {
 
   // Multi-model via OpenRouter (single key for all models)
   openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
-  mem0ApiKey: required("MEM0_API_KEY"),
 
   // Cloudflare AI Gateway + Workers AI (optional — falls back to direct URLs)
   cfAccountId: optional("CF_ACCOUNT_ID"),
@@ -37,9 +36,6 @@ export const config = {
 
   // Cohere (Rerank for plugin resolution)
   cohereApiKey: optional("COHERE_API_KEY"),
-
-  // Webhook secrets
-  mem0WebhookSecret: optional("MEM0_WEBHOOK_SECRET"),
 
   // Slack integration (optional)
   slackBotToken: optional("SLACK_BOT_TOKEN"),
@@ -57,11 +53,14 @@ export const config = {
   notionApiKey: optional("NOTION_API_KEY"),
   notionEnabled: !!process.env.NOTION_API_KEY,
 
-  // Organization context (required for Slack/Telegram transports to scope DB + mem0 queries)
+  // Organization context (required for Slack/Telegram transports to scope DB + memory queries)
   blockdriveOrgId: optional("BLOCKDRIVE_ORG_ID"),
 
   // Inter-agent messaging
   agentMessageSecret: optional("AGENT_MESSAGE_SECRET"),
+
+  // Database webhooks (Supabase pg_net → Edge Function → EA)
+  webhookSecret: optional("WEBHOOK_SECRET"),
 } as const;
 
 // ─── Startup validation ───────────────────────────────────────────────────────

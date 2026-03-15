@@ -8,7 +8,7 @@ import {
   getSheetNames,
   isGoogleSheetsEnabled,
 } from "../lib/google-sheets-client.js";
-import { addOrgMemory } from "../lib/mem0-client.js";
+import { addOrgMemory } from "../lib/memory-client.js";
 
 export function googleSheetsTools(orgId: string) {
   const populate_model_sheet = tool(
@@ -64,7 +64,7 @@ IMPORTANT: Only write to INPUT cells. Never overwrite formula cells. The Assumpt
             metadata: { tool: "populate_model_sheet", cell_count: updatedCells },
             timestamp: Math.floor(Date.now() / 1000),
           },
-        ).catch(e => console.error("Mem0 memory store failed:", e));
+        ).catch(e => console.error("Memory store failed:", e));
 
         return { content: [{ type: "text" as const, text: `Successfully wrote ${updatedCells} cells to the Google Sheet. All dependent formulas have auto-recalculated.` }] };
       } catch (err: any) {

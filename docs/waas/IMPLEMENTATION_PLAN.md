@@ -5,11 +5,11 @@
 ### Infrastructure (v1.0.0)
 
 - [x] `@waas/shared` — Core types, model router, namespace isolation, messaging bus
-- [x] `@waas/runtime` — AgentRuntime, auth middleware, SSE chat, mem0, Redis, Telegram transport
+- [x] `@waas/runtime` — AgentRuntime, auth middleware, SSE chat, Redis memory, Redis, Telegram transport
 - [x] ModelRouter with 4 providers (Anthropic, OpenRouter, Perplexity, Cohere)
 - [x] BoardSession for multi-agent deliberation with quorum voting
 - [x] MessageBus with atomic Redis inbox and thread tracking
-- [x] ScopedRedisClient and ScopedMem0Client for namespace isolation
+- [x] ScopedRedisClient and ScopedMemoryClient for namespace isolation
 - [x] 7 department scopes (EA, CFA, CMA, COA, Legal, Sales, IR)
 - [x] Knowledge-work-plugin loader with 3-stage resolution
 - [x] 13-agent security audit — 32 critical + 65 important issues resolved
@@ -19,7 +19,7 @@
 
 - [x] Claude Agent SDK with 26 MCP tools across 9 domains
 - [x] Multi-model orchestration via OpenRouter (9 models)
-- [x] mem0 persistent memory with graph relationships
+- [x] Redis-backed persistent memory with vector search
 - [x] Redis 8.4 vector search (3 indexes)
 - [x] Financial model, cap table, investor data rooms
 - [x] Document intelligence with Gemini vision

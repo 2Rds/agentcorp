@@ -2,6 +2,40 @@
 
 All notable changes to the WaaS platform.
 
+## [v2.4.1] - 2026-03-15
+
+Full Mem0 cloud API removal — migrated all persistent memory to Redis-backed storage with RediSearch vector search + Cohere embeddings. Zero Mem0 references remain in any `.ts` source file.
+
+### Added
+
+- **Standalone Redis memory clients** — `memory-client.ts` for CFO (`agent/`) and EA (`agents/ea/`) agents; same `idx:memories` schema as `@waas/runtime`'s `RedisMemoryClient` so all agents share one memory pool
+- **`RedisClientType` re-export** — Both CFO and EA `redis-client.ts` now export the type for `memory-client.ts` imports
+
+### Changed
+
+- **Memory imports migrated** — All 15+ consumer files across CFO, EA, and runtime changed from `mem0-client.js` to `memory-client.js`
+- **`mem0Namespaces` → `memoryNamespaces`** — Renamed in `@waas/shared` types, scopes, and enforcement
+- **`ScopedMem0Client` → `ScopedMemoryClient`** — All enforcement method names and references updated across shared/runtime packages
+- **AgentRuntime memory lifecycle** — Removed `Mem0Client` fallback constructor; only creates `RedisMemoryClient` after Redis connects
+- **Knowledge graph routes** — Removed graph relation handling (Mem0-specific); returns flat memory entities with empty relationships
+- **Documentation purge** — Mem0 references replaced with Redis-based descriptions across 25+ files (CLAUDE.md, README.md, SECURITY.md, ARCHITECTURE.md, docs/waas/, memory/)
+
+### Fixed
+
+- **`graphEntities` → `knowledgeEntries` stat key mismatch** — Backend knowledge routes (CFO + EA) now return `knowledgeEntries` matching the frontend `KnowledgeBaseTab` interface
+- **Dead `metadata` Zod param** — Removed unused `metadata` parameter from CFO `update_knowledge_entry` tool (Redis `updateMemory` only accepts 2 args)
+- **EA `.env.example`** — Removed stale `MEM0_API_KEY` and `MEM0_WEBHOOK_SECRET` entries
+- **LLM-facing vendor leaks** — Compliance system prompt "mem0 and Redis" → "the memory system"; tool descriptions scrubbed of Mem0 branding
+
+### Removed
+
+- **`mem0-client.ts`** — Deleted from CFO agent (354 lines), EA agent (349 lines), and `@waas/runtime` (272 lines)
+- **`mem0-setup.ts`** — Deleted from CFO agent (95 lines) and EA agent (95 lines); auto-discovery of Mem0 org/project no longer needed
+- **`Mem0Client` class** — Removed from `@waas/runtime` exports; `AgentRuntimeConfig.env` no longer accepts `mem0ApiKey`, `mem0OrgId`, `mem0ProjectId`
+- **`/api/webhooks/mem0` route** — Removed from both CFO and EA webhook routers
+- **`MEM0_API_KEY` env var** — Removed from all 7 agent configs (CFO, EA, COA, CMA, Compliance, Legal, Sales)
+- **`MEM0_WEBHOOK_SECRET` env var** — Removed from CFO and EA configs
+
 ## [v2.4.0] - 2026-03-15
 
 Infrastructure hardening: MessageBus dual-mode (Redis Streams + LIST fallback), scoped stream operations, governance spend fallback, 25 review issue fixes across all agents and packages, EA org-scoping for Slack/Telegram transports.

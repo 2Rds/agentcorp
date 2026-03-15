@@ -51,7 +51,7 @@ These exist today in `@waas/runtime` and are always active regardless of mode:
 | Guardrail | Implementation | Location |
 |-----------|---------------|----------|
 | Budget escalation ($10/day threshold) | All agents alert + block above $10/day | Governance middleware |
-| Namespace isolation | `ScopedRedisClient` + `ScopedMem0Client` per department | `@waas/shared/namespace` |
+| Namespace isolation | `ScopedRedisClient` + `ScopedMemoryClient` per department | `@waas/shared/namespace` |
 | SSRF protection | `isAllowedUrl()` blocks private IPs, cloud metadata, localhost | `@waas/runtime/tool-helpers` |
 | Org-scoped data | All DB queries scoped by `orgId` via closure | Every tool factory |
 | Fail-closed agent registry | Unregistered agent IDs denied, not allowed | `@waas/shared/namespace` |
@@ -371,11 +371,11 @@ tool(
 
 ### Layer 5: Async CCO Audit (cron-based)
 
-The CCO agent runs structured compliance scans twice daily, triggered by n8n cron jobs. These scans combine cross-namespace mem0 search, Supabase queries, spend tracking, **MessageBus history review**, and **approval decision audit** into a unified compliance report.
+The CCO agent runs structured compliance scans twice daily, triggered by n8n cron jobs. These scans combine cross-namespace memory search, Supabase queries, spend tracking, **MessageBus history review**, and **approval decision audit** into a unified compliance report.
 
 **Morning Audit (9:00 AM, configured timezone):**
 - Scope: All agent activity since previous evening audit
-- Actions: Cross-namespace mem0 scan, MessageBus history review, Supabase query for new records, spend tally, review of all approval decisions (approved, denied, expired)
+- Actions: Cross-namespace memory scan, MessageBus history review, Supabase query for new records, spend tally, review of all approval decisions (approved, denied, expired)
 - Output: Morning Compliance Brief → C-Suite Telegram group
 - Format: Findings with severity (Critical/High/Medium/Low/Info), remediation recommendations
 

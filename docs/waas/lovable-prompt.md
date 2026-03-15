@@ -82,7 +82,7 @@ A responsive grid of 7 agent cards. Each card shows:
 - Agent name and title (e.g., "Alex — Executive Assistant")
 - Status badge (online/offline) — fetched from `GET {agentUrl}/health`
 - Uptime duration
-- Service status indicators (Redis, Mem0, Telegram) as small dots
+- Service status indicators (Redis, Memory, Telegram) as small dots
 
 Agent data:
 | ID | Name | Title | Color |

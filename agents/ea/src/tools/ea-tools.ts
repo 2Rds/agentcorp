@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { addOrgMemory } from "../lib/mem0-client.js";
+import { addOrgMemory } from "../lib/memory-client.js";
 import { chatCompletion } from "../lib/model-router.js";
 
 // ─── Task Management ─────────────────────────────────────────────────────────

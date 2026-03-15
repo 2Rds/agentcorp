@@ -1,12 +1,12 @@
 import { Router, Request, Response } from "express";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { getAllOrgMemories, type GraphMemoryResponse, type Memory } from "../lib/mem0-client.js";
+import { getAllOrgMemories, type Memory } from "../lib/memory-client.js";
 
 const router = Router();
 
 /**
  * GET /api/knowledge/graph?organizationId=...
- * Returns Mem0 memories with graph relations for the org.
+ * Returns memories from the knowledge base for the org.
  */
 router.get("/api/knowledge/graph", async (req: Request, res: Response) => {
   try {
@@ -42,58 +42,25 @@ router.get("/api/knowledge/graph", async (req: Request, res: Response) => {
       return;
     }
 
-    const mem0Result = await getAllOrgMemories(organizationId, { includeGraph: true, pageSize: 200 });
+    const memories = await getAllOrgMemories(organizationId, { pageSize: 200 });
 
-    const isGraphResponse = (r: Memory[] | GraphMemoryResponse): r is GraphMemoryResponse =>
-      !Array.isArray(r) && "results" in r;
-
-    const memories = isGraphResponse(mem0Result) ? mem0Result.results : mem0Result;
-    const graphRelations = isGraphResponse(mem0Result) ? mem0Result.relations ?? [] : [];
-    const graphEntities = isGraphResponse(mem0Result) ? mem0Result.entities ?? [] : [];
-
-    const entities: Array<{
-      id: string;
-      label: string;
-      type: "memory" | "entity";
-      content: string;
-      categories?: string[];
-      metadata?: Record<string, unknown>;
-    }> = [];
-
-    for (const mem of memories) {
-      entities.push({
-        id: `mem0-${mem.id}`,
-        label: (mem.metadata?.title as string) || mem.memory.slice(0, 50),
-        type: "memory",
-        content: mem.memory,
-        categories: mem.categories,
-        metadata: mem.metadata,
-      });
-    }
-
-    for (const entity of graphEntities) {
-      entities.push({
-        id: `entity-${entity.name.toLowerCase().replace(/\s+/g, "-")}`,
-        label: entity.name,
-        type: "entity",
-        content: `${entity.type}: ${entity.name}`,
-      });
-    }
-
-    const relationships = graphRelations.map(rel => ({
-      source: `entity-${rel.source.toLowerCase().replace(/\s+/g, "-")}`,
-      target: `entity-${rel.target.toLowerCase().replace(/\s+/g, "-")}`,
-      type: rel.relationship,
-      score: rel.score,
+    const entities = memories.map((mem) => ({
+      id: `memory-${mem.id}`,
+      label: (mem.metadata?.title as string) || mem.memory.slice(0, 50),
+      type: "memory" as const,
+      content: mem.memory,
+      categories: mem.categories,
+      metadata: mem.metadata,
     }));
 
     res.json({
       entities,
-      relationships,
+      relationships: [],
       stats: {
         memories: memories.length,
-        graphEntities: graphEntities.length,
-        connections: relationships.length,
+        knowledgeEntries: entities.length,
+        documents: 0,
+        connections: 0,
       },
     });
   } catch (err: any) {

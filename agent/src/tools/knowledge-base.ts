@@ -6,7 +6,7 @@ import {
   updateMemory,
   deleteMemory,
   feedbackMemory,
-} from "../lib/mem0-client.js";
+} from "../lib/memory-client.js";
 
 export function knowledgeBaseTools(orgId: string) {
   const search_knowledge_base = tool(
@@ -53,7 +53,7 @@ export function knowledgeBaseTools(orgId: string) {
 
   const add_knowledge_entry = tool(
     "add_knowledge_entry",
-    "Store a fact or insight in the knowledge base. Mem0 auto-deduplicates and merges with existing knowledge. For relationship-heavy data (investors, team, fundraising), graph connections are built automatically.",
+    "Store a fact or insight in the knowledge base. Auto-deduplicates and merges with existing knowledge. For relationship-heavy data (investors, team, fundraising), graph connections are built automatically.",
     {
       title: z.string().describe("Short label for this knowledge item"),
       content: z.string().describe("Detailed content of the knowledge item"),
@@ -94,11 +94,10 @@ export function knowledgeBaseTools(orgId: string) {
     {
       memory_id: z.string().describe("ID of the memory to update"),
       new_content: z.string().describe("Updated content for this memory"),
-      metadata: z.record(z.unknown()).optional().describe("Updated metadata"),
     },
     async (args) => {
       try {
-        const updated = await updateMemory(args.memory_id, args.new_content, args.metadata);
+        const updated = await updateMemory(args.memory_id, args.new_content);
         return { content: [{ type: "text" as const, text: `Knowledge updated: "${updated.memory ?? args.new_content}" (id: ${updated.id})` }] };
       } catch (e: any) {
         return { content: [{ type: "text" as const, text: `Error updating knowledge: ${e.message}` }], isError: true };

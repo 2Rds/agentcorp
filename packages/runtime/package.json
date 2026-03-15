@@ -2,7 +2,7 @@
   "name": "@waas/runtime",
   "version": "1.0.0",
   "type": "module",
-  "description": "Agent runtime engine for WaaS cognitive agents — Express server, Claude Agent SDK, mem0, Redis, Telegram transport",
+  "description": "Agent runtime engine for WaaS cognitive agents — Express server, Claude Agent SDK, Redis memory, Telegram transport",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

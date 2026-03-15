@@ -6,7 +6,7 @@
  *
  *   - Express server with health, chat, and custom routes
  *   - Claude Agent SDK query execution with SSE streaming
- *   - mem0 memory enrichment (org-scoped + session-scoped)
+ *   - Persistent memory enrichment (org-scoped + session-scoped)
  *   - Redis connection (semantic cache, plugin vector search)
  *   - Plugin loader (knowledge-work-plugins skill resolution)
  *   - Auth middleware (Supabase JWT + org membership verification)
@@ -37,7 +37,6 @@ import type {
 import { ModelRouter as ModelRouterImpl, BLOCKDRIVE_GOVERNANCE } from "@waas/shared";
 import { GovernanceEngine } from "./lib/governance.js";
 import { getRedis, disconnectRedis } from "./lib/redis-client.js";
-import { Mem0Client } from "./lib/mem0-client.js";
 import { RedisMemoryClient, type MemoryClient } from "./lib/redis-memory.js";
 import { TelemetryClient } from "./lib/telemetry.js";
 import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
@@ -69,9 +68,6 @@ export interface AgentRuntimeConfig {
     supabaseUrl: string;
     supabaseServiceRoleKey: string;
     redisUrl?: string;
-    mem0ApiKey?: string;
-    mem0OrgId?: string;
-    mem0ProjectId?: string;
     pluginsDir?: string;
 
     /** CF Analytics Engine telemetry endpoint (optional — falls back to Supabase) */
@@ -160,14 +156,7 @@ export class AgentRuntime {
     };
     this.router = new ModelRouterImpl(rtConfig.config.modelStack, creds);
 
-    // ── Memory (Mem0Client as initial fallback — RedisMemoryClient created in start() after Redis connects) ──
-    if (rtConfig.env.mem0ApiKey) {
-      this._memory = new Mem0Client({
-        apiKey: rtConfig.env.mem0ApiKey,
-        organizationId: rtConfig.env.mem0OrgId,
-        projectId: rtConfig.env.mem0ProjectId,
-      });
-    }
+    // ── Memory (RedisMemoryClient created in start() after Redis connects) ──
 
     // ── Telemetry ──
     this.telemetry = new TelemetryClient({
@@ -244,16 +233,15 @@ export class AgentRuntime {
     if (redisResult.status === "fulfilled" && redisResult.value) {
       console.log(`[${agentId}] Redis connected`);
 
-      // Upgrade memory to RedisMemoryClient (replaces Mem0Client if it was set as fallback)
+      // Initialize RedisMemoryClient
       try {
         this._memory = new RedisMemoryClient({
           redis: redisResult.value,
           router: this.router,
-          organizationId: this.runtimeConfig.env.mem0OrgId,
         });
-        console.log(`[${agentId}] Memory upgraded to Redis`);
+        console.log(`[${agentId}] RedisMemoryClient initialized`);
       } catch (memErr) {
-        console.error(`[${agentId}] RedisMemoryClient creation failed, keeping fallback:`, memErr);
+        console.error(`[${agentId}] RedisMemoryClient creation failed:`, memErr);
       }
     } else if (redisResult.status === "rejected") {
       console.error(`[${agentId}] Redis initialization failed:`, redisResult.reason);
@@ -356,7 +344,7 @@ export class AgentRuntime {
     }));
   }
 
-  /** Public accessor — returns current memory client (may upgrade from Mem0 → Redis after start()) */
+  /** Public accessor — returns current memory client (upgrades to RedisMemoryClient after start()) */
   get memory(): MemoryClient | undefined {
     return this._memory;
   }
@@ -491,7 +479,7 @@ export class AgentRuntime {
       if (appHandler) {
         this.messageBus.onMessage(agentId, appHandler);
       } else {
-        // Default handler: log + save to mem0 as cross-department context
+        // Default handler: log + save to memory as cross-department context
         this.messageBus.onMessage(agentId, async (message: AgentMessage) => {
           console.log(
             `[${agentId}] Inbound message from ${message.from}: ${message.payload.subject}`,

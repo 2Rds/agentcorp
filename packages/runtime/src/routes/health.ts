@@ -2,7 +2,7 @@
  * Health Check Route
  *
  * Standard /health endpoint for every agent. Returns agent identity,
- * uptime, and service status (Redis, mem0, Telegram).
+ * uptime, and service status (Redis, memory, Telegram).
  */
 
 import { Router } from "express";

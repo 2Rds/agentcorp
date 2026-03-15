@@ -5,8 +5,6 @@ export type { AgentRuntimeConfig } from "./agent-runtime.js";
 // Memory
 export { RedisMemoryClient } from "./lib/redis-memory.js";
 export type { MemoryClient, Memory, MemoryEvent, MemoryCategory, GraphRelation, GraphMemoryResponse } from "./lib/redis-memory.js";
-export { Mem0Client } from "./lib/mem0-client.js";
-export type { Mem0Config } from "./lib/mem0-client.js";
 export { getRedis, isRedisAvailable, disconnectRedis, createIndex, vectorSearch } from "./lib/redis-client.js";
 export type { VectorSearchResult, IndexFieldSchema } from "./lib/redis-client.js";
 export { sdkMessageToSSE, extractAssistantText } from "./lib/stream-adapter.js";

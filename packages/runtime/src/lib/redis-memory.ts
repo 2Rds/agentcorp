@@ -1,5 +1,5 @@
 /**
- * Redis Memory Client — Drop-in replacement for Mem0Client
+ * Redis Memory Client — Persistent memory for cognitive agents
  *
  * Stores agent memories in Redis HASHes with RediSearch vector index
  * for semantic search. Uses Cohere embeddings via ModelRouter.embed().
@@ -9,7 +9,7 @@
  *              enforced via TAG filter on `org_id` at query time)
  *
  * Structurally compatible with MemoryClient interface. Graph memory
- * is not supported in this backend (Mem0-only feature).
+ * is not supported in this backend (cloud-only feature).
  * No external API dependency — everything lives on the existing Redis droplet.
  */
 
@@ -18,7 +18,7 @@ import type { RedisClientType } from "redis";
 import type { ModelRouter } from "@waas/shared";
 import { createIndex, vectorSearch, type IndexFieldSchema } from "./redis-client.js";
 
-// ─── Types (mirrors Mem0Client) ─────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface Memory {
   id: string;
@@ -56,8 +56,8 @@ export type MemoryCategory =
   | "general";
 
 /**
- * Unified memory client interface — implemented by both RedisMemoryClient
- * and Mem0Client so callers are backend-agnostic.
+ * Unified memory client interface — implemented by RedisMemoryClient.
+ * All agents use this interface for memory operations.
  */
 export interface MemoryClient {
   addMemory(

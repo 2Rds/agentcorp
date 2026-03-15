@@ -215,7 +215,7 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Check the health status of a department agent by querying its health endpoint.",
       { agent_id: z.string().max(50).describe("Agent ID (e.g., blockdrive-cfa, blockdrive-cma)") },
       async (args) => {
-        const baseUrl = process.env.AGENT_BASE_URL || "https://agentcorp-ghgvq.ondigitalocean.app";
+        const baseUrl = config.agentBaseUrl;
         const pathMap: Record<string, string> = {
           "blockdrive-cfa": "/health",
           "blockdrive-ea": "/ea/health",

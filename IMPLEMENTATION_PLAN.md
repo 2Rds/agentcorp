@@ -240,13 +240,13 @@
 
 **Platform Packages**
 - [x] `@waas/shared` — Agent registry, model registry, namespace scopes, MessageBus, BoardSession
-- [x] `@waas/runtime` — AgentRuntime (Express), auth middleware, chat/health routes, Telegram transport, Redis/mem0 clients
+- [x] `@waas/runtime` — AgentRuntime (Express), auth middleware, chat/health routes, Telegram transport, Redis memory clients
 
 **EA Agent "Alex" (2026-03-05 → 2026-03-09)**
 - [x] Scaffolded at `agents/ea/` (28 source files)
 - [x] Anthropic Messages API with agentic tool loop (15 turns max)
 - [x] 7 native tools: knowledge search/save, tasks, meeting notes, email drafts, web search
-- [x] Cross-namespace mem0 read access (executive tier)
+- [x] Cross-namespace memory read access (executive tier)
 - [x] System prompt with autonomous ops + escalation rules
 - [x] Telegram bot transport (@alex_executive_assistant_bot)
 - [x] Enrichment pipeline: EA memories + cross-dept + session + skills (parallel)
@@ -272,7 +272,7 @@
 - **No OAuth/SSO** — Only email+password
 - **Client-side metrics only** — Derived metrics computed in browser
 - **Redis optional** — Vector search, semantic cache, plugin matching degrade to fallbacks without it
-- **Mem0 dependency** — Knowledge base entirely Mem0-dependent
+- **Redis dependency** — Knowledge base entirely Redis-dependent
 - **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet
 - **Inter-agent messaging** — MessageBus supports dual-mode persistence (Redis Streams + LIST fallback) and all 6 department agents have `message_agent` tool, but MessageBus is not yet instantiated in AgentRuntime (`bus.send()` delivery not wired)
 - **Governance approval flow untested end-to-end** — GovernanceEngine built and hardened, but agent webhook routes (`/webhook`) not yet implemented

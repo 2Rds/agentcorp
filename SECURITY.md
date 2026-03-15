@@ -148,10 +148,10 @@ Additional tool-level protections:
 
 ## Namespace Isolation (Agent-to-Agent)
 
-Each agent operates within a defined `ToolScope` that controls access to Redis, mem0, Supabase tables, and Notion databases. Enforcement is fail-closed via `ScopeEnforcer` (`@waas/shared/namespace`).
+Each agent operates within a defined `ToolScope` that controls access to Redis, Supabase tables, and Notion databases. Enforcement is fail-closed via `ScopeEnforcer` (`@waas/shared/namespace`).
 
-| Agent | Redis | Mem0 | Notion | Cross-Namespace |
-|-------|-------|------|--------|-----------------|
+| Agent | Redis | Memory | Notion | Cross-Namespace |
+|-------|-------|--------|--------|-----------------|
 | EA (Alex) | `blockdrive:ea:` RW, `blockdrive:` R | Own RW, `*` R | Decision Log RW, Project Hub RW, Pipeline R | Executive read all |
 | CFA (Morgan) | `blockdrive:cfa:` RW | Own RW | Pipeline RW, Decision Log RW, Project Hub R | None |
 | COA (Jordan) | `blockdrive:coa:` RW, `blockdrive:` R | Own RW, `*` R | Full workspace RW | Executive read all |
@@ -183,7 +183,7 @@ EA agent's Slack integration (`@slack/bolt` Socket Mode):
 | `ANTHROPIC_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
 | `SUPABASE_SERVICE_ROLE_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
 | `OPENROUTER_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
-| `MEM0_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
+| `COHERE_API_KEY` | All agent servers (embeddings + reranking) | `agent/.env`, `agents/*/.env` |
 | `NOTION_API_KEY` | All agent servers (optional) | `agent/.env`, `agents/*/.env` |
 | `PERPLEXITY_API_KEY` | Dept agents (optional, fallback to OpenRouter) | `agents/*/.env` |
 | `SENTRY_DSN` | All agent servers (error tracking) | `agent/.env`, `agents/*/.env` |
@@ -235,7 +235,7 @@ All user-facing data is scoped to organizations:
 - Every data table has an `organization_id` column
 - RLS policies enforce org membership on every query
 - The agent server verifies org membership in middleware before processing any request
-- Mem0 memories are org-scoped via `user_id` = organization UUID
+- Memories are org-scoped via `org_id` TAG filter in Redis indexes
 - Redis indexes include `org_id` TAG filters
 - Storage objects are organized by `{organization_id}/` folder prefix
 

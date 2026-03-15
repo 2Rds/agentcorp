@@ -145,8 +145,8 @@ export interface ToolScope {
   notionDatabases: { id: string; access: AccessLevel }[];
   /** Redis key prefixes this agent can access */
   redisNamespaces: { prefix: string; access: AccessLevel }[];
-  /** mem0 agent_ids this agent can query ("*" = all, for executives) */
-  mem0Namespaces: { agentId: string; access: AccessLevel }[];
+  /** Memory namespaces (agent_ids) this agent can query ("*" = all, for executives) */
+  memoryNamespaces: { agentId: string; access: AccessLevel }[];
   /** External APIs this agent can call */
   externalApis: string[];
   /** Other agent IDs this agent can directly message */

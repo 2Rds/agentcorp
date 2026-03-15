@@ -24,9 +24,9 @@ Three-tier system: a React 18 frontend deployed to Vercel, seven Express agent s
 │Opus │ │Open ││  │  Redis   │  │Tele │    │  Notion  │
 │4.6  │ │Route││  │  8.4     │  │gram │    │  API     │
 └─────┘ └─────┘│  └──────────┘  └─────┘    └─────────┘
-           ┌───▼──┐
-           │ Mem0 │
-           └──────┘
+           ┌───▼────────┐
+           │Redis Memory│
+           └────────────┘
 ```
 
 ## Frontend (`src/`)
@@ -94,7 +94,7 @@ All non-Claude models route through OpenRouter via `model-router.ts` using nativ
 |--------|-------|-------|
 | Financial Model | 3 | get, upsert (K2.5 plan generation + memory), delete |
 | Derived Metrics | 1 | compute burn, runway, MRR, gross margin |
-| Cap Table | 3 | get, upsert (graph memory for fundraising), delete |
+| Cap Table | 3 | get, upsert (memory for fundraising), delete |
 | Knowledge Base | 5 | search (rerank + keyword), add, update, delete, rate_quality |
 | Investor Links | 4 | CRUD with `enable_data_room` support |
 | Documents | 2 | upload with Gemini vision + memory attribution |
@@ -114,9 +114,8 @@ Tools are org-scoped via closure — `orgId` passed to each factory function. As
 | `POST /api/chat` | Streaming AI chat (SSE) with memory-enriched system prompt |
 | `GET /api/model/status` | Google Sheets integration status |
 | `POST /api/model/create-sheet, get-sheet, delete-sheet` | Model sheet CRUD |
-| `GET /api/knowledge/graph` | Knowledge graph via Mem0 graph API |
+| `GET /api/knowledge/graph` | Knowledge graph visualization |
 | `GET/POST /dataroom/:slug/*` | Public investor data room |
-| `POST /api/webhooks/mem0` | Memory event webhooks |
 | `GET /health` | Health check |
 
 ### Streaming Chat Flow
@@ -125,7 +124,7 @@ Tools are org-scoped via closure — `orgId` passed to each factory function. As
 Client POST /api/chat
   → authMiddleware (token verify + org check)
   → createAgentQuery(messages, orgId, userId)
-    → Load org memories from Mem0
+    → Load org memories from Redis
     → Inject into system prompt
     → Resolve knowledge plugins (keyword → vector → Cohere rerank)
     → Claude SDK query() with includePartialMessages
@@ -135,7 +134,7 @@ Client POST /api/chat
 
 ## Department Agent Servers (`agents/{coa,cma,compliance,legal,sales}/`)
 
-Five department head agents built on `@waas/runtime` with the Claude Agent SDK (`tool()` + Zod). Each runs as an independent Express server with org-scoped MCP tools, Notion integration (conditional), and mem0 memory.
+Five department head agents built on `@waas/runtime` with the Claude Agent SDK (`tool()` + Zod). Each runs as an independent Express server with org-scoped MCP tools, Notion integration (conditional), and Redis memory.
 
 ### Agent Model Stacks
 
@@ -225,7 +224,7 @@ Tools are defined as native Anthropic API `Tool` definitions + handler functions
 ### Enrichment Pipeline
 
 System prompt enriched via `Promise.allSettled` (parallel):
-1. EA-scoped mem0 memories (top 10)
+1. EA-scoped memories (top 10)
 2. Cross-namespace memories (top 10, all departments)
 3. Session memories (last 10 from conversation)
 4. Matched skills (keyword → vector → dedup)
@@ -244,15 +243,16 @@ Redis 8.4 via Docker Compose. Three RediSearch indexes:
 
 All vectors are 768-dimensional (COSINE, HNSW, FLOAT32). Embeddings via Cloudflare Workers AI (`bge-base-en-v1.5`, free tier) with OpenRouter fallback.
 
-### Mem0 (persistent memory)
+### Persistent Memory (Redis)
 
-Organization-scoped persistent memory with graph relationships.
+Organization-scoped persistent memory with vector search via RediSearch.
 
 - 6 custom categories: `financial_metrics`, `fundraising`, `company_operations`, `strategic_decisions`, `investor_relations`, `financial_model`
 - Multi-model attribution via `agent_id`
 - Session memory via `run_id` per conversation thread
 - System prompt enriched with relevant org memories before each query
-- Feedback mechanism for memory quality
+- Cohere embeddings (768-dim) for semantic search
+- ScopedMemoryClient per department with namespace enforcement
 
 ### Semantic Cache
 

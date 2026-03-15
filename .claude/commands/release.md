@@ -54,7 +54,7 @@ For each of these files, read the current content (if it exists), then rewrite/u
 - High-level system architecture: React frontend, Express agent server, Supabase backend
 - Key components: auth flow, financial engine, agent orchestration, knowledge system
 - Multi-model strategy (Opus, Kimi K2.5, Gemini, DeepSeek, Sonar)
-- Infrastructure: Redis vector search, Cloudflare AI Gateway, Mem0 memory
+- Infrastructure: Redis (RediSearch vector search + Cohere embeddings), Cloudflare AI Gateway
 - Data flow for chat, financial model, and investor data room
 - Update based on actual current codebase structure
 

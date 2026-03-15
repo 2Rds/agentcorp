@@ -16,7 +16,7 @@
  * reserved for RAG/rerank ops. Granite embedded with chairman as governance
  * advisor. Every board decision gets a compliance pass before synthesis.
  *
- * No Sonnet (token inefficiency negates cost savings with mem0 compounding).
+ * No Sonnet (token inefficiency negates cost savings with memory compounding).
  * No Chinese models (trust non-negotiable in blockchain/fintech).
  */
 

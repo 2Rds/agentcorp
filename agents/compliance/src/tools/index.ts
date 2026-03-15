@@ -5,7 +5,7 @@
  *   tool(name, description, zodRawShape, handler)
  * Handler returns: { content: [{ type: "text", text }] }
  *
- * Special: audit-read ALL namespaces via mem0 (no agent_id filter)
+ * Special: audit-read ALL namespaces via memory store (no agent_id filter)
  * Special: scan_compliance routes analysis to Granite 4.0 via OpenRouter
  */
 

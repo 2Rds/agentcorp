@@ -32,7 +32,7 @@ export const EA_SCOPE: ToolScope = {
     { prefix: "blockdrive:global:", access: "readwrite" },
     { prefix: "blockdrive:", access: "read" },       // Cross-namespace read
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-ea", access: "readwrite" },
     { agentId: "*", access: "read" },                 // Executive read privilege
   ],
@@ -56,7 +56,7 @@ export const COA_SCOPE: ToolScope = {
     { prefix: "blockdrive:router:", access: "readwrite" },
     { prefix: "blockdrive:", access: "read" },       // Cross-namespace read
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-coa", access: "readwrite" },
     { agentId: "*", access: "read" },                 // Executive read privilege
   ],
@@ -82,7 +82,7 @@ export const CFA_SCOPE: ToolScope = {
     { prefix: "blockdrive:cfa:", access: "readwrite" },
     { prefix: "blockdrive:global:", access: "read" },
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-cfa", access: "readwrite" },
   ],
   externalApis: ["notion", "slack", "google-sheets"],
@@ -105,7 +105,7 @@ export const IR_SCOPE: ToolScope = {
     { prefix: "blockdrive:cfa:", access: "read" },
     { prefix: "blockdrive:global:", access: "read" },
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-ir", access: "readwrite" },
     { agentId: "blockdrive-cfa", access: "read" },  // Read parent dept
   ],
@@ -124,7 +124,7 @@ export const CMA_SCOPE: ToolScope = {
     { prefix: "blockdrive:cma:", access: "readwrite" },
     { prefix: "blockdrive:global:", access: "read" },
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-cma", access: "readwrite" },
   ],
   externalApis: ["notion", "slack"],
@@ -145,7 +145,7 @@ export const COMPLIANCE_SCOPE: ToolScope = {
     { prefix: "blockdrive:compliance:", access: "readwrite" },
     { prefix: "blockdrive:", access: "read" },       // Audit-read all namespaces
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-compliance", access: "readwrite" },
     { agentId: "*", access: "read" },                 // Audit-read privilege
   ],
@@ -165,7 +165,7 @@ export const LEGAL_SCOPE: ToolScope = {
     { prefix: "blockdrive:legal:", access: "readwrite" },
     { prefix: "blockdrive:global:", access: "read" },
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-legal", access: "readwrite" },
   ],
   externalApis: ["notion", "slack"],
@@ -183,7 +183,7 @@ export const SALES_SCOPE: ToolScope = {
     { prefix: "blockdrive:sales:", access: "readwrite" },
     { prefix: "blockdrive:global:", access: "read" },
   ],
-  mem0Namespaces: [
+  memoryNamespaces: [
     { agentId: "blockdrive-sales", access: "readwrite" },
   ],
   externalApis: ["notion", "slack"],

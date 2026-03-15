@@ -50,7 +50,7 @@ Read access follows scope rules:
 - `shared:*` namespace: read-only for all agents
 - Other departments: denied
 
-### Scoped mem0
+### Scoped Memory
 
 Memory queries are scoped to `agent_id` + `org_id`:
 
@@ -107,7 +107,7 @@ All external API calls use AbortController with enforced timeouts:
 | OpenRouter API | 60s | Proxied model calls |
 | Perplexity API | 60s | Deep research queries |
 | Cohere API | 30s | Embed/rerank are fast operations |
-| mem0 API | 15s | Memory operations are simple |
+| Redis memory API | 15s | Memory operations are simple |
 
 ### Rate Limiting
 
@@ -145,8 +145,8 @@ All external API calls use AbortController with enforced timeouts:
 - Agent query failure: SSE error event + stream end
 - SDK errors: surfaced to client as error SSE events (not swallowed)
 
-### mem0 Rate Limiting
-- 429 responses detected with `Retry-After` header extraction
+### Memory Client Rate Limiting
+- Redis connection errors detected with circuit breaker pattern
 - Errors thrown (not swallowed) — caller decides retry strategy
 
 ## Secret Management
@@ -156,7 +156,7 @@ All external API calls use AbortController with enforced timeouts:
 | `SUPABASE_SERVICE_ROLE_KEY` | Per deployment | Token verification, org membership lookup |
 | `ANTHROPIC_API_KEY` | Per deployment | Claude Opus API calls |
 | `OPENROUTER_API_KEY` | Per deployment | Secondary model routing |
-| `MEM0_API_KEY` | Per deployment | Persistent memory |
+| `COHERE_API_KEY` | Per deployment | Embeddings for persistent memory |
 | `REDIS_URL` | Per deployment | Cache + vector search |
 | `TELEGRAM_BOT_TOKEN` | Per agent | Inter-agent messaging |
 
@@ -212,4 +212,4 @@ All phone numbers validated as E.164 format before API calls:
   - Action items: 30 days
   - Call log: bounded at 100 entries (LTRIM)
 - No transcript data sent to third parties beyond ElevenLabs (processing) and Redis (storage)
-- mem0 memories extracted from calls should be anonymized where possible
+- Persistent memories extracted from calls should be anonymized where possible

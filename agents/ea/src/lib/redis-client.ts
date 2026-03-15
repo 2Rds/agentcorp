@@ -1,4 +1,6 @@
 import { createClient, type RedisClientType } from "redis";
+
+export type { RedisClientType };
 import { config } from "../config.js";
 
 // ─── Singleton connection ────────────────────────────────────────────────────
