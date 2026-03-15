@@ -2,9 +2,11 @@ import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 
-// Module-level counter for unique channel names — prevents collision
-// when multiple components subscribe to the same table (e.g. Dashboard + workspace)
-let channelCounter = 0;
+// Unique channel name generator — uses random suffix instead of module-level counter
+// to prevent stale channel IDs across Vite HMR reloads (counter resets on re-import)
+function nextChannelId(table: string): string {
+  return `rt-${table}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
 
 /**
  * Subscribe to Supabase Realtime postgres_changes for a table.
@@ -28,7 +30,7 @@ export function useRealtimeSubscription(
   useEffect(() => {
     if (!enabled || !filter) return;
 
-    const channelId = `rt-${table}-${++channelCounter}`;
+    const channelId = nextChannelId(table);
 
     const channel = supabase
       .channel(channelId)

@@ -22,6 +22,20 @@ interface WebhookPayload {
 // Agent server base URL (DigitalOcean App Platform)
 const AGENT_BASE_URL = Deno.env.get("AGENT_BASE_URL") || "";
 
+/** Constant-time string comparison to prevent timing attacks on auth tokens */
+function timingSafeEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const aBuf = encoder.encode(a);
+  const bBuf = encoder.encode(b);
+  if (aBuf.byteLength !== bBuf.byteLength) return false;
+  // crypto.subtle.timingSafeEqual is available in Deno
+  let result = 0;
+  for (let i = 0; i < aBuf.byteLength; i++) {
+    result |= aBuf[i]! ^ bBuf[i]!;
+  }
+  return result === 0;
+}
+
 // Route table events to agent webhook endpoints
 const WEBHOOK_ROUTES: Record<string, string> = {
   ea_tasks: "/ea/webhook",
@@ -39,10 +53,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify Bearer token matches service role key exactly
+    // Verify Bearer token matches webhook secret (preferred) or service role key (fallback)
     const authHeader = req.headers.get("Authorization");
-    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!authHeader || !serviceRoleKey) {
+    const webhookSecret = Deno.env.get("WEBHOOK_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!authHeader || !webhookSecret) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
@@ -52,7 +66,7 @@ Deno.serve(async (req) => {
     const token = authHeader.startsWith("Bearer ")
       ? authHeader.slice(7)
       : null;
-    if (!token || token !== serviceRoleKey) {
+    if (!token || !timingSafeEqual(token, webhookSecret)) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json" },
@@ -107,10 +121,16 @@ Deno.serve(async (req) => {
       });
 
       clearTimeout(timeout);
-      console.log(`[webhook-handler] Agent ${agentRes.status} from ${route}`);
+
+      if (agentRes.ok) {
+        console.log(`[webhook-handler] Agent ${agentRes.status} from ${route}`);
+      } else {
+        const body = await agentRes.text().catch(() => "(unreadable)");
+        console.warn(`[webhook-handler] Agent ${agentRes.status} from ${route}: ${body}`);
+      }
 
       return new Response(JSON.stringify({
-        status: "forwarded",
+        status: agentRes.ok ? "forwarded" : "agent_error",
         table,
         route,
         agentStatus: agentRes.status,
@@ -120,7 +140,8 @@ Deno.serve(async (req) => {
       });
     } catch (fetchErr) {
       clearTimeout(timeout);
-      console.error(`[webhook-handler] Agent unreachable: ${route}`);
+      const errMsg = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+      console.error(`[webhook-handler] Agent unreachable: ${route} — ${errMsg}`);
       // Return 200 to prevent pg_net retries — agent being down is non-fatal
       return new Response(JSON.stringify({
         status: "agent_unreachable",

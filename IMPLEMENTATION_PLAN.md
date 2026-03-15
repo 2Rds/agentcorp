@@ -2,6 +2,33 @@
 
 ## Current Status
 
+### Completed — v2.3.0 (2026-03-14)
+
+**DO App Platform Migration (ATL → NYC3)**
+- [x] All 7 agent services migrated to NYC3 region (co-located with Redis + n8n)
+- [x] EA + Sales on dedicated instances ($29/mo), other 5 on shared ($12/mo) — total $118/mo (was $203/mo)
+- [x] Sales agent auto-scales 1→3 instances at 75% CPU
+- [x] Google Sheets `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` env var support for cloud platforms
+- [x] PostHog proxy rewrite (`/ingest/*`) in Vercel config for ad-blocker bypass
+- [x] Vercel `VITE_AGENT_URL` updated to NYC3 app URL
+
+**Governance Engine Hardening (21-issue PR review)**
+- [x] `isPendingApproval()` runtime type guard for Redis deserialization
+- [x] `validateGovernanceConfig()` fail-fast startup validation
+- [x] `AGENT_REGISTRY` typed with `satisfies Record<AgentId, AgentConfig>`
+- [x] `requireApproval` keyed on `ApprovalCategory` (no manual switch)
+- [x] `GovernanceDecision` refactored to discriminated union
+- [x] Redis TOCTOU race fixed with Lua atomic check-and-set in `resolveApproval`
+- [x] Silent failures replaced with logging + Sentry alerts across governance engine
+- [x] Spend recording made fire-and-forget (no event loop blocking after response)
+- [x] Webhook handler: timing-safe auth, `WEBHOOK_SECRET` env var, non-2xx logging, error details
+- [x] Database webhook migration: `app.webhook_secret` with service role key fallback
+- [x] HMR-safe channel IDs in `useRealtimeSubscription`
+
+**Build Fixes**
+- [x] EA `package-lock.json` synced (was missing @sentry/node, posthog-node)
+- [x] EA `observability.ts` inlined (standalone Docker build can't access @waas/runtime)
+
 ### Completed — v2.2.0 (2026-03-14)
 
 **Governance System (C-Suite Telegram Approval Flow)**
@@ -33,7 +60,7 @@
 - [x] Frontend: `@sentry/react` with ErrorBoundary, BrowserTracing, Replay (on error), source map upload via `@sentry/vite-plugin`
 - [x] Frontend: `posthog-js` with autocapture, SPA page views, user identify/reset on auth
 - [x] CFO Agent: `@sentry/node` + `posthog-node` with Express error handler, shutdown flush
-- [x] EA Agent: Re-exports observability from `@waas/runtime` (DRY)
+- [x] EA Agent: Self-contained observability (standalone Docker build, no `@waas/runtime` access)
 - [x] @waas/runtime: Shared `initSentry(agentId)` + `initPostHog()` + `shutdownObservability()` — covers COA, CMA, Compliance, Legal, Sales
 - [x] All agent servers: `uncaughtException` → Sentry flush + `process.exit(1)`
 - [x] All SDK init calls wrapped in try-catch (non-fatal on failure)
@@ -179,8 +206,7 @@
 - **Mem0 dependency** — Knowledge base entirely Mem0-dependent
 - **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet
 - **Inter-agent messaging** — Designed in @waas/shared but not wired into runtime yet (COA has `message_agent` tool writing to Supabase queue, not Redis Streams yet)
-- **Department agents not yet deployed** — All 5 are built and tested locally but not yet added to DigitalOcean App Platform
-- **Governance approval flow untested end-to-end** — GovernanceEngine built but not yet wired to agent webhook routes (no `/webhook` route on agent servers yet)
+- **Governance approval flow untested end-to-end** — GovernanceEngine built and hardened, but agent webhook routes (`/webhook`) not yet implemented
 - **Database webhooks require deployed Edge Function** — `webhook-handler` exists but needs `supabase functions deploy` and `AGENT_BASE_URL` env var
 - **Realtime requires migration push** — `supabase_realtime` publication changes need `supabase db push` on the hosted project
 
@@ -199,9 +225,9 @@
 
 ### Near-term
 
-- [ ] Deploy 5 department agents to DigitalOcean App Platform (add service components)
-- [ ] Set up DO env vars for PostHog + Sentry + Governance on all agent services
-- [ ] Set up Vercel env vars for PostHog + Sentry
+- [x] ~~Deploy 5 department agents to DigitalOcean App Platform~~ (v2.3.0)
+- [x] ~~Set up DO env vars for PostHog + Sentry + Governance on all agent services~~ (v2.3.0)
+- [x] ~~Set up Vercel env vars for PostHog + Sentry~~ (v2.1.0)
 - [ ] Push Supabase migrations (Realtime publication, Vault, Database Webhooks)
 - [ ] Deploy `webhook-handler` Edge Function (`supabase functions deploy`)
 - [ ] Add `/webhook` route to agent servers (receive Database Webhook events)

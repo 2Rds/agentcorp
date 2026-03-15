@@ -79,7 +79,9 @@ export type {
   GovernanceDecision,
 } from "./governance/index.js";
 export {
+  isPendingApproval,
   BLOCKDRIVE_GOVERNANCE,
+  validateGovernanceConfig,
   APPROVAL_TTL_SECONDS,
   APPROVAL_KEY_PREFIX,
   SPEND_KEY_PREFIX,

@@ -9,6 +9,8 @@
  * See: docs/waas/governance-architecture.md
  */
 
+import type { AgentId } from "../agents.js";
+
 // ─── Approval Categories ────────────────────────────────────────────────────
 
 /** Categories of actions that can require CEO approval */
@@ -32,15 +34,9 @@ export interface GovernanceConfig {
   /** USD all agents combined per day */
   spendLimitGlobalPerDay: number;
 
-  // ── Approval Requirements ──
+  // ── Approval Requirements ── (#14: keyed on ApprovalCategory for type safety)
   /** Actions in these categories MUST be approved before execution */
-  requireApproval: {
-    externalCommunications: boolean;
-    marketingActivities: boolean;
-    socialMediaPosts: boolean;
-    financialCommitments: boolean;
-    escalations: boolean;
-  };
+  requireApproval: Record<ApprovalCategory, boolean>;
 
   // ── Logging ──
   /** Log all outbound messages to non-internal recipients */
@@ -84,7 +80,7 @@ export type ApprovalStatus = "pending" | "approved" | "denied" | "expired";
 export interface PendingApproval {
   /** UUID */
   id: string;
-  /** Agent requesting approval (e.g., "blockdrive-cma") */
+  /** Agent requesting approval */
   agentId: string;
   /** Agent display name (e.g., "Taylor") */
   agentName: string;
@@ -104,8 +100,8 @@ export interface PendingApproval {
   estimatedCost: number;
   /** Agent's own risk assessment */
   riskNote: string;
-  /** Telegram message ID — links callback to the approval message */
-  telegramMessageId: number;
+  /** Telegram message ID — null until sent (#16: no sentinel values) */
+  telegramMessageId: number | null;
   /** C-Suite group chat ID */
   telegramChatId: string;
   status: ApprovalStatus;
@@ -117,12 +113,33 @@ export interface PendingApproval {
   resolvedBy: string | null;
 }
 
+// ─── Runtime validation (#5: type guard for Redis deserialization) ────────
+
+/** Validate a parsed object is structurally a PendingApproval */
+export function isPendingApproval(x: unknown): x is PendingApproval {
+  if (!x || typeof x !== "object") return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === "string" &&
+    typeof o.agentId === "string" &&
+    typeof o.agentName === "string" &&
+    typeof o.action === "string" &&
+    typeof o.category === "string" &&
+    typeof o.toolName === "string" &&
+    typeof o.status === "string" &&
+    typeof o.requestedAt === "string" &&
+    typeof o.orgId === "string"
+  );
+}
+
 // ─── Spend Tracking ─────────────────────────────────────────────────────────
 
 /** A single API spend event logged after each model response */
 export interface SpendEvent {
-  agentId: string;
+  /** #17: typed agent ID */
+  agentId: AgentId | (string & {});
   orgId: string;
+  /** #17: model identifier */
   model: string;
   inputTokens: number;
   outputTokens: number;
@@ -131,14 +148,9 @@ export interface SpendEvent {
   timestamp: string;
 }
 
-// ─── Governance Decision ────────────────────────────────────────────────────
+// ─── Governance Decision (#20: discriminated union) ─────────────────────────
 
 /** Result of a governance check */
-export interface GovernanceDecision {
-  approved: boolean;
-  reason?: string;
-  /** Message to show the user/agent */
-  message: string;
-  /** If not approved, the pending approval ID */
-  approvalId?: string;
-}
+export type GovernanceDecision =
+  | { approved: true; message: string }
+  | { approved: false; reason: string; message: string; approvalId?: string };

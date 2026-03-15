@@ -155,8 +155,10 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
               const parsed = JSON.parse(sse.slice(6));
               const delta = parsed?.choices?.[0]?.delta?.content;
               if (typeof delta === "string") fullText += delta;
-            } catch {
-              // SSE chunk may be split across writes — expected for partial chunks
+            } catch (parseErr) {
+              // SSE chunk may be split across writes — expected for partial chunks.
+              // Log at debug level so persistent parse failures are diagnosable.
+              console.debug(`[${deps.agentId}] SSE JSON parse skipped (partial chunk):`, (parseErr as Error).message);
             }
           }
         }
@@ -175,66 +177,65 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
           .catch((err) => console.error("Post-response hook failed:", err));
       }
 
-      // Governance: record spend (estimated from response length)
+      // Governance: record spend (fire-and-forget — response already sent)
       if (deps.governance && fullText.length > 0) {
-        try {
-          // Estimate token counts from character lengths (rough: 1 token ≈ 4 chars)
-          // Apply 3x multiplier to account for multi-turn tool use tokens not captured
-          // in the streamed output (tool schemas, tool results, intermediate turns)
-          const TOKEN_ESTIMATION_MULTIPLIER = 3;
-          const rawInputTokens = Math.ceil((enrichedPrompt.length + prompt.length) / 4);
-          const rawOutputTokens = Math.ceil(fullText.length / 4);
-          const inputTokens = rawInputTokens * TOKEN_ESTIMATION_MULTIPLIER;
-          const outputTokens = rawOutputTokens * TOKEN_ESTIMATION_MULTIPLIER;
-          const model = MODEL_REGISTRY["opus"];
-          const estimatedCostUsd = model
-            ? (inputTokens / 1_000_000) * model.pricing.inputPerMillion +
-              (outputTokens / 1_000_000) * model.pricing.outputPerMillion
-            : 0;
+        const governance = deps.governance; // capture for closure (TS narrowing)
+        const spendOrgId = organizationId;
+        const spendStartTime = startTime;
+        const spendPromptLen = enrichedPrompt.length + prompt.length;
+        const spendResponseLen = fullText.length;
+        void (async () => {
+          try {
+            // Estimate token counts from character lengths (rough: 1 token ≈ 4 chars)
+            // Apply 3x multiplier to account for multi-turn tool use tokens not captured
+            // in the streamed output (tool schemas, tool results, intermediate turns)
+            const TOKEN_ESTIMATION_MULTIPLIER = 3;
+            const rawInputTokens = Math.ceil(spendPromptLen / 4);
+            const rawOutputTokens = Math.ceil(spendResponseLen / 4);
+            const inputTokens = rawInputTokens * TOKEN_ESTIMATION_MULTIPLIER;
+            const outputTokens = rawOutputTokens * TOKEN_ESTIMATION_MULTIPLIER;
+            const model = MODEL_REGISTRY["opus"];
+            const estimatedCostUsd = model
+              ? (inputTokens / 1_000_000) * model.pricing.inputPerMillion +
+                (outputTokens / 1_000_000) * model.pricing.outputPerMillion
+              : 0;
 
-          const spendResult = await deps.governance.recordSpend({
-            agentId: deps.agentId,
-            orgId: organizationId,
-            model: "claude-opus-4-6",
-            inputTokens,
-            outputTokens,
-            estimatedCostUsd,
-            timestamp: new Date().toISOString(),
-          });
+            const spendResult = await governance.recordSpend({
+              agentId: deps.agentId,
+              orgId: spendOrgId,
+              model: "claude-opus-4-6",
+              inputTokens,
+              outputTokens,
+              estimatedCostUsd,
+              timestamp: new Date().toISOString(),
+            });
 
-          if (spendResult.limitBreached) {
-            console.warn(
-              `[${deps.agentId}] Daily spend limit breached: $${spendResult.totalToday.toFixed(2)}`,
-            );
-          }
+            if (spendResult.limitBreached) {
+              console.warn(
+                `[${deps.agentId}] Daily spend limit breached: $${spendResult.totalToday.toFixed(2)}`,
+              );
+            }
 
-          // Persist usage event to Supabase for frontend visibility (fire-and-forget)
-          if (deps.supabase) {
-            Promise.resolve(
-              deps.supabase
+            // Persist usage event to Supabase for frontend visibility
+            if (deps.supabase) {
+              const { error: insertErr } = await deps.supabase
                 .from("agent_usage_events")
                 .insert({
-                  org_id: organizationId,
+                  org_id: spendOrgId,
                   agent_id: deps.agentId,
                   model: "claude-opus-4-6",
                   input_tokens: inputTokens,
                   output_tokens: outputTokens,
                   cost_usd: estimatedCostUsd,
-                  latency_ms: Date.now() - startTime,
-                })
-            )
-              .then(({ error: insertErr }) => {
-                if (insertErr) console.error(`[${deps.agentId}] Failed to write usage event:`, insertErr.message);
-              })
-              .catch((unexpectedErr: unknown) => {
-                console.error(`[${deps.agentId}] Usage event insert threw:`, unexpectedErr);
-                Sentry.captureException(unexpectedErr);
-              });
+                  latency_ms: Date.now() - spendStartTime,
+                });
+              if (insertErr) console.error(`[${deps.agentId}] Failed to write usage event:`, insertErr.message);
+            }
+          } catch (spendErr) {
+            console.error(`[${deps.agentId}] Spend tracking failed (non-fatal):`, spendErr);
+            Sentry.captureException(spendErr);
           }
-        } catch (spendErr) {
-          console.error(`[${deps.agentId}] Spend tracking failed (non-fatal):`, spendErr);
-          Sentry.captureException(spendErr);
-        }
+        })();
       }
 
       // PostHog event (non-fatal — never affect user response)

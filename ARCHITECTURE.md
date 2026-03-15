@@ -187,7 +187,7 @@ Dual-mode governance system (startup/enterprise) managed by GovernanceEngine in 
 
 **Startup mode (current):** Human-configured tripwires with Telegram approval flow.
 - Daily spend tracking per agent via Redis counters (keyed by `{orgId}:{agentId}:{date}`)
-- Pending approvals stored in Redis with TTL, presented via Telegram inline keyboards in C-Suite group chat
+- Pending approvals stored in Redis with TTL, resolved via Lua atomic check-and-set (no TOCTOU race), presented via Telegram inline keyboards in C-Suite group chat
 - Authorized approver enforcement (Sean's Telegram user ID)
 - 6 approval categories: external_communication, marketing_activity, social_media_post, financial_commitment, escalation, spend_limit_exceeded
 - All agent system prompts include governance directives requiring approval before external actions
@@ -311,7 +311,7 @@ Full-stack error tracking (Sentry) and product analytics (PostHog). All init is 
 |-------|-----|-------------|
 | Frontend | `@sentry/react` | BrowserTracing, Replay (on error), ErrorBoundary, source maps via `@sentry/vite-plugin` |
 | CFO Agent | `@sentry/node` | Express error handler, unhandled rejection/exception → flush + exit |
-| EA Agent | `@sentry/node` | Re-exports from `@waas/runtime` (DRY) |
+| EA Agent | `@sentry/node` | Self-contained init (standalone Docker build, no `@waas/runtime` access) |
 | @waas/runtime | `@sentry/node` | `initSentry(agentId)` — covers COA, CMA, Compliance, Legal, Sales |
 
 All agent servers: `uncaughtException` handler calls `Sentry.close(2000)` then `process.exit(1)` (Node enters undefined state after uncaught exception). Express error handler placed after routes but before 404 handler.
@@ -332,7 +332,7 @@ Custom events: `agent_chat_sent`, `workspace_viewed`, `agent_health_checked`.
 | Frontend | `src/lib/sentry.ts` + `src/lib/posthog.ts` | React SPA |
 | CFO Agent | `agent/src/lib/observability.ts` | CFO server |
 | @waas/runtime | `packages/runtime/src/lib/observability.ts` | COA, CMA, Compliance, Legal, Sales |
-| EA Agent | `agents/ea/src/lib/observability.ts` | Re-exports from @waas/runtime |
+| EA Agent | `agents/ea/src/lib/observability.ts` | Self-contained (standalone Docker build) |
 
 ## Deployment
 
@@ -353,17 +353,15 @@ INSERT on ea_tasks / agent_messages / compliance_governance_log
   → Edge Function routes to agent server (/ea/webhook, /coa/webhook, /compliance/webhook)
 ```
 
-Webhook handler validates exact Bearer token (not substring match), Content-Type, and forwards events with `X-Webhook-Secret`. Returns 200 even on agent errors to prevent pg_net retries.
+Webhook handler uses timing-safe comparison for `WEBHOOK_SECRET` (or `SUPABASE_SERVICE_ROLE_KEY` fallback), validates Content-Type, and forwards events with `X-Webhook-Secret`. Returns 200 even on agent errors to prevent pg_net retries. Non-2xx agent responses are logged as warnings with response body.
 
 ## Deployment
 
 - **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `corp.blockdrive.co`)
-- **CFO Agent:** DigitalOcean App Platform (Docker, port 3001)
-- **EA Agent:** DigitalOcean App Platform (Docker, port 3002, `/ea` ingress)
-- **COA Agent:** DigitalOcean App Platform (Docker, port 3003, `/coa` ingress)
-- **CMA Agent:** DigitalOcean App Platform (Docker, port 3004, `/cma` ingress)
-- **Compliance Agent:** DigitalOcean App Platform (Docker, port 3005, `/compliance` ingress)
-- **Legal Agent:** DigitalOcean App Platform (Docker, port 3006, `/legal` ingress)
-- **Sales Agent:** DigitalOcean App Platform (Docker, port 3007, `/sales` ingress)
-- **Redis:** Docker Compose alongside agent server
-- **n8n:** DigitalOcean Droplet (`n8n.blockdrive.co`)
+- **All 7 Agents:** DigitalOcean App Platform NYC3 (`agentcorp-ghgvq.ondigitalocean.app`), auto-deploy from GitHub
+  - EA Agent — dedicated `apps-d-1vcpu-0.5gb` ($29/mo), port 3002, `/ea` ingress
+  - Sales Agent — dedicated `apps-d-1vcpu-0.5gb` ($29/mo), auto-scales 1→3 at 75% CPU, port 3007, `/sales` ingress
+  - CFO Agent — shared `apps-s-1vcpu-1gb` ($12/mo), port 3001, `/` ingress
+  - COA, CMA, Compliance, Legal — shared `apps-s-1vcpu-1gb` ($12/mo each), ports 3003-3006
+- **Redis:** DigitalOcean Droplet NYC3 (`waas-redis`, 104.248.1.157), password-protected
+- **n8n:** DigitalOcean Droplet NYC3 (167.172.24.255, `n8n.blockdrive.co`)

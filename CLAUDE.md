@@ -136,7 +136,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - investor-links (4): CRUD with `enable_data_room` support
 - documents (2): upload with Gemini vision processing + memory attribution
 - document-rag (1): `query_documents` via Redis hybrid search
-- google-sheets (3): populate_model_sheet, read_model_sheet, get_model_sheet_info — uses **service account with domain-wide delegation** (`GOOGLE_SERVICE_ACCOUNT_KEY_FILE` env var)
+- google-sheets (3): populate_model_sheet, read_model_sheet, get_model_sheet_info — uses **service account with domain-wide delegation** (`GOOGLE_SERVICE_ACCOUNT_KEY_JSON` env var for cloud, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` for local dev)
 - analytics (1): `run_analytics_query` — natural language → SQL → chart suggestion
 - notion (4): query_notion_database, create/update/append — CFA_SCOPE enforced, conditional on `NOTION_API_KEY`
 - pdf-export (1): `generate_investor_document` — markdown/metrics → Playwright PDF → Supabase Storage signed URL
@@ -159,7 +159,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 
 **Environment:**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `MEM0_API_KEY`
-- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `MOONSHOT_API_KEY`, `COHERE_API_KEY`, `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (path to service account JSON key for Sheets/Drive), `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
+- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `MOONSHOT_API_KEY`, `COHERE_API_KEY`, `REDIS_URL`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (local dev), `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (cloud — raw JSON content), `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
 
 ### EA Agent (`agents/ea/src/`)
 
@@ -278,20 +278,23 @@ Deno runtime.
 | Service | Platform | URL/Port |
 |---------|----------|----------|
 | Frontend | Vercel | `corp.blockdrive.co` |
-| CFO Agent | Docker / DigitalOcean App Platform | Port 3001 |
-| EA Agent | DigitalOcean App Platform | Port 3002, ingress `/ea` |
-| COA Agent | DigitalOcean App Platform | Port 3003, ingress `/coa` |
-| CMA Agent | DigitalOcean App Platform | Port 3004, ingress `/cma` |
-| Compliance Agent | DigitalOcean App Platform | Port 3005, ingress `/compliance` |
-| Legal Agent | DigitalOcean App Platform | Port 3006, ingress `/legal` |
-| Sales Agent | DigitalOcean App Platform | Port 3007, ingress `/sales` |
-| n8n | DigitalOcean Droplet (167.172.24.255) | `n8n.blockdrive.co` |
+| CFO Agent | DO App Platform NYC3 (shared $12/mo) | Port 3001 |
+| EA Agent | DO App Platform NYC3 (dedicated $29/mo) | Port 3002, ingress `/ea` |
+| COA Agent | DO App Platform NYC3 (shared $12/mo) | Port 3003, ingress `/coa` |
+| CMA Agent | DO App Platform NYC3 (shared $12/mo) | Port 3004, ingress `/cma` |
+| Compliance Agent | DO App Platform NYC3 (shared $12/mo) | Port 3005, ingress `/compliance` |
+| Legal Agent | DO App Platform NYC3 (shared $12/mo) | Port 3006, ingress `/legal` |
+| Sales Agent | DO App Platform NYC3 (dedicated $29/mo, auto-scales 1→3) | Port 3007, ingress `/sales` |
+| Redis | DO Droplet NYC3 (104.248.1.157) | Password-protected, public IP |
+| n8n | DO Droplet NYC3 (167.172.24.255) | `n8n.blockdrive.co` |
 
 **DigitalOcean App Platform:**
-- App ID: `854138bf-004c-4992-a5f9-7af5a13bc3d9`
-- EA health: `https://cfo-agent-9glt5.ondigitalocean.app/ea/health`
-- Auto-deploy enabled from GitHub
+- App ID: `2742c227-ee68-44a3-b157-0a991bd3a522` (NYC3, `agentcorp-ghgvq.ondigitalocean.app`)
+- Health check: `https://agentcorp-ghgvq.ondigitalocean.app/ea/health`
+- Auto-deploy enabled from GitHub (`2Rds/agentcorp`, branch `main`)
 - `doctl` CLI installed and authenticated locally
+- EA builds from `source_dir: agents/ea` (standalone, no @waas/runtime access)
+- Dept agents omit `source_dir` (monorepo root build context for `packages/` COPY)
 
 ## Key Patterns
 
@@ -303,7 +306,7 @@ Deno runtime.
 - **Dual-mode agents**: Agents can run cognitive (Claude + tools + streaming) + conversational (ElevenLabs voice) modes sharing identity and memory. Voice deferred to Phase 2.
 - **Inter-agent messaging**: MessageBus via Redis LISTs + Telegram bot-to-bot DMs (transitioning to CF Queues).
 - **Provider Keys mode**: When `CF_AIG_TOKEN` is set, Cloudflare AI Gateway injects API keys at edge — provider keys become optional.
-- **Google Sheets**: Switched from OAuth 2.0 to service account with domain-wide delegation (`GOOGLE_SERVICE_ACCOUNT_KEY_FILE`). Service account JSON must never be committed (gitignored).
+- **Google Sheets**: Service account with domain-wide delegation. Supports `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (raw JSON content for cloud platforms) or `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (file path for local dev). Service account JSON must never be committed (gitignored).
 - **Notion scope enforcement** (CFO): CFA_SCOPE Notion access rules inlined in `agent/src/lib/notion-client.ts` (agent package is outside npm workspaces, cannot import `@waas/shared`). EA agent has executive-tier access without scope enforcement.
 - **Conditional tool loading**: Notion tools only register when `NOTION_API_KEY` is set (`config.notionEnabled`). All agents check this at tool factory time.
 - **PDF generation**: Playwright HTML→PDF with branded template, uploads to Supabase Storage `{orgId}/investor-docs/`, returns 1hr signed URL (matches excel-export pattern).

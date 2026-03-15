@@ -16,9 +16,13 @@ export type {
   GovernanceDecision,
 } from "./types.js";
 
+// Runtime validation
+export { isPendingApproval } from "./types.js";
+
 // Defaults & constants
 export {
   BLOCKDRIVE_GOVERNANCE,
+  validateGovernanceConfig,
   APPROVAL_TTL_SECONDS,
   APPROVAL_KEY_PREFIX,
   SPEND_KEY_PREFIX,

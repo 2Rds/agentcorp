@@ -67,8 +67,8 @@ export interface ModelStack {
 /** Agent tier in the org hierarchy */
 export type AgentTier = "executive" | "department-head" | "junior";
 
-/** Common fields shared by all agent tiers */
-interface AgentConfigBase {
+/** Common fields shared by all agent tiers (exported for declaration emit) */
+export interface AgentConfigBase {
   /** Unique agent identifier (e.g., "blockdrive-ea") */
   id: string;
   /** Display name (e.g., "Executive Assistant") */

@@ -2,6 +2,43 @@
 
 All notable changes to the WaaS platform.
 
+## [v2.3.0] - 2026-03-14
+
+DO App Platform migration (ATL → NYC3), Google Sheets cloud deployment fix, governance engine hardening from 21-issue PR review, and webhook security improvements.
+
+### Added
+
+- **Google Sheets JSON env var** — `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` support for cloud platforms that can't mount files (DO App Platform); preserves `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` for local dev
+- **PostHog proxy rewrite** — `/ingest/*` rewrite in Vercel config for ad-blocker bypass
+- **Runtime validation** — `isPendingApproval()` type guard for Redis deserialization safety
+- **Governance config validation** — `validateGovernanceConfig()` for fail-fast startup checks
+- **`AgentConfigBase`** exported from `@waas/shared` for TypeScript declaration emit compatibility
+
+### Changed
+
+- **DO App Platform migrated from ATL to NYC3** — All 7 agent services co-located with Redis droplet and n8n; EA + Sales on dedicated instances ($29/mo), other 5 on shared ($12/mo); Sales auto-scales 1→3 at 75% CPU; total $118/mo (was $203/mo)
+- `AGENT_REGISTRY` typed with `satisfies Record<AgentId, AgentConfig>` for compile-time key safety
+- `requireApproval` config keyed on `ApprovalCategory` type (was manual switch statement)
+- `GovernanceDecision` refactored to discriminated union (`{ approved: true } | { approved: false, reason }`)
+- `SpendEvent.agentId` typed as `AgentId | (string & {})` for type safety
+- `PendingApproval.telegramMessageId` uses `null` instead of sentinel `0`
+- Spend recording in chat routes is fire-and-forget (no longer blocks event loop after `res.end()`)
+- Webhook handler uses timing-safe string comparison for auth token validation
+- Webhook handler uses `WEBHOOK_SECRET` env var with `SUPABASE_SERVICE_ROLE_KEY` fallback
+- Database webhook migration reads `app.webhook_secret` with service role key fallback
+- HMR-safe channel IDs in `useRealtimeSubscription` (timestamp+random instead of module-level counter)
+
+### Fixed
+
+- EA `package-lock.json` out of sync (missing `@sentry/node`, `posthog-node`)
+- EA `observability.ts` inlined — standalone Docker build can't access `@waas/runtime`
+- Redis TOCTOU race in `resolveApproval` fixed with Lua atomic check-and-set script
+- Silent failures in `getDailySpend`, `resolveApproval`, `updateApprovalInRedis`, `getBot()` now log + alert via Sentry
+- Empty catch blocks replaced with error logging + Sentry alerts
+- SSE JSON parse catch now logs at debug level (diagnosable persistent parse failures)
+- Webhook handler logs non-2xx agent responses as warnings with response body
+- Webhook handler includes fetch error message in logs (was "Agent unreachable" only)
+
 ## [v2.2.0] - 2026-03-14
 
 Governance system with C-Suite Telegram approval flow, Supabase Realtime for live frontend updates, Vault for encrypted secret storage, and Database Webhooks for event-driven agent notifications.

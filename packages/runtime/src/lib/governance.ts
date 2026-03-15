@@ -26,6 +26,7 @@ import type {
   SpendEvent,
 } from "@waas/shared";
 import {
+  isPendingApproval,
   APPROVAL_KEY_PREFIX,
   SPEND_KEY_PREFIX,
   APPROVAL_TTL_SECONDS,
@@ -92,14 +93,13 @@ export class GovernanceEngine {
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
     const key = `${SPEND_KEY_PREFIX}${event.orgId}:${event.agentId}:${today}`;
 
-    // INCRBYFLOAT returns the new value as a string
-    const rawResult = await redis.incrByFloat(key, event.estimatedCostUsd);
-    const newTotal = parseFloat(rawResult);
+    // #19: node-redis v5 incrByFloat returns number directly
+    const newTotal = await redis.incrByFloat(key, event.estimatedCostUsd);
 
     // NaN guard — if Redis returns something unexpected, treat as 0
-    if (isNaN(newTotal)) {
-      console.error(`[${this.agentId}] Redis INCRBYFLOAT returned NaN for key ${key}`);
-      Sentry.captureMessage(`INCRBYFLOAT returned NaN for ${key}`, "error");
+    if (typeof newTotal !== "number" || isNaN(newTotal)) {
+      console.error(`[${this.agentId}] Redis INCRBYFLOAT returned unexpected value for key ${key}:`, newTotal);
+      Sentry.captureMessage(`INCRBYFLOAT returned unexpected value for ${key}`, "error");
       return { totalToday: 0, limitBreached: false };
     }
 
@@ -114,10 +114,16 @@ export class GovernanceEngine {
 
   /**
    * Get the current daily spend for an agent.
+   * #1: Log + Sentry alert when Redis is unavailable (was silently returning 0).
    */
   async getDailySpend(orgId: string, agentId?: string): Promise<number> {
     const redis = await this.getRedis();
-    if (!redis) return 0;
+    if (!redis) {
+      const msg = `[${this.agentId}] Governance DEGRADED: Redis unavailable — spend limit check degraded`;
+      console.warn(msg);
+      Sentry.captureMessage(msg, "warning");
+      return 0;
+    }
 
     const today = new Date().toISOString().slice(0, 10);
     const key = `${SPEND_KEY_PREFIX}${orgId}:${agentId ?? this.agentId}:${today}`;
@@ -148,18 +154,10 @@ export class GovernanceEngine {
 
   /**
    * Check if an action requires approval based on the governance config.
-   * Uses exhaustive switch (no default) so TypeScript catches new categories.
+   * #14: Now uses direct Record<ApprovalCategory, boolean> lookup — no switch needed.
    */
   requiresApproval(category: ApprovalCategory): boolean {
-    const r = this.config.requireApproval;
-    switch (category) {
-      case "external_communication": return r.externalCommunications;
-      case "marketing_activity": return r.marketingActivities;
-      case "social_media_post": return r.socialMediaPosts;
-      case "financial_commitment": return r.financialCommitments;
-      case "escalation": return r.escalations;
-      case "spend_limit_exceeded": return true; // Always requires approval
-    }
+    return this.config.requireApproval[category];
   }
 
   /**
@@ -180,7 +178,7 @@ export class GovernanceEngine {
       userId: request.userId,
       estimatedCost: request.estimatedCost ?? 0,
       riskNote: request.riskNote ?? "",
-      telegramMessageId: 0, // Set after sending Telegram message
+      telegramMessageId: null, // #16: null instead of sentinel 0
       telegramChatId: this.config.csuiteGroupChatId,
       status: "pending",
       requestedAt: new Date().toISOString(),
@@ -324,7 +322,14 @@ export class GovernanceEngine {
     if (!raw) return null;
 
     try {
-      return JSON.parse(raw) as PendingApproval;
+      const parsed = JSON.parse(raw);
+      // #5: Runtime validation after deserialization
+      if (!isPendingApproval(parsed)) {
+        console.error(`[${this.agentId}] Invalid approval structure for ${approvalId}`);
+        Sentry.captureMessage(`Invalid PendingApproval structure for ${approvalId}`, "error");
+        return null;
+      }
+      return parsed;
     } catch (err) {
       console.error(`[${this.agentId}] Corrupted approval data for ${approvalId}:`, err);
       Sentry.captureException(err);
@@ -334,7 +339,7 @@ export class GovernanceEngine {
 
   /**
    * Resolve a pending approval (approve or deny).
-   * Uses atomic check: only resolves if status is still "pending".
+   * #4: Uses Redis Lua script for atomic check-and-set (no TOCTOU race).
    * Returns { resolved: true, approval } if this call did the resolution,
    * or { resolved: false, approval } if already resolved by someone else.
    */
@@ -344,32 +349,65 @@ export class GovernanceEngine {
     resolvedBy: string,
   ): Promise<{ resolved: boolean; approval: PendingApproval | null }> {
     const redis = await this.getRedis();
-    if (!redis) return { resolved: false, approval: null };
+    if (!redis) {
+      // #3: Log + alert instead of silent null return
+      const msg = `[${this.agentId}] Governance FAIL-CLOSED: Redis unavailable — cannot resolve approval ${approvalId}`;
+      console.error(msg);
+      Sentry.captureMessage(msg, "error");
+      return { resolved: false, approval: null };
+    }
 
     const key = `${APPROVAL_KEY_PREFIX}${approvalId}`;
-    const raw = await redis.get(key);
-    if (!raw) return { resolved: false, approval: null };
+
+    // #4: Atomic check-and-set via Lua script to prevent TOCTOU race
+    const luaScript = `
+      local raw = redis.call('GET', KEYS[1])
+      if not raw then return nil end
+      local ok, approval = pcall(cjson.decode, raw)
+      if not ok then return 'CORRUPT' end
+      if approval.status ~= 'pending' then return raw end
+      approval.status = ARGV[1]
+      approval.resolvedAt = ARGV[2]
+      approval.resolvedBy = ARGV[3]
+      local updated = cjson.encode(approval)
+      redis.call('SET', KEYS[1], updated, 'EX', tonumber(ARGV[4]))
+      return updated
+    `;
+
+    const result = await redis.eval(luaScript, {
+      keys: [key],
+      arguments: [status, new Date().toISOString(), resolvedBy, String(APPROVAL_TTL_SECONDS)],
+    });
+
+    if (result === null) {
+      return { resolved: false, approval: null }; // Not found
+    }
+
+    if (result === "CORRUPT") {
+      console.error(`[${this.agentId}] Corrupted approval data for ${approvalId}`);
+      Sentry.captureMessage(`Corrupted approval in resolveApproval: ${approvalId}`, "error");
+      return { resolved: false, approval: null };
+    }
 
     let approval: PendingApproval;
     try {
-      approval = JSON.parse(raw) as PendingApproval;
+      const parsed = JSON.parse(result as string);
+      if (!isPendingApproval(parsed)) {
+        console.error(`[${this.agentId}] Invalid approval structure after resolve for ${approvalId}`);
+        Sentry.captureMessage(`Invalid PendingApproval after resolve: ${approvalId}`, "error");
+        return { resolved: false, approval: null };
+      }
+      approval = parsed;
     } catch (err) {
+      console.error(`[${this.agentId}] Failed to parse resolved approval ${approvalId}:`, err);
       Sentry.captureException(err);
       return { resolved: false, approval: null };
     }
 
-    if (approval.status !== "pending") {
-      return { resolved: false, approval }; // Already resolved
-    }
-
-    // Resolve it
-    approval.status = status;
-    approval.resolvedAt = new Date().toISOString();
-    approval.resolvedBy = resolvedBy;
-
-    await redis.set(key, JSON.stringify(approval), { EX: APPROVAL_TTL_SECONDS });
-
-    return { resolved: true, approval };
+    // If status is still what we set, we did the resolution.
+    // If it's different (already resolved by someone else), the Lua script returned the original.
+    const resolved = approval.status === status;
+    return { resolved, approval };
   }
 
   // ─── Telegram Callback Handler ─────────────────────────────────────────
@@ -402,10 +440,10 @@ export class GovernanceEngine {
           return;
         }
 
-        const status = action === "approve" ? "approved" as const : "denied" as const;
-        const resolvedBy = ctx.callbackQuery.from.first_name ?? String(fromId);
+        const resolveStatus = action === "approve" ? "approved" as const : "denied" as const;
+        const resolvedByName = ctx.callbackQuery.from.first_name ?? String(fromId);
 
-        const result = await this.resolveApproval(approvalId, status, resolvedBy);
+        const result = await this.resolveApproval(approvalId, resolveStatus, resolvedByName);
 
         if (!result.approval) {
           await ctx.answerCallbackQuery({ text: "Approval not found or expired." });
@@ -421,12 +459,12 @@ export class GovernanceEngine {
         }
 
         // Successfully resolved — update the Telegram message
-        const emoji = status === "approved" ? "✅" : "❌";
-        const verb = status === "approved" ? "Approved" : "Denied";
+        const emoji = resolveStatus === "approved" ? "✅" : "❌";
+        const verb = resolveStatus === "approved" ? "Approved" : "Denied";
 
         try {
           await ctx.editMessageText(
-            `${emoji} *${verb}* by ${escapeMarkdownV1(resolvedBy)}\n\n` +
+            `${emoji} *${verb}* by ${escapeMarkdownV1(resolvedByName)}\n\n` +
             `Agent: ${escapeMarkdownV1(result.approval.agentName)}\n` +
             `Action: ${escapeMarkdownV1(result.approval.action)}\n` +
             `_${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}_`,
@@ -436,7 +474,7 @@ export class GovernanceEngine {
           // If Markdown edit fails, try plain text
           try {
             await ctx.editMessageText(
-              `${emoji} ${verb} by ${resolvedBy}\n\n` +
+              `${emoji} ${verb} by ${resolvedByName}\n\n` +
               `Agent: ${result.approval.agentName}\n` +
               `Action: ${result.approval.action}\n` +
               `${new Date().toLocaleString("en-US", { timeZone: "America/New_York" })}`,
@@ -449,20 +487,24 @@ export class GovernanceEngine {
         await ctx.answerCallbackQuery({ text: `${verb} ${result.approval.agentName}'s request` });
 
         console.log(
-          `[${this.agentId}] Approval ${approvalId.slice(0, 8)} ${status} by ${resolvedBy}: ${result.approval.action}`,
+          `[${this.agentId}] Approval ${approvalId.slice(0, 8)} ${resolveStatus} by ${resolvedByName}: ${result.approval.action}`,
         );
       } catch (err) {
         console.error(`[${this.agentId}] Governance callback handler error:`, err);
         Sentry.captureException(err);
+        // #2: Log the answerCallbackQuery failure instead of empty catch
         try {
           await ctx.answerCallbackQuery({ text: "Error processing approval. Try again." });
-        } catch { /* best effort */ }
+        } catch (ackErr) {
+          console.error(`[${this.agentId}] Failed to ack callback query:`, ackErr);
+        }
       }
     });
   }
 
   // ─── Internal Helpers ─────────────────────────────────────────────────
 
+  // #11: Log when Redis is unavailable instead of silently dropping
   private async updateApprovalInRedis(approval: PendingApproval): Promise<void> {
     const redis = await this.getRedis();
     if (redis) {
@@ -471,6 +513,8 @@ export class GovernanceEngine {
         JSON.stringify(approval),
         { EX: APPROVAL_TTL_SECONDS },
       );
+    } else {
+      console.warn(`[${this.agentId}] Redis unavailable — could not persist telegramMessageId for approval ${approval.id.slice(0, 8)}`);
     }
   }
 }

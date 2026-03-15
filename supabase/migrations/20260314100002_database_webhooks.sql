@@ -13,12 +13,12 @@
 -- to prevent pg_net retries for non-fatal failures.
 --
 -- Note: pg_net stores request/response in net._http_response (accessible
--- to postgres role). The service role key is sent in the Authorization
--- header and will be visible there. This is acceptable because:
---   1. net._http_response is only accessible to the postgres role
---   2. The key is already available via current_setting() to any
---      SECURITY DEFINER function
---   3. pg_net auto-cleans old entries
+-- to postgres role). We use a dedicated webhook secret (app.webhook_secret)
+-- instead of the service role key to limit blast radius if the secret
+-- is exposed in pg_net logs. Falls back to service role key if unset.
+--
+-- Set via: ALTER DATABASE postgres SET app.webhook_secret = '<secret>';
+-- Then set WEBHOOK_SECRET env var on the webhook-handler Edge Function.
 
 -- ─── Helper: get the webhook URL ─────────────────────────────────────────
 -- We use a function so the URL can be updated without recreating triggers.
@@ -47,11 +47,16 @@ DECLARE
   service_key text;
 BEGIN
   webhook_url := internal_webhook_url();
-  service_key := coalesce(current_setting('supabase.service_role_key', true), '');
+  -- Prefer dedicated webhook secret; fall back to service role key
+  service_key := coalesce(
+    current_setting('app.webhook_secret', true),
+    current_setting('supabase.service_role_key', true),
+    ''
+  );
 
   -- Skip if URL or key not configured (log warning for visibility)
   IF webhook_url = '/functions/v1/webhook-handler' OR service_key = '' THEN
-    RAISE WARNING '[notify_webhook] Skipping % on %: webhook URL or service key not configured',
+    RAISE WARNING '[notify_webhook] Skipping % on %: webhook URL or auth secret not configured',
       TG_OP, TG_TABLE_NAME;
     RETURN NEW;
   END IF;

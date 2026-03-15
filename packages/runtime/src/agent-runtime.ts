@@ -352,7 +352,12 @@ export class AgentRuntime {
     // Register governance callback handler on this agent's bot BEFORE polling starts
     const agentBotConfig = this.runtimeConfig.telegram.agents[this.config.id];
     if (agentBotConfig) {
-      this.governance.setupCallbackHandler(this.telegramTransport.getBot(this.config.id));
+      try {
+        this.governance.setupCallbackHandler(this.telegramTransport.getBot(this.config.id));
+      } catch (botErr) {
+        console.error(`[${this.config.id}] Failed to set up governance callback handler:`, botErr);
+        Sentry.captureException(botErr);
+      }
     }
 
     await this.telegramTransport.startPolling();

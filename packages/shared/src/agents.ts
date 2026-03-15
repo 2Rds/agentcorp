@@ -180,8 +180,8 @@ export type AgentId =
   | "blockdrive-ea" | "blockdrive-coa" | "blockdrive-cfa" | "blockdrive-ir"
   | "blockdrive-cma" | "blockdrive-compliance" | "blockdrive-legal" | "blockdrive-sales";
 
-/** All configured agents, indexed by ID */
-export const AGENT_REGISTRY: Record<string, AgentConfig> = {
+/** All configured agents, indexed by ID (#13: typed on AgentId for compile-time key safety) */
+export const AGENT_REGISTRY = {
   "blockdrive-ea": EA_CONFIG,
   "blockdrive-coa": COA_CONFIG,
   "blockdrive-cfa": CFA_CONFIG,
@@ -190,27 +190,28 @@ export const AGENT_REGISTRY: Record<string, AgentConfig> = {
   "blockdrive-compliance": COMPLIANCE_CONFIG,
   "blockdrive-legal": LEGAL_CONFIG,
   "blockdrive-sales": SALES_CONFIG,
-};
+} satisfies Record<AgentId, AgentConfig>;
 
 /** Get an agent's configuration or throw */
 export function getAgentConfig(agentId: string): AgentConfig {
-  const config = AGENT_REGISTRY[agentId];
+  const config = (AGENT_REGISTRY as Record<string, AgentConfig>)[agentId];
   if (!config) throw new Error(`Unknown agent: ${agentId}`);
   return config;
 }
 
 /** Get all agents that report to a given agent */
 export function getDirectReports(agentId: string): AgentConfig[] {
-  return Object.values(AGENT_REGISTRY).filter(a => a.reportsTo === agentId);
+  return Object.values(AGENT_REGISTRY as Record<string, AgentConfig>).filter(a => a.reportsTo === agentId);
 }
 
 /** Get the reporting chain from an agent up through its parent agents */
 export function getChainOfCommand(agentId: string): AgentConfig[] {
+  const registry = AGENT_REGISTRY as Record<string, AgentConfig>;
   const chain: AgentConfig[] = [];
-  let current: AgentConfig | undefined = AGENT_REGISTRY[agentId];
+  let current: AgentConfig | undefined = registry[agentId];
   while (current) {
     chain.push(current);
-    current = current.reportsTo ? AGENT_REGISTRY[current.reportsTo] : undefined;
+    current = current.reportsTo ? registry[current.reportsTo] : undefined;
   }
   return chain;
 }

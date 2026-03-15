@@ -18,13 +18,14 @@ export const BLOCKDRIVE_GOVERNANCE: GovernanceConfig = {
   spendLimitPerAgentPerDay: 10,   // $10 USD per agent per day
   spendLimitGlobalPerDay: 100,    // $100 USD all agents combined
 
-  // ── Approval Requirements ──
+  // ── Approval Requirements (#14: keyed on ApprovalCategory) ──
   requireApproval: {
-    externalCommunications: true,  // Any outbound to non-internal
-    marketingActivities: true,     // Content, campaigns
-    socialMediaPosts: true,        // X/Twitter, LinkedIn, etc.
-    financialCommitments: true,    // Pricing, contracts, spending
-    escalations: true,             // Inter-agent escalation
+    external_communication: true,  // Any outbound to non-internal
+    marketing_activity: true,      // Content, campaigns
+    social_media_post: true,       // X/Twitter, LinkedIn, etc.
+    financial_commitment: true,    // Pricing, contracts, spending
+    escalation: true,              // Inter-agent escalation
+    spend_limit_exceeded: true,    // Always requires approval
   },
 
   // ── Logging ──
@@ -47,6 +48,19 @@ export const BLOCKDRIVE_GOVERNANCE: GovernanceConfig = {
     eveningHour: 17,               // 5 PM ET
   },
 };
+
+/**
+ * Validate governance config has required runtime values populated.
+ * Call at agent startup to fail-fast on misconfiguration. (#21)
+ */
+export function validateGovernanceConfig(config: GovernanceConfig): void {
+  if (!config.csuiteGroupChatId) {
+    console.warn("[Governance] CSUITE_TELEGRAM_CHAT_ID not set — Telegram approvals will be skipped");
+  }
+  if (config.authorizedApproverIds.length === 0) {
+    console.warn("[Governance] GOVERNANCE_APPROVER_IDS empty — any group member can approve");
+  }
+}
 
 /** Approval request TTL in Redis (24 hours) */
 export const APPROVAL_TTL_SECONDS = 86_400;

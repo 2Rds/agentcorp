@@ -212,7 +212,7 @@ All 7 agent system prompts include governance directives requiring approval befo
 
 The `webhook-handler` Edge Function receives pg_net trigger events and forwards to agent servers.
 
-- **Auth:** Exact Bearer token comparison (not substring match) against `SUPABASE_SERVICE_ROLE_KEY`
+- **Auth:** Timing-safe Bearer token comparison against `WEBHOOK_SECRET` env var (falls back to `SUPABASE_SERVICE_ROLE_KEY`)
 - **Content-Type:** Validates `application/json` header (415 on mismatch)
 - **Internal only:** No CORS headers — this endpoint is called by pg_net, not browsers
 - **Trigger functions:** `SECURITY DEFINER` with `REVOKE EXECUTE FROM PUBLIC` — only the postgres role (table owner) can invoke
