@@ -119,6 +119,7 @@ Public investor data rooms (`/dataroom/:slug`) have additional controls:
 - **Expiry dates** — Links can be time-limited
 - **Link-level document access** — `allowedDocumentIds` restricts which documents are visible
 - **View tracking** — All views logged to `link_views` with IP, user agent, timestamp
+- **Credential transport** — Auth credentials sent via POST body and `x-viewer-*` headers (not query params) to prevent leaking in server logs and browser history
 
 ## Service Role Key
 
@@ -147,10 +148,10 @@ Additional tool-level protections:
 
 ## Namespace Isolation (Agent-to-Agent)
 
-Each agent operates within a defined `ToolScope` that controls access to Redis, mem0, Supabase tables, and Notion databases. Enforcement is fail-closed via `ScopeEnforcer` (`@waas/shared/namespace`).
+Each agent operates within a defined `ToolScope` that controls access to Redis, Supabase tables, and Notion databases. Enforcement is fail-closed via `ScopeEnforcer` (`@waas/shared/namespace`).
 
-| Agent | Redis | Mem0 | Notion | Cross-Namespace |
-|-------|-------|------|--------|-----------------|
+| Agent | Redis | Memory | Notion | Cross-Namespace |
+|-------|-------|--------|--------|-----------------|
 | EA (Alex) | `blockdrive:ea:` RW, `blockdrive:` R | Own RW, `*` R | Decision Log RW, Project Hub RW, Pipeline R | Executive read all |
 | CFA (Morgan) | `blockdrive:cfa:` RW | Own RW | Pipeline RW, Decision Log RW, Project Hub R | None |
 | COA (Jordan) | `blockdrive:coa:` RW, `blockdrive:` R | Own RW, `*` R | Full workspace RW | Executive read all |
@@ -167,6 +168,14 @@ EA agent's Telegram bot transport enforces:
 - `TELEGRAM_CHAT_ID` whitelist — only authorized chat IDs can interact
 - 20-message conversation history limit per chat
 
+### Slack Bot Security
+
+EA agent's Slack integration (`@slack/bolt` Socket Mode):
+- Admin access to all channels — channel classification determines response behavior
+- Feed channels (`feed-ops`, `feed-pipeline`) are notification-only — bot ignores messages
+- Thread history capped at 500 threads (FIFO eviction) to prevent memory leaks
+- Channel context injected into prompts for department-aware responses
+
 ## API Key Management
 
 | Key | Scope | Storage |
@@ -174,7 +183,7 @@ EA agent's Telegram bot transport enforces:
 | `ANTHROPIC_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
 | `SUPABASE_SERVICE_ROLE_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
 | `OPENROUTER_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
-| `MEM0_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
+| `COHERE_API_KEY` | All agent servers (embeddings + reranking) | `agent/.env`, `agents/*/.env` |
 | `NOTION_API_KEY` | All agent servers (optional) | `agent/.env`, `agents/*/.env` |
 | `PERPLEXITY_API_KEY` | Dept agents (optional, fallback to OpenRouter) | `agents/*/.env` |
 | `SENTRY_DSN` | All agent servers (error tracking) | `agent/.env`, `agents/*/.env` |
@@ -182,6 +191,9 @@ EA agent's Telegram bot transport enforces:
 | `VITE_SENTRY_DSN` | Frontend (error tracking) | `.env` |
 | `VITE_POSTHOG_KEY` | Frontend (analytics, write-only) | `.env` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | Frontend (public) | `.env` |
+| `CSUITE_TELEGRAM_CHAT_ID` | All agents (governance group chat) | `agents/*/.env` |
+| `GOVERNANCE_APPROVER_IDS` | All agents (authorized Telegram user IDs) | `agents/*/.env` |
+| `WEBHOOK_SECRET` | Agent servers (webhook handler auth) | `agents/*/.env` |
 
 Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the gateway to inject API keys at the edge — keys never leave the server.
 
@@ -191,6 +203,31 @@ Optional Cloudflare AI Gateway "Provider Keys" mode (`CF_AIG_TOKEN`) allows the 
 - **Sentry DSN** — Write-only, used for error reporting. Safe to include in frontend bundles.
 - **Source maps** — Only generated during build when `SENTRY_AUTH_TOKEN` + `SENTRY_ORG` + `SENTRY_PROJECT` are set. Uploaded to Sentry but NOT served via CDN. `SENTRY_AUTH_TOKEN` is a build-time secret, never shipped to the browser.
 
+## Governance Controls
+
+### Spend Tracking
+
+GovernanceEngine tracks daily API spend per agent via Redis counters. Estimated token costs are computed after each agent query (character-based estimation with 3x input multiplier for tool-use overhead, output tokens counted at face value) and recorded to both Redis (real-time limits) and Supabase `agent_usage_events` table (frontend visibility). When Redis is unavailable, an in-memory fallback counter prevents unlimited spend (resets on process restart).
+
+### Approval Gates
+
+Actions in configured categories (external communications, marketing activities, social media posts, financial commitments) require CEO approval via Telegram inline keyboard in the C-Suite group chat before execution. Approvals are stored in Redis with TTL and resolved by authorized approver IDs.
+
+### Agent Directives
+
+All 7 agent system prompts include governance directives requiring approval before external-facing actions. Agents cannot bypass governance — the directives are injected into the system prompt, not agent-configurable.
+
+## Database Webhooks Security
+
+The `webhook-handler` Edge Function receives pg_net trigger events and forwards to agent servers.
+
+- **Auth:** Timing-safe Bearer token comparison against `WEBHOOK_SECRET` env var (falls back to `SUPABASE_SERVICE_ROLE_KEY`)
+- **Content-Type:** Validates `application/json` header (415 on mismatch)
+- **Internal only:** No CORS headers — this endpoint is called by pg_net, not browsers
+- **Trigger functions:** `SECURITY DEFINER` with `REVOKE EXECUTE FROM PUBLIC` — only the postgres role (table owner) can invoke
+- **Exception handling:** `BEGIN..EXCEPTION WHEN OTHERS` around `net.http_post()` — trigger failures never block the originating INSERT
+- **Response logging:** pg_net stores request/response in `net._http_response` (postgres-role access only, auto-cleaned)
+
 ## Organization Data Isolation
 
 All user-facing data is scoped to organizations:
@@ -198,8 +235,37 @@ All user-facing data is scoped to organizations:
 - Every data table has an `organization_id` column
 - RLS policies enforce org membership on every query
 - The agent server verifies org membership in middleware before processing any request
-- Mem0 memories are org-scoped via `user_id` = organization UUID
+- Memories are org-scoped via `org_id` TAG filter in Redis indexes
 - Redis indexes include `org_id` TAG filters
 - Storage objects are organized by `{organization_id}/` folder prefix
+- Feature Store keys are prefixed with `fs:{orgId}:` for per-org isolation
+- Agent Memory Server uses `org:agentId:userId` namespace scheme for full isolation
 
 There is no cross-organization data access path.
+
+## Redis AI Infrastructure Security
+
+### Semantic Cache
+
+- Cache entries keyed by embedding similarity — no org-level isolation (cross-agent sharing by design)
+- Skip list prevents caching of non-deterministic model outputs (Sonar web results)
+- Promise lock prevents race conditions during index creation
+- Circuit breaker stops retrying after 3 failures (prevents hot loop)
+- All errors reported to Sentry
+
+### Feature Store
+
+- All 14 public methods accept per-call `orgId` override — prevents empty-orgId key malformation
+- `resolveOrgId()` helper warns on empty orgId (defense-in-depth logging)
+- `FT.SEARCH` used exclusively (no `KEYS` command) — O(log N) performance, no blocking
+- Promise lock on index creation (per-index `Map`) prevents duplicate concurrent creation
+- All errors reported to Sentry with structured logging
+
+### Agent Memory Server
+
+- Health-checked at startup — unhealthy AMS falls back to RedisMemoryClient (no silent failure)
+- Namespace isolation via `org:agentId:userId` composite key
+- Cross-agent search uses `org:userId` (no agent prefix) — intentional for organizational queries
+- Request timeout (default 10s) with `AbortController`
+- Optional Bearer token auth (`apiKey` config)
+- All 10 catch blocks report to Sentry

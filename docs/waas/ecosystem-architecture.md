@@ -30,7 +30,7 @@ The intelligence layer. Deploys namespace-isolated, memory-enriched AI agents th
 - Curate and analyze content across the ecosystem
 - Provide department-specific intelligence (finance, legal, marketing, sales, operations, compliance)
 - Communicate across departments via inter-agent messaging
-- Maintain persistent organizational memory via Mem0
+- Maintain persistent organizational memory via Redis with vector search
 
 ## The Flywheel
 
@@ -54,7 +54,7 @@ Separate apps with native, seamless integrations (Dropbox/DocSend model). Not mo
 
 - Each product has its own frontend, backend, and deployment
 - Shared Supabase project (`eisiohgjfviwxgdyfnsd`) for auth and core data
-- Shared Mem0 instance for organizational memory
+- Shared Redis instance for organizational memory (RediSearch + Cohere embeddings)
 - API-level integration between products
 - Single sign-on via Supabase Auth
 

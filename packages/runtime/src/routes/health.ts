@@ -2,7 +2,7 @@
  * Health Check Route
  *
  * Standard /health endpoint for every agent. Returns agent identity,
- * uptime, and service status (Redis, mem0, Telegram).
+ * uptime, and service status (Redis, memory, Telegram).
  */
 
 import { Router } from "express";
@@ -12,7 +12,7 @@ export interface HealthDeps {
   agentId: string;
   agentName: string;
   version: string;
-  hasMem0: boolean;
+  hasMemory: boolean;
   hasTelegram: boolean;
 }
 
@@ -30,7 +30,7 @@ export function createHealthRouter(deps: HealthDeps): Router {
       },
       services: {
         redis: isRedisAvailable(),
-        mem0: deps.hasMem0,
+        memory: deps.hasMemory,
         telegram: deps.hasTelegram,
       },
       startedAt,

@@ -2,13 +2,173 @@
 
 ## Current Status
 
+### Completed — v3.0.0 (2026-03-15)
+
+**Redis AI Infrastructure (3 new runtime modules)**
+- [x] `SemanticCache` — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW COSINE, `idx:llm_cache_v2` index). Cross-agent sharing, 95% similarity threshold, configurable TTL. Promise lock on `ensureIndex()`.
+- [x] `AgentMemoryServerClient` — HTTP client for Redis Agent Memory Server (two-tier: working memory + long-term semantic search). Implements `MemoryClient` interface. Health-check fallback to `RedisMemoryClient`.
+- [x] `FeatureStore` — Sub-millisecond Redis HASH feature retrieval for Sales agent. 4 feature types × 4 RediSearch indexes (`idx:prospect_features`, `idx:industry_features`, `idx:agent_performance`, `idx:call_brief`). Per-method `orgId` override.
+- [x] `AgentRuntime.start()` initializes all three modules during startup lifecycle
+
+**Voice Pipeline Foundation**
+- [x] `ElevenLabsClient` — WebSocket TTS/STT (Flash v2.5, u-law 8kHz passthrough)
+- [x] `VoicePipeline` — NextGenSwitch ↔ ElevenLabs ↔ Claude bridge, Redis call state
+- [x] `VoiceTransport` — WebSocket server + outbound REST API
+- [x] All voice types exported from `@waas/runtime`
+
+**Sales Agent Feature Store Integration**
+- [x] 5 new MCP tools: `update_prospect_features`, `get_call_intelligence`, `get_hottest_prospects`, `update_industry_features`, `create_call_brief`
+- [x] All tools pass `orgId` from closure for multi-tenant isolation
+- [x] `runtime-ref.ts` pattern for lazy runtime access
+
+**Redis Shared Infrastructure**
+- [x] `createIndex()`, `vectorSearch()`, `escapeTag()`, `nowSecs()` exported from `redis-client.ts`
+- [x] Chat route cache integration (check cache → Claude API → store response)
+- [x] All new modules exported from `@waas/runtime` index
+
+**9 Critical/High Review Fixes**
+- [x] CRITICAL: FeatureStore `orgId=""` — per-method `orgId` parameter + `resolveOrgId()` helper
+- [x] CRITICAL: `KEYS` command in `getCallBriefForProspect` — replaced with `FT.SEARCH` on `idx:call_brief`
+- [x] CRITICAL: AMS `healthy:false` doesn't fallback — added `if (healthy)` condition
+- [x] HIGH: `claude-opus-4-6` in `DEFAULT_SKIP_MODELS` — removed (was making cache dead code)
+- [x] HIGH: Zero Sentry in catch blocks — added `Sentry.captureException()` to 19 catch blocks across AMS/SemanticCache/FeatureStore
+- [x] HIGH: `ensureIndex` race condition — promise lock in SemanticCache + FeatureStore
+- [x] HIGH: `hasMemory` stale in health route — changed to getter
+- [x] HIGH: Embedding failures silently return null — added `console.warn`
+- [x] HIGH: `setProspectFeatures` bare catch — added error logging
+
+### Completed — v2.4.1 (2026-03-15)
+
+(was previous: Completed — v2.4.0)
+
+### Completed — v2.4.0 (2026-03-15)
+
+**MessageBus Dual-Mode + Stream Operations**
+- [x] MessageBus dual-mode persistence: Redis Streams (XADD/XRANGE/MAXLEN) with automatic LIST fallback
+- [x] `StreamEntry` type exported from `@waas/shared/namespace`
+- [x] `ScopedRedisClient` stream operations (`xadd`, `xrange`, `xlen`, `xtrim`) with namespace enforcement
+- [x] Agent-runtime stream adapters (maps `redis` npm PascalCase to `@waas/shared` lowercase)
+- [x] MessageBus safe JSON parsing (`safeParseMessage`, `safeParseMessages`)
+- [x] MessageBus persistence mode logging on first message
+
+**Governance + Reliability**
+- [x] GovernanceEngine in-memory spend fallback when Redis unavailable
+- [x] Governance callback handler calls `next()` for non-governance callbacks
+- [x] Spend limits tightened: $10→$5/agent/day, $100→$50 global/day
+- [x] Chat route token estimation: 3x multiplier on input only (output at face value)
+
+**EA Agent Org-Scoping**
+- [x] `BLOCKDRIVE_ORG_ID` config added to EA agent
+- [x] Slack transport uses real org UUID (was hardcoded `"slack-workspace"`)
+- [x] Telegram transport uses real org UUID (was hardcoded `"telegram-direct"`)
+- [x] `BLOCKDRIVE_ORG_ID` env var set in DO App Platform
+
+**Inter-Agent Messaging**
+- [x] `message_agent` tool added to CMA, Compliance, Legal, Sales agents via MessageBus
+- [x] COA `message_agent` Supabase fallback removed (MessageBus-only)
+
+**25-Issue Code Review Fixes**
+- [x] Telemetry Worker fail-closed auth (was accepting unauthenticated requests when API key unset)
+- [x] Telemetry Worker split error responses: JSON parse → 400, write → 500
+- [x] RedisMemoryClient circuit breaker: `ensureIndex()` stops after 3 failures
+- [x] Zero-vector embedding guard: skip embedding on failure, return NOOP event
+- [x] `updateMemory` keeps existing embedding on re-embed failure
+- [x] `hashToMemory` empty catch → `console.warn` with key
+- [x] `RedisMemoryClient` declares `implements MemoryClient`
+- [x] Supabase audit log INSERT checks `{ error }` field
+- [x] Webhook handler includes `fetchErr` in logs, warns when `AGENT_BASE_URL` not configured
+- [x] Track-view Worker type-safe input validation
+- [x] Sales `prep_call` bare catch → error logging
+- [x] DataRoom auth credentials moved from GET query params to POST body + headers
+- [x] `useModelSheet` uses `useAuth()` context instead of `supabase.auth.getSession()`
+
+### Completed — v2.3.1 (2026-03-15)
+
+**PR Review Fixes (21 issues)**
+- [x] Fixed broken imports in KnowledgeGraph.tsx and KnowledgeDocuments.tsx
+- [x] Fixed `enable_data_room` silently dropped in useInvestorLinks mutation
+- [x] Replaced `Math.random()` with `crypto.getRandomValues()` for slug generation
+- [x] Added missing `workforce-compliance` to WORKFORCE_CHANNELS
+- [x] Added Slack thread history cap (MAX_THREADS=500 with FIFO eviction)
+- [x] sendSlackMessage/readSlackChannel now throw when bot not initialized
+- [x] DM channel detection via `/^D[A-Z0-9]+$/` regex
+- [x] useInvestorLinks realtime uses unique channel ID (HMR-safe)
+- [x] KnowledgeBaseTab error handling for fetch and upload
+- [x] DataRoom input validation (agentUrl/slug early check)
+- [x] CapTableTab renamed to FinancialOverviewTab
+
+**Pure Function Extraction + Test Coverage**
+- [x] `channel-config.ts` extracted from `slack.ts` (zero runtime deps)
+- [x] `computeDerivedMetrics()` extracted from `useFinancialModel` hook
+- [x] `computeCapTableSummary()` extracted from `useCapTable` hook
+- [x] `computeLinkAnalytics()` + `generateSlug()` extracted from `useInvestorLinks` hook
+- [x] 59 unit tests across 4 test files (all passing)
+
+**Infrastructure Consolidation (NYC3 → NYC1)**
+- [x] Redis droplet migrated to NYC1 (`waas-redis-nyc1`, 67.205.165.14)
+- [x] n8n droplet migrated to NYC1 (`n8n-nyc1`, 134.209.67.70, Docker + Caddy)
+- [x] Old NYC3 Redis and n8n droplets deleted
+- [x] DNS updated via Cloudflare API (`n8n.blockdrive.co` → NYC1 IP)
+
+### Completed — v2.3.0 (2026-03-14)
+
+**DO App Platform Migration (ATL → NYC3)**
+- [x] All 7 agent services migrated to NYC3 region (co-located with Redis + n8n)
+- [x] EA + Sales on dedicated instances ($29/mo), other 5 on shared ($12/mo) — total $118/mo (was $203/mo)
+- [x] Sales agent auto-scales 1→3 instances at 75% CPU
+- [x] Google Sheets `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` env var support for cloud platforms
+- [x] PostHog proxy rewrite (`/ingest/*`) in Vercel config for ad-blocker bypass
+- [x] Vercel `VITE_AGENT_URL` updated to NYC3 app URL
+
+**Governance Engine Hardening (21-issue PR review)**
+- [x] `isPendingApproval()` runtime type guard for Redis deserialization
+- [x] `validateGovernanceConfig()` fail-fast startup validation
+- [x] `AGENT_REGISTRY` typed with `satisfies Record<AgentId, AgentConfig>`
+- [x] `requireApproval` keyed on `ApprovalCategory` (no manual switch)
+- [x] `GovernanceDecision` refactored to discriminated union
+- [x] Redis TOCTOU race fixed with Lua atomic check-and-set in `resolveApproval`
+- [x] Silent failures replaced with logging + Sentry alerts across governance engine
+- [x] Spend recording made fire-and-forget (no event loop blocking after response)
+- [x] Webhook handler: timing-safe auth, `WEBHOOK_SECRET` env var, non-2xx logging, error details
+- [x] Database webhook migration: `app.webhook_secret` with service role key fallback
+- [x] HMR-safe channel IDs in `useRealtimeSubscription`
+
+**Build Fixes**
+- [x] EA `package-lock.json` synced (was missing @sentry/node, posthog-node)
+- [x] EA `observability.ts` inlined (standalone Docker build can't access @waas/runtime)
+
+### Completed — v2.2.0 (2026-03-14)
+
+**Governance System (C-Suite Telegram Approval Flow)**
+- [x] Governance types in `@waas/shared/governance`: `GovernanceConfig`, `ApprovalCategory`, `PendingApproval`, `GovernanceDecision`, `SpendEvent`, `BLOCKDRIVE_GOVERNANCE` defaults
+- [x] GovernanceEngine in `@waas/runtime`: daily spend tracking (Redis), pending approval management (Telegram inline keyboards), authorized approver enforcement
+- [x] Spend tracking in chat routes: estimated token costs recorded to Redis via GovernanceEngine after every agent query
+- [x] Agent usage events bridge: `agent_usage_events` table now receives writes from chat routes (was Redis-only); Operations workspace AgentUsageTab shows real cost/latency data
+- [x] Governance directives added to all 7 agent system prompts (approval gates for external comms, marketing, social media, financial commitments)
+- [x] CCO renamed to Parker (CCA), naming standardization: CFA, CCA, CMA, COA, CSA, CLA
+
+**Supabase Realtime (Live Frontend Updates)**
+- [x] `useRealtimeSubscription` hook with unique channel IDs, `.subscribe()` status callbacks, race-condition-closing refetch on SUBSCRIBED
+- [x] 17 department tables added to `supabase_realtime` publication (idempotent DO blocks)
+- [x] All 7 workspace pages + Dashboard subscribe to their department tables, auto-invalidating TanStack Query cache on changes
+
+**Supabase Vault + Database Webhooks**
+- [x] pgsodium + pg_net extensions enabled
+- [x] `webhook-handler` Edge Function with exact Bearer token auth, Content-Type validation, reduced log verbosity
+- [x] INSERT triggers on `ea_tasks`, `agent_messages`, `compliance_governance_log` with `REVOKE EXECUTE FROM PUBLIC` and `BEGIN..EXCEPTION` handler
+- [x] Webhook trigger functions are idempotent (DROP TRIGGER IF EXISTS before CREATE)
+
+**Housekeeping**
+- [x] GitHub repo references updated to `2Rds/agentcorp`
+- [x] Frontend URL renamed from `cfo.blockdrive.co` to `corp.blockdrive.co`
+
 ### Completed — v2.1.0 (2026-03-14)
 
 **Full-Stack Observability (Sentry + PostHog)**
 - [x] Frontend: `@sentry/react` with ErrorBoundary, BrowserTracing, Replay (on error), source map upload via `@sentry/vite-plugin`
 - [x] Frontend: `posthog-js` with autocapture, SPA page views, user identify/reset on auth
 - [x] CFO Agent: `@sentry/node` + `posthog-node` with Express error handler, shutdown flush
-- [x] EA Agent: Re-exports observability from `@waas/runtime` (DRY)
+- [x] EA Agent: Self-contained observability (standalone Docker build, no `@waas/runtime` access)
 - [x] @waas/runtime: Shared `initSentry(agentId)` + `initPostHog()` + `shutdownObservability()` — covers COA, CMA, Compliance, Legal, Sales
 - [x] All agent servers: `uncaughtException` → Sentry flush + `process.exit(1)`
 - [x] All SDK init calls wrapped in try-catch (non-fatal on failure)
@@ -119,13 +279,13 @@
 
 **Platform Packages**
 - [x] `@waas/shared` — Agent registry, model registry, namespace scopes, MessageBus, BoardSession
-- [x] `@waas/runtime` — AgentRuntime (Express), auth middleware, chat/health routes, Telegram transport, Redis/mem0 clients
+- [x] `@waas/runtime` — AgentRuntime (Express), auth middleware, chat/health routes, Telegram transport, Redis memory clients
 
 **EA Agent "Alex" (2026-03-05 → 2026-03-09)**
 - [x] Scaffolded at `agents/ea/` (28 source files)
 - [x] Anthropic Messages API with agentic tool loop (15 turns max)
 - [x] 7 native tools: knowledge search/save, tasks, meeting notes, email drafts, web search
-- [x] Cross-namespace mem0 read access (executive tier)
+- [x] Cross-namespace memory read access (executive tier)
 - [x] System prompt with autonomous ops + escalation rules
 - [x] Telegram bot transport (@alex_executive_assistant_bot)
 - [x] Enrichment pipeline: EA memories + cross-dept + session + skills (parallel)
@@ -138,7 +298,7 @@
 ### Completed — Infrastructure (2026-03-04 → 2026-03-09)
 
 - [x] DigitalOcean App Platform for agent deployment (auto-deploy from GitHub)
-- [x] n8n automation hub on DO droplet (167.172.24.255, `n8n.blockdrive.co`)
+- [x] n8n automation hub on DO droplet NYC1 (134.209.67.70, `n8n.blockdrive.co`)
 - [x] Google Sheets switched from OAuth to service account + domain-wide delegation
 - [x] `doctl` CLI installed and authenticated locally
 
@@ -151,10 +311,15 @@
 - **No OAuth/SSO** — Only email+password
 - **Client-side metrics only** — Derived metrics computed in browser
 - **Redis optional** — Vector search, semantic cache, plugin matching degrade to fallbacks without it
-- **Mem0 dependency** — Knowledge base entirely Mem0-dependent
+- **Redis dependency** — Knowledge base entirely Redis-dependent
 - **EA tool set is growing** — Has knowledge, tasks, meeting notes, email drafts, web search, and Notion, but no calendar integration or actual email sending yet
-- **Inter-agent messaging** — Designed in @waas/shared but not wired into runtime yet (COA has `message_agent` tool writing to Supabase queue, not Redis Streams yet)
-- **Department agents not yet deployed** — All 5 are built and tested locally but not yet added to DigitalOcean App Platform
+- **Inter-agent messaging** — MessageBus supports dual-mode persistence (Redis Streams + LIST fallback) and all 6 department agents have `message_agent` tool, but MessageBus is not yet instantiated in AgentRuntime (`bus.send()` delivery not wired)
+- **Governance approval flow untested end-to-end** — GovernanceEngine built and hardened, but agent webhook routes (`/webhook`) not yet implemented
+- **Database webhooks require deployed Edge Function** — `webhook-handler` exists but needs `supabase functions deploy` and `AGENT_BASE_URL` env var
+- **Realtime requires migration push** — `supabase_realtime` publication changes need `supabase db push` on the hosted project
+- **Voice pipeline not yet deployed** — ElevenLabs client, VoicePipeline, and VoiceTransport are built but require NextGenSwitch infrastructure (Phase 3) and env vars (`ELEVENLABS_API_KEY`, `NEXTGENSWITCH_URL`) to activate
+- **Feature Store indexes not yet created in production** — Indexes auto-create on first use, but production Redis needs sufficient memory for 4 new indexes
+- **Agent Memory Server not deployed** — AMS Docker container needs deployment to Redis droplet; runtime falls back to RedisMemoryClient until deployed
 
 ## Technical Debt
 
@@ -162,33 +327,48 @@
 - `investor-readonly.ts` tool file exists but isn't imported in the tool index
 - Edge function `chat/` uses OpenAI API format, not Claude SDK
 - `dataroom_interactions` table referenced in code but not in migration SQL
-- No automated tests for any agent server (only frontend has Vitest)
+- Limited automated tests — 59 frontend/EA unit tests added in v2.3.1, but no agent server integration tests
 - CFO agent still uses Claude Agent SDK; EA uses Anthropic Messages API directly — should standardize
 - `@waas/runtime` exists but EA agent was built with direct Express setup (not using runtime package yet)
 - Department agent tools have no automated tests (manual testing only)
+- `runtime-ref.ts` files in all 5 department agents use module-level mutable state — works but less clean than dependency injection
+- SemanticCache and FeatureStore share embedding logic but don't share a common embedding abstraction
+- Voice pipeline modules are built but have no integration tests (require live NextGenSwitch + ElevenLabs)
 
 ## Roadmap
 
 ### Near-term
 
-- [ ] Deploy 5 department agents to DigitalOcean App Platform (add service components)
-- [ ] Self-hosted Redis 8.6 on DO droplet (replace Upstash free tier, enable Streams)
-- [ ] Redis Streams inter-agent messaging (replace Supabase queue in `message_agent`)
+- [x] ~~Deploy 5 department agents to DigitalOcean App Platform~~ (v2.3.0)
+- [x] ~~Set up DO env vars for PostHog + Sentry + Governance on all agent services~~ (v2.3.0)
+- [x] ~~Set up Vercel env vars for PostHog + Sentry~~ (v2.1.0)
+- [ ] Push Supabase migrations (Realtime publication, Vault, Database Webhooks)
+- [ ] Deploy `webhook-handler` Edge Function (`supabase functions deploy`)
+- [ ] Add `/webhook` route to agent servers (receive Database Webhook events)
+- [x] ~~Self-hosted Redis 8.4 on DO droplet NYC1~~ (v2.3.1)
+- [x] ~~MessageBus dual-mode persistence (Redis Streams + LIST fallback)~~ (v2.4.0)
+- [x] ~~`message_agent` tool added to all 6 department agents via MessageBus~~ (v2.4.0)
+- [x] ~~Slack integration for EA (channel monitoring, message sending)~~ (v2.3.1)
+- [x] ~~SemanticCache + AgentMemoryServerClient + FeatureStore~~ (v3.0.0)
+- [x] ~~Voice pipeline foundation (ElevenLabs + VoicePipeline + VoiceTransport)~~ (v3.0.0)
+- [x] ~~Sales Feature Store tools (5 MCP tools)~~ (v3.0.0)
+- [ ] Deploy Agent Memory Server to Redis droplet (Docker container)
+- [ ] Wire MessageBus into AgentRuntime (Phase 2)
+- [ ] Add `/webhook` routes to EA + COA + Compliance agents
 - [ ] Add `message_agent` tool to EA agent (executive-tier cross-namespace messaging)
-- [ ] Create "Inside BlockDrive" Notion pages (department pages, agent databases)
-- [ ] Populate investor data room documents in DocSend
 - [ ] Wire EA into @waas/runtime (replace direct Express setup)
-- [ ] Google Calendar integration for EA (scheduling, meeting prep)
-- [ ] Slack integration for EA (channel monitoring, message sending)
 - [ ] Agent server test suite (Vitest + supertest)
 - [ ] Password reset flow + email verification enforcement
 - [ ] Supabase type regeneration
 
 ### Medium-term
 
+- [ ] NextGenSwitch PBX deployment (DO NYC1 droplet) — SIP trunk, AI assistants, campaigns
+- [ ] Wire voice pipeline end-to-end (NextGenSwitch → VoiceTransport → ElevenLabs → Claude → TTS → caller)
+- [ ] Sales voice tools (`make_call`, `get_call_transcript`, `update_pipeline_from_call`)
 - [ ] IR agent (Riley) — investor relations, dual-mode (cognitive + voice)
 - [ ] Redis FT.HYBRID search for enrichment pipeline
-- [ ] ElevenLabs voice integration (Phase 2 — TTS/STT, phone calls, batch calling)
+- [ ] n8n workflows (agent health monitoring, waitlist processing, call result processing)
 - [ ] OAuth/SSO support (Google, GitHub)
 - [ ] Multi-org support (org switcher)
 - [ ] Server-side metric caching

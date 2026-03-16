@@ -37,19 +37,19 @@ export const AGENTS: AgentInfo[] = [
     suggestedPrompts: ['Draft a LinkedIn post about our launch', 'Plan a product launch campaign', 'Review our content calendar'],
   },
   {
-    id: 'blockdrive-compliance', name: 'CCO', title: 'Chief Compliance Officer', department: 'compliance',
+    id: 'blockdrive-compliance', name: 'Parker', title: 'Chief Compliance Agent', department: 'compliance',
     color: 'agent-compliance', colorClass: 'bg-agent-compliance', prefix: '/compliance', apiType: 'B',
     description: 'Risk assessment, policy management, and regulatory compliance.',
     suggestedPrompts: ['Run a compliance risk assessment', 'Review our data privacy policy', 'What regulations apply to us?'],
   },
   {
-    id: 'blockdrive-legal', name: 'Casey', title: 'Legal Counsel', department: 'legal',
+    id: 'blockdrive-legal', name: 'Casey', title: 'Chief Legal Agent', department: 'legal',
     color: 'agent-legal', colorClass: 'bg-agent-legal', prefix: '/legal', apiType: 'B',
     description: 'Contract review, IP protection, and legal guidance.',
     suggestedPrompts: ['Review this NDA for red flags', 'Check our IP portfolio status', 'Draft terms of service'],
   },
   {
-    id: 'blockdrive-sales', name: 'Sam', title: 'Head of Sales', department: 'sales',
+    id: 'blockdrive-sales', name: 'Sam', title: 'Chief Sales Agent', department: 'sales',
     color: 'agent-sales', colorClass: 'bg-agent-sales', prefix: '/sales', apiType: 'B',
     description: 'Pipeline management, deal tracking, and sales strategy.',
     suggestedPrompts: ['Show pipeline health summary', 'Prep for my next sales call', 'What deals need follow-up?'],

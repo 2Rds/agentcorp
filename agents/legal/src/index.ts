@@ -1,5 +1,5 @@
 /**
- * Legal Agent — Casey (Legal Counsel)
+ * Legal Agent — Casey (Chief Legal Agent)
  *
  * Contract review, regulatory guidance, IP portfolio management.
  * Routes long-form contract analysis to Grok 4.1 Reasoning (2M context).
@@ -12,6 +12,7 @@ import { LEGAL_CONFIG } from "@waas/shared";
 import { config } from "./config.js";
 import { SYSTEM_PROMPT } from "./agent/system-prompt.js";
 import { createMcpServer } from "./tools/index.js";
+import { setRuntime } from "./runtime-ref.js";
 
 const runtime = new AgentRuntime({
   config: LEGAL_CONFIG,
@@ -23,7 +24,6 @@ const runtime = new AgentRuntime({
     supabaseServiceRoleKey: config.supabaseServiceRoleKey,
     anthropicApiKey: config.anthropicApiKey,
     openRouterApiKey: config.openRouterApiKey,
-    mem0ApiKey: config.mem0ApiKey,
     redisUrl: config.redisUrl || undefined,
     cohereApiKey: config.cohereApiKey || undefined,
     perplexityApiKey: config.perplexityApiKey || undefined,
@@ -39,6 +39,8 @@ const runtime = new AgentRuntime({
     },
   } : undefined,
 });
+
+setRuntime(runtime);
 
 runtime.start().catch((err) => {
   console.error("Legal Agent failed to start:", err);

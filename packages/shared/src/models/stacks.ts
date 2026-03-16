@@ -71,7 +71,7 @@ export const COMPLIANCE_STACK: ModelStack = {
   reranker: COHERE_RERANK,                 // Audit-read-all generates noisy cross-namespace results
 };
 
-/** Legal Counsel — contract analysis, legal research */
+/** Chief Legal Agent — contract analysis, legal research */
 export const LEGAL_STACK: ModelStack = {
   primary: OPUS,
   support: [COMMAND_A, GROK_FAST_REASONING],  // Legal RAG + 2M context for long contracts
@@ -79,7 +79,7 @@ export const LEGAL_STACK: ModelStack = {
   reranker: COHERE_RERANK,
 };
 
-/** Head of Sales — prospect research, proposals */
+/** Chief Sales Agent — prospect research, proposals */
 export const SALES_STACK: ModelStack = {
   primary: OPUS,
   support: [SONAR, GEMINI],               // Prospect research + proposals

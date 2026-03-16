@@ -20,7 +20,7 @@ WaaS is a two-package orchestration platform that turns Claude Agent SDK instanc
 │  └──────────┘  └──────────┘  └─────────────┘  └──────────────────┘  │
 │        │              │              │                                │
 │  ┌─────▼──────┐ ┌────▼─────┐ ┌─────▼──────┐  ┌──────────────────┐  │
-│  │ Supabase   │ │ mem0     │ │ Redis      │  │ Telegram         │  │
+│  │ Supabase   │ │ Memory   │ │ Redis      │  │ Telegram         │  │
 │  │ Admin      │ │ Client   │ │ Client     │  │ Transport        │  │
 │  │ (verify)   │ │ (enrich) │ │ (cache+vec)│  │ (inter-agent)    │  │
 │  └────────────┘ └──────────┘ └────────────┘  └──────────────────┘  │
@@ -46,7 +46,7 @@ packages/shared/src/
 │   └── index.ts          # Model barrel exports
 ├── namespace/
 │   ├── scopes.ts         # 7 AgentScope definitions (EA, CFA, CMA, COA, Legal, Sales, IR)
-│   ├── enforcement.ts    # ScopedRedisClient, ScopedMem0Client
+│   ├── enforcement.ts    # ScopedRedisClient, ScopedMemoryClient
 │   └── index.ts          # Namespace barrel exports
 └── messaging/
     ├── bus.ts            # MessageBus: routing, inbox, threads, escalation
@@ -77,7 +77,7 @@ packages/runtime/src/
 │   └── telegram.ts       # Telegram bot transport (grammy) for inter-agent messaging
 └── lib/
     ├── redis-client.ts   # Redis connection, semantic cache, vector search
-    ├── mem0-client.ts    # mem0 API client with timeout + rate limit detection
+    ├── memory-client.ts  # Redis-backed persistent memory client with vector search
     ├── plugin-loader.ts  # Skill resolution: keyword → vector → dedup
     └── stream-adapter.ts # Claude SDK messages → SSE format conversion
 ```
@@ -105,8 +105,8 @@ packages/runtime/src/
    └── Verify org membership via user_roles table
 
 3. System Prompt Enrichment (parallel, Promise.allSettled)
-   ├── mem0: org-scoped memories (top 5 by relevance)
-   ├── mem0: session memories (last 10 from conversation)
+   ├── Redis memory: org-scoped memories (top 5 by relevance)
+   ├── Redis memory: session memories (last 10 from conversation)
    └── plugins: matched skills (keyword → vector → dedup)
 
 4. Conversation Context
@@ -144,12 +144,12 @@ Cost tracking is per-request with cache adjustment (cached tokens at 10% of inpu
 
 ## Namespace Isolation
 
-Each agent department gets a `ScopedRedisClient` and `ScopedMem0Client` that automatically prefix all keys/queries with the agent's namespace:
+Each agent department gets a `ScopedRedisClient` and `ScopedMemoryClient` that automatically prefix all keys/queries with the agent's namespace:
 
 ```
 Agent: blockdrive-cfa (department: finance)
 ├── Redis keys:  finance:blockdrive-cfa:*
-├── mem0 scope:  agent_id=blockdrive-cfa, org_id=<org>
+├── memory scope: agent_id=blockdrive-cfa, org_id=<org>
 ├── canMessage:  [blockdrive-ea, blockdrive-coa, blockdrive-ir]
 ├── canRead:     [finance:*, shared:*]
 └── canWrite:    [finance:blockdrive-cfa:*]
@@ -191,26 +191,23 @@ Each agent runs as an independent process (Docker container, Fly.io machine, or 
        │                │                │
        └────────┬───────┘────────┬───────┘
                 │                │
-    ┌───────────▼───────────┐   │
-    │  Upstash Redis (TLS)  │   │
-    │  semantic cache       │   │
-    │  vector search        │   │
-    │  message inbox/threads│   │
-    └───────────────────────┘   │
-                          ┌─────▼──────┐
-                          │   mem0     │
-                          │ (shared)   │
-                          └────────────┘
+    ┌───────────▼───────────┐
+    │  Upstash Redis (TLS)  │
+    │  semantic cache       │
+    │  vector search        │
+    │  persistent memory    │
+    │  message inbox/threads│
+    └───────────────────────┘
 ```
 
-Agents share Upstash Redis (via TLS) and mem0 but are namespace-isolated. Each agent has its own Telegram bot for human-to-agent messaging. Supabase is shared for auth verification.
+Agents share Upstash Redis (via TLS) for caching, vector search, and persistent memory, but are namespace-isolated. Each agent has its own Telegram bot for human-to-agent messaging. Supabase is shared for auth verification.
 
 ### Infrastructure Services
 
 | Service | Provider | Purpose |
 |---------|----------|---------|
 | Redis | Upstash (serverless) | Semantic cache, vector search, MessageBus inbox, thread tracking |
-| Memory | mem0 | Org-scoped + session-scoped persistent memory |
+| Memory | Redis (RediSearch + Cohere embeddings) | Org-scoped + session-scoped persistent memory |
 | Auth | Supabase | JWT verification, org membership |
 | Voice | ElevenLabs | TTS, STT, Conversational AI, phone calls (Twilio/SIP) |
 | Automation | n8n (self-hosted, DO droplet) | Webhook routing, cron workflows |
@@ -225,7 +222,7 @@ Agents with a `voice` config operate in two modes that share identity, memory, a
 ```
 ┌─────────────────────────────────────────────────────────┐
 │  Agent: blockdrive-ea  (dual-mode)                       │
-│  Shared: mem0 scope, Redis namespace, agent identity     │
+│  Shared: memory scope, Redis namespace, agent identity    │
 │                                                          │
 │  ┌─────────────────────┐   ┌──────────────────────────┐ │
 │  │  Cognitive Runtime   │   │  Conversational Runtime   │ │

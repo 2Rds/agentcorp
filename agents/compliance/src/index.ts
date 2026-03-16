@@ -1,5 +1,5 @@
 /**
- * Compliance Agent — CCO (Chief Compliance Officer)
+ * Compliance Agent — CCA (Chief Compliance Agent)
  *
  * Governance engine for BlockDrive. Audit-read access to all namespaces.
  * Routes regulatory analysis to IBM Granite 4.0.
@@ -12,6 +12,7 @@ import { COMPLIANCE_CONFIG } from "@waas/shared";
 import { config } from "./config.js";
 import { SYSTEM_PROMPT } from "./agent/system-prompt.js";
 import { createMcpServer } from "./tools/index.js";
+import { setRuntime } from "./runtime-ref.js";
 
 const runtime = new AgentRuntime({
   config: COMPLIANCE_CONFIG,
@@ -23,7 +24,6 @@ const runtime = new AgentRuntime({
     supabaseServiceRoleKey: config.supabaseServiceRoleKey,
     anthropicApiKey: config.anthropicApiKey,
     openRouterApiKey: config.openRouterApiKey,
-    mem0ApiKey: config.mem0ApiKey,
     redisUrl: config.redisUrl || undefined,
     cohereApiKey: config.cohereApiKey || undefined,
     perplexityApiKey: config.perplexityApiKey || undefined,
@@ -38,6 +38,31 @@ const runtime = new AgentRuntime({
       },
     },
   } : undefined,
+});
+
+setRuntime(runtime);
+
+// ── Webhook Handlers ──
+runtime.onWebhook("compliance_governance_log", async (payload) => {
+  const { record } = payload;
+  const actionType = record.action_type as string || "unknown";
+  const agentId = record.agent_id as string || "unknown";
+  const status = record.status as string || "unknown";
+  const details = record.details as string || "";
+
+  console.log(`[blockdrive-compliance] Governance: ${actionType} by ${agentId} — status: ${status}`);
+
+  // Persist governance event for audit trail
+  const memory = runtime.memory;
+  if (memory) {
+    const orgId = record.organization_id as string || "system";
+    await memory.addAgentMemory(
+      "blockdrive-compliance",
+      orgId,
+      `Governance event: ${actionType} by agent ${agentId} — status: ${status}. ${details.slice(0, 500)}`,
+      "compliance",
+    ).catch((err: unknown) => console.error("[blockdrive-compliance] audit write failed:", err));
+  }
 });
 
 runtime.start().catch((err) => {

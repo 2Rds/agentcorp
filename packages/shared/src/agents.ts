@@ -119,11 +119,11 @@ export const CMA_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-cma"]!,
 };
 
-/** Chief Compliance Officer — regulatory, governance, audit */
+/** Chief Compliance Agent — regulatory, governance, audit */
 export const COMPLIANCE_CONFIG: AgentConfig = {
   id: "blockdrive-compliance",
-  name: "Chief Compliance Officer",
-  title: "Chief Compliance Officer",
+  name: "Parker",
+  title: "Chief Compliance Agent",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "compliance",
@@ -137,11 +137,11 @@ export const COMPLIANCE_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-compliance"]!,
 };
 
-/** Legal Counsel — contracts, IP, regulatory filings */
+/** Chief Legal Agent — contracts, IP, regulatory filings */
 export const LEGAL_CONFIG: AgentConfig = {
   id: "blockdrive-legal",
-  name: "Legal Counsel",
-  title: "Legal Counsel",
+  name: "Casey",
+  title: "Chief Legal Agent",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "legal",
@@ -155,11 +155,11 @@ export const LEGAL_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-legal"]!,
 };
 
-/** Head of Sales — pipeline, prospecting, proposals */
+/** Sales SDR / Sales Assistant — pipeline, prospecting, proposals, desk work for sales agents */
 export const SALES_CONFIG: AgentConfig = {
   id: "blockdrive-sales",
-  name: "Head of Sales",
-  title: "Head of Sales",
+  name: "Sam",
+  title: "Sales Assistant / SDR",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "sales",
@@ -169,8 +169,17 @@ export const SALES_CONFIG: AgentConfig = {
     { type: "web", channelId: "sales-dashboard", canSend: true },
     { type: "telegram", channelId: "blockdrive_sales_bot", canSend: true },
     { type: "slack", channelId: "blockdrive-sales", canSend: true },
+    { type: "voice", channelId: "sales-phone", canSend: true },
   ],
   plugins: AGENT_PLUGINS["blockdrive-sales"]!,
+  voice: {
+    voiceId: "",  // Set via ELEVENLABS_VOICE_ID env var per deployment
+    mode: "conversational",
+    ttsModel: "eleven_flash_v2_5",
+    sttModel: "scribe_v2_realtime",
+    firstMessage: "Hi, this is Sam from BlockDrive. Am I catching you at a good time?",
+    maxCallDurationSecs: 600,
+  },
 };
 
 // ─── Agent Registry ─────────────────────────────────────────────────────────
@@ -180,8 +189,8 @@ export type AgentId =
   | "blockdrive-ea" | "blockdrive-coa" | "blockdrive-cfa" | "blockdrive-ir"
   | "blockdrive-cma" | "blockdrive-compliance" | "blockdrive-legal" | "blockdrive-sales";
 
-/** All configured agents, indexed by ID */
-export const AGENT_REGISTRY: Record<string, AgentConfig> = {
+/** All configured agents, indexed by ID (#13: typed on AgentId for compile-time key safety) */
+export const AGENT_REGISTRY = {
   "blockdrive-ea": EA_CONFIG,
   "blockdrive-coa": COA_CONFIG,
   "blockdrive-cfa": CFA_CONFIG,
@@ -190,27 +199,28 @@ export const AGENT_REGISTRY: Record<string, AgentConfig> = {
   "blockdrive-compliance": COMPLIANCE_CONFIG,
   "blockdrive-legal": LEGAL_CONFIG,
   "blockdrive-sales": SALES_CONFIG,
-};
+} satisfies Record<AgentId, AgentConfig>;
 
 /** Get an agent's configuration or throw */
 export function getAgentConfig(agentId: string): AgentConfig {
-  const config = AGENT_REGISTRY[agentId];
+  const config = (AGENT_REGISTRY as Record<string, AgentConfig>)[agentId];
   if (!config) throw new Error(`Unknown agent: ${agentId}`);
   return config;
 }
 
 /** Get all agents that report to a given agent */
 export function getDirectReports(agentId: string): AgentConfig[] {
-  return Object.values(AGENT_REGISTRY).filter(a => a.reportsTo === agentId);
+  return Object.values(AGENT_REGISTRY as Record<string, AgentConfig>).filter(a => a.reportsTo === agentId);
 }
 
 /** Get the reporting chain from an agent up through its parent agents */
 export function getChainOfCommand(agentId: string): AgentConfig[] {
+  const registry = AGENT_REGISTRY as Record<string, AgentConfig>;
   const chain: AgentConfig[] = [];
-  let current: AgentConfig | undefined = AGENT_REGISTRY[agentId];
+  let current: AgentConfig | undefined = registry[agentId];
   while (current) {
     chain.push(current);
-    current = current.reportsTo ? AGENT_REGISTRY[current.reportsTo] : undefined;
+    current = current.reportsTo ? registry[current.reportsTo] : undefined;
   }
   return chain;
 }

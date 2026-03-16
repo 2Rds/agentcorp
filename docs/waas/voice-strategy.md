@@ -29,7 +29,7 @@ The core insight: voice conversations and deep cognitive work have fundamentally
 | **Response latency** | 10-30 seconds acceptable | <1 second mandatory |
 | **Model** | Claude Opus 4.6 (max intelligence) | Flash v2.5 (max speed) |
 | **Tool access** | 20+ MCP tools, multi-step chains | 3-5 webhook tools (calendar, CRM) |
-| **Context window** | Full history + mem0 + documents | Lightweight prompt + last few turns |
+| **Context window** | Full history + persistent memory + documents | Lightweight prompt + last few turns |
 | **Output format** | Structured analysis, reports, JSON | Short conversational sentences |
 | **Error tolerance** | Can retry, ask clarification | Must respond instantly, gracefully |
 
@@ -61,7 +61,7 @@ Monthly: 375,000 × 20 = 7.5M chars (well within Mercury grant)
    - Updates CRM pipeline (hot/warm/cold scoring)
    - Drafts personalized follow-up emails for hot leads
    - Generates daily sales report → Slack to Sean
-   - Learns from successful calls → updates pitch strategy in mem0
+   - Learns from successful calls → updates pitch strategy in persistent memory
 
 ### Why This Has Pricing Power
 

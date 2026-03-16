@@ -295,9 +295,9 @@ function renderSystemArchitecture(): string {
      ┌──┘  └───┬───┘  └──┬───┘  └───┬───┘  └──┬───┘  │
      │         │         │         │          │       │
   ┌──▼──────┐ ┌▼────────▼┐ ┌──────▼──┐ ┌─────▼──┐ ┌─▼──────┐
-  │ Claude  │ │  Redis    │ │ Supabase│ │  Mem0  │ │  Open  │
-  │ Opus 4.6│ │  8.4      │ │ Postgres│ │  Graph │ │ Router │
-  │(Primary)│ │  Vectors  │ │ Auth+RLS│ │ Memory │ │10 Models│
+  │ Claude  │ │  Redis    │ │ Supabase│ │ Redis  │ │  Open  │
+  │ Opus 4.6│ │  8.4      │ │ Postgres│ │ Memory │ │ Router │
+  │(Primary)│ │  Vectors  │ │ Auth+RLS│ │Persist │ │10 Models│
   └─────────┘ └───────────┘ └─────────┘ └────────┘ └────────┘</div>
 
     <div class="cols">
@@ -311,7 +311,7 @@ function renderSystemArchitecture(): string {
       </div>
       <div class="col">
         <h3>Shared Data Layer</h3>
-        <p>Supabase (Postgres + RLS + Auth) for structured data. Redis 8.4 for vector search, semantic caching, plugin matching, and inter-agent message bus. Mem0 for persistent graph memory with cross-namespace read access for executives.</p>
+        <p>Supabase (Postgres + RLS + Auth) for structured data. Redis 8.4 for vector search, semantic caching, plugin matching, inter-agent message bus, and persistent memory with cross-namespace read access for executives.</p>
       </div>
     </div>
 
@@ -573,7 +573,7 @@ function renderAgentNetwork(): string {
           <ul class="dept-roster">
             <li><strong>Account Executive</strong><br/><span class="dept-desc">Enterprise deal management, proposals, pricing negotiations, contract handoff</span></li>
             <li><strong>SDR Agent</strong><br/><span class="dept-desc">Prospecting, cold outreach, lead qualification, meeting booking</span></li>
-            <li><strong>10 Voice Sales Reps</strong> (Swarm)<br/><span class="dept-desc">Outbound batch calling via ElevenLabs, each with unique voice + persona, automated transcript &rarr; Mem0 knowledge extraction</span></li>
+            <li><strong>10 Voice Sales Reps</strong> (Swarm)<br/><span class="dept-desc">Outbound batch calling via ElevenLabs, each with unique voice + persona, automated transcript &rarr; memory knowledge extraction</span></li>
           </ul>
         </div>
       </div>
@@ -633,8 +633,8 @@ function renderDualModeRuntime(): string {
                              │
                    ┌─────────▼─────────┐
                    │  Shared Data Layer │
-                   │  Mem0 Graph Memory │
-                   │  Redis · Supabase  │
+                   │  Redis Memory      │
+                   │  Supabase          │
                    │  Notion · Plugins  │
                    └───────────────────┘</div>
 
@@ -673,7 +673,7 @@ COGNITIVE  │ 9:00 AM  Research prospect via Sonar Deep Research + CRM data
            │          Pull company financials, recent funding, tech stack
            │          Generate personalized pitch deck from template
            │          Draft talking points based on prospect&rsquo;s pain points
-           │          Save research to Mem0: &ldquo;Acme Corp - Series B, $12M ARR, migrating from AWS&rdquo;
+           │          Save research to memory: &ldquo;Acme Corp - Series B, $12M ARR, migrating from AWS&rdquo;
            │
     ──── SWITCH ────
            │
@@ -685,7 +685,7 @@ CONVERSE   │ 10:00 AM  Outbound sales call via Twilio
            │
     ──── SWITCH ────
            │
-COGNITIVE  │ 10:10 AM  Auto-extract call transcript → Mem0 knowledge
+COGNITIVE  │ 10:10 AM  Auto-extract call transcript → persistent memory
            │           Update CRM: deal stage, next steps, objections
            │           Draft follow-up email with pricing proposal
            │           Create task: &ldquo;Send case study by Thursday&rdquo;
@@ -718,14 +718,14 @@ CONVERSE   │ 11:00 AM Join investor meeting as note-taker (listen-only STT)
     ──── SWITCH ────
            │
 COGNITIVE  │ 11:45 AM Extract action items from transcript → ea_tasks
-           │          Save key decisions to Mem0 (cross-namespace: all agents see them)
+           │          Save key decisions to memory (cross-namespace: all agents see them)
            │          Draft follow-up email to investor with next steps
            │          Update pipeline status in Notion Investor Pipeline DB</div>
 
     <h3>Investor Relations (Riley) &mdash; Fundraise Cycle</h3>
     <div class="diagram" style="font-size:8.5pt">
 COGNITIVE  │ Morning   Research 20 target investors via Sonar Deep Research
-           │           Score and rank by fit, check existing Mem0 for prior contact
+           │           Score and rank by fit, check existing memory for prior contact
            │           Generate personalized outreach emails for top 10
            │           Prepare data room documents, update metrics one-pager
            │
@@ -738,7 +738,7 @@ CONVERSE   │ 2:00 PM   Batch outbound calls to 10 investors (ElevenLabs batch 
            │
     ──── SWITCH ────
            │
-COGNITIVE  │ 3:30 PM   Process all 10 call transcripts → Mem0 knowledge extraction
+COGNITIVE  │ 3:30 PM   Process all 10 call transcripts → memory knowledge extraction
            │           Update Notion Investor Pipeline: interested / pass / follow-up
            │           Draft personalized follow-ups for interested investors
            │           Escalate to Alex: &ldquo;3 investors want meetings this week&rdquo;</div>
@@ -758,7 +758,7 @@ COGNITIVE  │ 3:30 PM   Process all 10 call transcripts → Mem0 knowledge extr
     <ul>
       <li><strong>Pre-call</strong> (cognitive): Each rep researches its assigned prospects, generates personalized talking points, loads relevant knowledge plugins</li>
       <li><strong>During call</strong> (conversational): ElevenLabs batch calling API dials prospects simultaneously, each rep with a distinct voice and persona</li>
-      <li><strong>Post-call</strong> (cognitive): Transcripts auto-extracted to Mem0, CRM updated, follow-ups drafted, objections cataloged for team learning</li>
+      <li><strong>Post-call</strong> (cognitive): Transcripts auto-extracted to memory, CRM updated, follow-ups drafted, objections cataloged for team learning</li>
       <li><strong>Coordination</strong>: Sam synthesizes all 10 reps&rsquo; results, identifies patterns, adjusts strategy, escalates hot leads to Riley (IR) or Morgan (CFA)</li>
     </ul>
 
@@ -773,14 +773,14 @@ function renderNamespaceIsolation(): string {
     <div class="pb"></div>
     <p class="sec">06 &mdash; Namespace Isolation &amp; Security</p>
     <h1>Fail-Closed Data Boundaries</h1>
-    <p>Each agent operates within a defined ToolScope that controls access across six dimensions. Enforcement is fail-closed via the ScopeEnforcer class &mdash; agents receive pre-scoped clients (ScopedRedisClient, ScopedMem0Client) that physically cannot access unauthorized namespaces. Any access outside scope throws an error.</p>
+    <p>Each agent operates within a defined ToolScope that controls access across six dimensions. Enforcement is fail-closed via the ScopeEnforcer class &mdash; agents receive pre-scoped clients (ScopedRedisClient, ScopedMemoryClient) that physically cannot access unauthorized namespaces. Any access outside scope throws an error.</p>
 
     <table>
       <tr><th>Dimension</th><th>Mechanism</th><th>Example</th></tr>
       <tr><td><strong>Supabase Tables</strong></td><td>Per-table read/readwrite ACL</td><td>CFA: financial_model (rw), organizations (r)</td></tr>
       <tr><td><strong>Notion Databases</strong></td><td>Database-ID-level ACL</td><td>EA: Decision Log (rw), Pipeline (r)</td></tr>
       <tr><td><strong>Redis Namespaces</strong></td><td>Prefix-based isolation</td><td>blockdrive:cfa: (rw), blockdrive:global: (r)</td></tr>
-      <tr><td><strong>Mem0 Memories</strong></td><td>Agent-ID scoped + wildcard</td><td>EA: * (r, executive privilege), own (rw)</td></tr>
+      <tr><td><strong>Memories</strong></td><td>Agent-ID scoped + wildcard</td><td>EA: * (r, executive privilege), own (rw)</td></tr>
       <tr><td><strong>External APIs</strong></td><td>Allowlist per agent</td><td>CFA: notion, slack, google-sheets</td></tr>
       <tr><td><strong>Inter-Agent Messaging</strong></td><td>canMessage whitelist</td><td>EA &rarr; all agents; IR &rarr; CFA only</td></tr>
     </table>
@@ -846,10 +846,10 @@ Year 1+:  Agent&rsquo;s knowledge graph rivals the institutional
           forgets, never leaves, and is available 24/7
           ───────────────────────────────────────────────▶  Institutional Memory</div>
 
-    <h2>Graph Memory Architecture</h2>
-    <p>Mem0 doesn&rsquo;t just store flat text &mdash; it automatically extracts <strong>entity relationships</strong> from every agent interaction. People, companies, decisions, financial events, and strategic themes are linked as graph nodes. This enables queries that no vector database can answer:</p>
+    <h2>Persistent Memory Architecture</h2>
+    <p>Redis Memory doesn&rsquo;t just store flat text &mdash; it uses <strong>vector search</strong> to semantically index every agent interaction. People, companies, decisions, financial events, and strategic themes are stored with rich metadata and retrieved via similarity search. This enables powerful contextual queries:</p>
     <ul>
-      <li>&ldquo;What decisions have we made about Series A?&rdquo; &rarr; surfaces board discussions, investor feedback, valuation analyses, and term sheet negotiations as a connected graph</li>
+      <li>&ldquo;What decisions have we made about Series A?&rdquo; &rarr; surfaces board discussions, investor feedback, valuation analyses, and term sheet negotiations via semantic retrieval</li>
       <li>&ldquo;What does Investor X care about?&rdquo; &rarr; synthesizes meeting notes, email threads, data room engagement, and prior Q&amp;A into a preference profile</li>
       <li>&ldquo;Why did we change our pricing model?&rdquo; &rarr; traces the decision through customer feedback, competitive analysis, financial modeling, and the board meeting where it was approved</li>
     </ul>
@@ -877,7 +877,7 @@ Enriched System Prompt → Claude Opus 4.6
     ▼
 Response + Automatic Knowledge Extraction → New memories stored</div>
 
-    <p>The final step is critical: after every response, <strong>knowledge extraction runs automatically</strong>. New facts, decisions, metrics, and relationships discovered during the conversation are persisted back to Mem0 &mdash; closing the loop and ensuring the agent&rsquo;s knowledge base grows with every single interaction.</p>
+    <p>The final step is critical: after every response, <strong>knowledge extraction runs automatically</strong>. New facts, decisions, metrics, and relationships discovered during the conversation are persisted back to Redis memory &mdash; closing the loop and ensuring the agent&rsquo;s knowledge base grows with every single interaction.</p>
 
     <h2>Per-Department Memory Scopes</h2>
     <table>
@@ -1105,8 +1105,8 @@ function renderDepartmentInfrastructure(): string {
 │  Each department operates in an isolated cloud environment:          │
 │                                                                      │
 │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌──────────────┐  │
-│  │  Redis       │ │  Mem0        │ │  Supabase    │ │  Model Stack │  │
-│  │  Namespace   │ │  Namespace   │ │  RLS Scope   │ │  Per-Agent   │  │
+│  │  Redis       │ │  Redis       │ │  Supabase    │ │  Model Stack │  │
+│  │  Namespace   │ │  Memory      │ │  RLS Scope   │ │  Per-Agent   │  │
 │  │             │ │             │ │             │ │              │  │
 │  │ cfa:*       │ │ cfa memories │ │ org-scoped   │ │ Opus+CmdA+  │  │
 │  │ ea:*        │ │ ea memories  │ │ role-based   │ │  Grok Fast   │  │
@@ -1114,14 +1114,14 @@ function renderDepartmentInfrastructure(): string {
 │  │ ...         │ │ ...          │ │              │ │              │  │
 │  └─────────────┘ └─────────────┘ └─────────────┘ └──────────────┘  │
 │                                                                      │
-│  ScopedRedisClient + ScopedMem0Client auto-prefix all keys          │
+│  ScopedRedisClient + ScopedMemoryClient auto-prefix all keys          │
 │  Cross-department access denied by default (fail-closed)            │
 │  Executive tier (EA, COA) gets read-only cross-namespace access     │
 └──────────────────────────────────────────────────────────────────────┘</div>
 
     <h2>Per-Department Infrastructure Matrix</h2>
     <table>
-      <tr><th>Department</th><th>Telegram Bot</th><th>Slack Channel</th><th>Redis Prefix</th><th>Notion Databases</th><th>Mem0 Scope</th></tr>
+      <tr><th>Department</th><th>Telegram Bot</th><th>Slack Channel</th><th>Redis Prefix</th><th>Notion Databases</th><th>Memory Scope</th></tr>
       <tr><td><strong>Executive (EA)</strong></td><td>@alex_ea_bot</td><td>#blockdrive-ea</td><td>blockdrive:ea:*</td><td>Decision Log, Project Hub</td><td>All (read), EA (rw)</td></tr>
       <tr><td><strong>Finance (CFA)</strong></td><td>@morgan_cfa_bot</td><td>#blockdrive-cfa</td><td>blockdrive:cfa:*</td><td>Financial Models, Pipeline</td><td>CFA (rw), Global (r)</td></tr>
       <tr><td><strong>Operations (COA)</strong></td><td>@jordan_coa_bot</td><td>#blockdrive-coa</td><td>blockdrive:coa:*</td><td>Process Library, HR Pipeline</td><td>All (read), COA (rw)</td></tr>
@@ -1132,7 +1132,7 @@ function renderDepartmentInfrastructure(): string {
     </table>
 
     <div class="callout-dark">
-      <strong>Why Three Layers?</strong> Real companies don&rsquo;t run on one communication tool. Telegram provides instant, mobile-friendly human-to-agent interaction (like texting a colleague). Slack provides structured, department-organized collaboration channels (like an office chat). And the cloud workspace (Redis + Mem0 + Supabase + Notion) provides the actual &ldquo;office space&rdquo; where agents do their deep work &mdash; querying databases, managing knowledge, executing tools, and building persistent memory. Each layer is department-segregated and scope-enforced.
+      <strong>Why Three Layers?</strong> Real companies don&rsquo;t run on one communication tool. Telegram provides instant, mobile-friendly human-to-agent interaction (like texting a colleague). Slack provides structured, department-organized collaboration channels (like an office chat). And the cloud workspace (Redis + Supabase + Notion) provides the actual &ldquo;office space&rdquo; where agents do their deep work &mdash; querying databases, managing knowledge, executing tools, and building persistent memory. Each layer is department-segregated and scope-enforced.
     </div>
   `;
 }
@@ -1145,7 +1145,7 @@ function renderDeployment(): string {
 
     <table>
       <tr><th>Service</th><th>Platform</th><th>Details</th><th>Status</th></tr>
-      <tr><td>Frontend</td><td>Vercel (auto-build)</td><td>React app, cfo.blockdrive.co</td><td><span class="badge badge-live">LIVE</span></td></tr>
+      <tr><td>Frontend</td><td>Vercel (auto-build)</td><td>React app, corp.blockdrive.co</td><td><span class="badge badge-live">LIVE</span></td></tr>
       <tr><td>Agent Fleet</td><td>DigitalOcean App Platform</td><td>Docker containers, each agent on its own port with dedicated ingress</td><td><span class="badge badge-live">LIVE</span> (2 of 8)</td></tr>
       <tr><td>Redis 8.4</td><td>Docker Compose</td><td>3 RediSearch indexes (plugins, documents, LLM cache)</td><td><span class="badge badge-live">LIVE</span></td></tr>
       <tr><td>n8n Automation</td><td>DigitalOcean Droplet</td><td>Cross-agent workflow orchestration hub</td><td><span class="badge badge-live">LIVE</span></td></tr>
@@ -1191,7 +1191,7 @@ function renderTechStack(): string {
       <tr><td>Agent Runtime</td><td>Express, @waas/runtime, Claude Agent SDK, Anthropic Messages API</td><td>Cognitive agent execution engine for all agents</td></tr>
       <tr><td>AI Models</td><td>Opus 4.6, Gemini 3.1 Pro, Sonar Pro/Deep, Command A, Granite 4.0, Grok 4.1</td><td>10 models across 4 providers, per-agent stacks</td></tr>
       <tr><td>Database</td><td>Supabase (Postgres + RLS + Auth)</td><td>Multi-tenant data, JWT auth, edge functions</td></tr>
-      <tr><td>Memory</td><td>Mem0 (graph memory)</td><td>Persistent org memory, entity relationships, cross-namespace search</td></tr>
+      <tr><td>Memory</td><td>Redis Memory (vector search)</td><td>Persistent org memory, semantic retrieval, cross-namespace search</td></tr>
       <tr><td>Search/Cache</td><td>Redis 8.4 + RediSearch</td><td>Vector search, semantic cache, message bus, plugin matching</td></tr>
       <tr><td>Plugins</td><td>Knowledge-Work Plugins (Anthropic + partners)</td><td>115 domain skills, 3-stage resolution, per-agent builds</td></tr>
       <tr><td>Communication</td><td>grammy (Telegram), Slack SDK</td><td>Per-agent bots, department channels</td></tr>
@@ -1243,7 +1243,7 @@ function renderUnitEconomics(): string {
         <td>~$10</td>
       </tr>
       <tr>
-        <td><strong>Memory</strong> (Mem0 graph memory)</td>
+        <td><strong>Memory</strong> (Redis persistent memory)</td>
         <td>~$15</td>
         <td>~$10</td>
         <td>~$5</td>
@@ -1354,7 +1354,7 @@ function renderPlatformPackages(): string {
           <li><strong>types.ts</strong> &mdash; AgentConfig, ModelStack, ToolScope, AgentMessage, VoiceConfig, BoardConfig</li>
           <li><strong>agents.ts</strong> &mdash; Agent registry (4 configured), hierarchy functions (getDirectReports, getChainOfCommand)</li>
           <li><strong>models/</strong> &mdash; MODEL_REGISTRY (10 models), per-agent stacks, ModelRouter with 4 provider clients, BoardSession</li>
-          <li><strong>namespace/</strong> &mdash; 8 agent scopes, ScopeEnforcer (fail-closed), ScopedRedisClient, ScopedMem0Client</li>
+          <li><strong>namespace/</strong> &mdash; 8 agent scopes, ScopeEnforcer (fail-closed), ScopedRedisClient, ScopedMemoryClient</li>
           <li><strong>messaging/</strong> &mdash; MessageBus with transport abstraction, routing, inbox, threads, escalation</li>
           <li><strong>plugins.ts</strong> &mdash; 19 plugin categories, per-agent allocation mapping</li>
         </ul>
@@ -1369,7 +1369,7 @@ function renderPlatformPackages(): string {
           <li><strong>Health route</strong> &mdash; Agent status and readiness endpoint</li>
           <li><strong>Telegram transport</strong> &mdash; grammy-based bot for inter-agent messaging</li>
           <li><strong>Plugin loader</strong> &mdash; resolveSkills, resolveSkillsForConversation, getSkillContext</li>
-          <li><strong>Clients</strong> &mdash; Redis, Mem0, stream adapter</li>
+          <li><strong>Clients</strong> &mdash; Redis, memory, stream adapter</li>
         </ul>
       </div>
     </div>
@@ -1389,7 +1389,7 @@ function renderStatusRoadmap(): string {
           <li>CFO agent &ldquo;Morgan&rdquo; &mdash; Web dashboard, 31 callable tools + 31 knowledge plugins</li>
           <li>React 18 frontend &mdash; 9 routes (chat, model, dashboard, investors, knowledge, docs, settings)</li>
           <li>Supabase multi-tenant &mdash; RLS, auth, edge functions</li>
-          <li>Mem0 graph memory &mdash; 15 categories, cross-namespace search</li>
+          <li>Redis persistent memory &mdash; 15 categories, cross-namespace search</li>
           <li>Notion integration &mdash; 4 tools per agent, scope-enforced</li>
           <li>PDF generation &mdash; Playwright HTML&rarr;PDF, branded templates</li>
           <li>Google Sheets &mdash; Service account with domain-wide delegation</li>

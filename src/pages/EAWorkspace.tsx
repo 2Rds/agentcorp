@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import DepartmentWorkspace from '@/components/workspace/DepartmentWorkspace';
@@ -81,6 +82,11 @@ function CommunicationsTab() {
 }
 
 export default function EAWorkspace() {
+  const { orgId } = useAuth();
+  const filter = orgId ? `organization_id=eq.${orgId}` : null;
+  useRealtimeSubscription('ea_tasks', filter, [['ea-tasks', orgId!]], !!orgId);
+  useRealtimeSubscription('ea_meeting_notes', filter, [['ea-meetings', orgId!]], !!orgId);
+  useRealtimeSubscription('ea_communications_log', filter, [['ea-comms', orgId!]], !!orgId);
   return <DepartmentWorkspace department="ea" tabs={[
     { id: 'tasks', label: 'Tasks', content: <TasksTab /> },
     { id: 'meetings', label: 'Meeting Notes', content: <MeetingNotesTab /> },

@@ -32,7 +32,7 @@ Phone call to EA's dedicated Twilio number (published on business cards, website
 8. Cognitive EA processes:
    - Slack notification to Sean with caller summary + urgency score
    - If high priority: DM with "Call [name] back at [number] — [reason]"
-   - Logs call in mem0 for future reference
+   - Logs call in persistent memory for future reference
 ```
 
 ### Data Captured
@@ -63,7 +63,7 @@ Sean tells EA via Slack: "Call John at Sequoia to confirm our Thursday 2pm meeti
 ```
 1. Cognitive EA receives instruction via Slack
 2. Cognitive EA prepares call context:
-   - Retrieves John's info from mem0 (last conversation, preferences)
+   - Retrieves John's info from persistent memory (last conversation, preferences)
    - Retrieves meeting details from calendar integration
    - Builds dynamic variables for conversational prompt
 3. Cognitive EA triggers outbound call via Twilio API:
@@ -111,7 +111,7 @@ Calendar event tagged `delegate-to-ea` or Sean explicitly tells EA "Take my 3pm 
 
 ### Flow
 ```
-1. Cognitive EA reviews meeting agenda, attendee list, prior meeting notes (mem0)
+1. Cognitive EA reviews meeting agenda, attendee list, prior meeting notes (persistent memory)
 2. At meeting time, EA joins Zoom via audio dial-in (no video)
 3. EA introduces itself:
    "Hi everyone, I'm Alex, Sean's AI executive assistant. Sean asked me
@@ -119,7 +119,7 @@ Calendar event tagged `delegate-to-ea` or Sean explicitly tells EA "Take my 3pm 
     answer questions about our current status."
 4. During meeting:
    - Real-time STT captures all speech
-   - EA responds to direct questions using context from mem0 + agenda
+   - EA responds to direct questions using context from persistent memory + agenda
    - Takes structured notes (decisions, action items, questions)
    - Flags items that need Sean's direct input: "I'll need to check with
      Sean on that and get back to you."
@@ -194,7 +194,7 @@ Evening Processing (Cognitive Sales Lead):
    - Top objections: [list]
    - Top industries responding: [list]
 10. Updates CRM pipeline
-11. Sends report to Slack + stores in mem0 for trend analysis
+11. Sends report to Slack + stores in persistent memory for trend analysis
 ```
 
 ### Data Captured Per Call

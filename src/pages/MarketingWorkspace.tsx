@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import DepartmentWorkspace from '@/components/workspace/DepartmentWorkspace';
@@ -71,6 +72,10 @@ function CampaignsTab() {
 }
 
 export default function MarketingWorkspace() {
+  const { orgId } = useAuth();
+  const filter = orgId ? `org_id=eq.${orgId}` : null;
+  useRealtimeSubscription('cma_content_drafts', filter, [['cma-content', orgId!]], !!orgId);
+  useRealtimeSubscription('cma_campaigns', filter, [['cma-campaigns', orgId!]], !!orgId);
   return <DepartmentWorkspace department="marketing" tabs={[
     { id: 'content', label: 'Content', content: <ContentTab /> },
     { id: 'campaigns', label: 'Campaigns', content: <CampaignsTab /> },

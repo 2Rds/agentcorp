@@ -7,10 +7,11 @@
 
 import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { searchOrgMemories, addOrgMemory, searchCrossNamespaceMemories } from "../lib/mem0-client.js";
+import { searchOrgMemories, addOrgMemory, searchCrossNamespaceMemories } from "../lib/memory-client.js";
 import { chatCompletion } from "../lib/model-router.js";
 import { config } from "../config.js";
 import * as notion from "../lib/notion-client.js";
+import { sendSlackMessage, readSlackChannel, listChannels, resolveUserName } from "../transport/slack.js";
 
 type ToolHandler = (args: Record<string, any>) => Promise<string>;
 
@@ -215,6 +216,91 @@ function createTools(orgId: string, _userId: string): ToolEntry[] {
       },
     },
 
+    // ─── Slack Tools (conditional — only if SLACK_BOT_TOKEN is set) ──
+    // EA has admin access to all channels. Department agents are isolated
+    // to their #workforce-* channel. These tools give the EA full workspace
+    // awareness for the Slack communication layer.
+    ...(config.slackEnabled ? [
+      {
+        def: {
+          name: "send_slack_message",
+          description: "Send a message to a Slack channel. Use for notifications, updates, cross-department announcements, feed posts, or proactive communications. Channel can be a name (e.g., 'workforce-finance', 'fundraise') or a channel ID.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              channel: { type: "string", description: "Slack channel name (e.g., workforce-alex, fundraise, feed-ops) or channel ID" },
+              message: { type: "string", description: "Message text to send" },
+              thread_ts: { type: "string", description: "Thread timestamp to reply in a thread (optional)" },
+            },
+            required: ["channel", "message"],
+          },
+        },
+        handler: async (args: Record<string, any>) => {
+          try {
+            await sendSlackMessage(args.channel, args.message, args.thread_ts);
+            return `Message sent to #${args.channel}.`;
+          } catch (e: any) { return `Error sending Slack message: ${e.message}`; }
+        },
+      },
+      {
+        def: {
+          name: "read_slack_channel",
+          description: "Read recent messages from a Slack channel. Use to monitor department activity, check status updates, or gather context before responding. EA has admin read access to all channels.",
+          input_schema: {
+            type: "object" as const,
+            properties: {
+              channel: { type: "string", description: "Channel name (e.g., workforce-finance, command-center) or channel ID" },
+              limit: { type: "number", description: "Number of messages to retrieve (default 10, max 50)" },
+            },
+            required: ["channel"],
+          },
+        },
+        handler: async (args: Record<string, any>) => {
+          try {
+            const limit = Math.min(args.limit || 10, 50);
+            const messages = await readSlackChannel(args.channel, limit);
+            if (!messages.length) return `No recent messages in #${args.channel}.`;
+
+            const formatted = await Promise.all(messages.map(async (m) => {
+              const name = await resolveUserName(m.user);
+              const time = new Date(parseFloat(m.ts) * 1000).toLocaleString();
+              return `[${time}] ${name}: ${m.text}`;
+            }));
+
+            return `Recent messages in #${args.channel}:\n${formatted.join("\n")}`;
+          } catch (e: any) { return `Error reading channel: ${e.message}`; }
+        },
+      },
+      {
+        def: {
+          name: "list_slack_channels",
+          description: "List all Slack channels the bot has access to, with their type (workforce, purpose, feed) and description. Use to discover available channels or check workspace structure.",
+          input_schema: {
+            type: "object" as const,
+            properties: {},
+          },
+        },
+        handler: async () => {
+          try {
+            const channels = listChannels();
+            if (!channels.length) return "No channels discovered yet.";
+
+            const grouped: Record<string, string[]> = {};
+            for (const ch of channels) {
+              const type = ch.type;
+              if (!grouped[type]) grouped[type] = [];
+              grouped[type].push(`  - #${ch.name}${ch.description ? ` — ${ch.description}` : ""}`);
+            }
+
+            const sections = Object.entries(grouped).map(([type, lines]) =>
+              `**${type.charAt(0).toUpperCase() + type.slice(1)} channels:**\n${lines.join("\n")}`
+            );
+            return sections.join("\n\n");
+          } catch (e: any) { return `Error listing channels: ${e.message}`; }
+        },
+      },
+    ] as ToolEntry[] : []),
+
     // ─── Notion Tools (conditional — only if NOTION_API_KEY is set) ──
     ...(config.notionEnabled ? [
       {
@@ -340,6 +426,44 @@ function createTools(orgId: string, _userId: string): ToolEntry[] {
         },
       },
     ] as ToolEntry[] : []),
+
+    // ─── Inter-Agent Messaging ─────────────────────────────────────────
+    {
+      def: {
+        name: "message_agent",
+        description: "Send a message to another agent in the network. Executive-tier: can message COA, CFA, CMA, Legal, Sales. Messages are queued for delivery.",
+        input_schema: {
+          type: "object" as const,
+          properties: {
+            target_agent_id: { type: "string", description: "Agent ID to message (e.g., blockdrive-coa, blockdrive-cma, blockdrive-legal)" },
+            subject: { type: "string", description: "Message subject (max 200 chars)" },
+            message: { type: "string", description: "Message content (max 4000 chars)" },
+            priority: { type: "string", enum: ["normal", "urgent"], description: "Message priority" },
+          },
+          required: ["target_agent_id", "subject", "message"],
+        },
+      },
+      handler: async (args: Record<string, any>) => {
+        try {
+          const { data, error } = await supabaseAdmin
+            .from("agent_messages")
+            .insert({
+              org_id: orgId,
+              sender_id: "blockdrive-ea",
+              target_id: args.target_agent_id,
+              message: `${args.subject}: ${args.message}`,
+              priority: args.priority || "normal",
+              status: "queued",
+            })
+            .select("id, target_id, status")
+            .single();
+          if (error) return `Message send failed: ${error.message}`;
+          return `Message sent to ${args.target_agent_id} (ID: ${data.id}, status: ${data.status})`;
+        } catch (e: any) {
+          return `Message send failed: ${e.message}`;
+        }
+      },
+    },
   ];
 }
 

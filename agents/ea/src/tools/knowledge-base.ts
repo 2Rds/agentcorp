@@ -7,7 +7,7 @@ import {
   deleteMemory,
   feedbackMemory,
   searchCrossNamespaceMemories,
-} from "../lib/mem0-client.js";
+} from "../lib/memory-client.js";
 
 export function knowledgeBaseTools(orgId: string) {
   const search_knowledge = tool(
@@ -60,7 +60,7 @@ export function knowledgeBaseTools(orgId: string) {
 
   const save_knowledge = tool(
     "save_knowledge",
-    "Store a fact or insight in the knowledge base. Mem0 auto-deduplicates and merges with existing knowledge. Use for contacts, decisions, preferences, schedules, and any reusable facts.",
+    "Store a fact or insight in the knowledge base. Auto-deduplicates and merges with existing knowledge. Use for contacts, decisions, preferences, schedules, and any reusable facts.",
     {
       title: z.string().describe("Short label for this knowledge item"),
       content: z.string().describe("Detailed content of the knowledge item"),

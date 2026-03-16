@@ -1,4 +1,6 @@
 import { DollarSign, CheckSquare, Megaphone } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { usePipelineValue, useOpenTasks, useActiveCampaigns, formatCurrency } from '@/hooks/useDashboardStats';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { StatCard } from '@/components/dashboard/StatCard';
@@ -6,9 +8,19 @@ import { AgentFleetGrid } from '@/components/dashboard/AgentFleetGrid';
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed';
 
 export default function Dashboard() {
+  const { orgId } = useAuth();
   const { data: pipelineValue } = usePipelineValue();
   const { data: openTasks } = useOpenTasks();
   const { data: activeCampaigns } = useActiveCampaigns();
+
+  // Realtime subscriptions for live dashboard updates
+  const rtFilter = orgId ? `org_id=eq.${orgId}` : null;
+  useRealtimeSubscription('sales_pipeline', rtFilter, [['pipeline-value', orgId!]], !!orgId);
+  useRealtimeSubscription('coa_tasks', rtFilter, [['open-tasks', orgId!], ['recent-activity', orgId!]], !!orgId);
+  useRealtimeSubscription('cma_campaigns', rtFilter, [['active-campaigns', orgId!]], !!orgId);
+  useRealtimeSubscription('agent_messages', rtFilter, [['recent-activity', orgId!]], !!orgId);
+  useRealtimeSubscription('cma_content_drafts', rtFilter, [['recent-activity', orgId!]], !!orgId);
+  useRealtimeSubscription('legal_reviews', rtFilter, [['recent-activity', orgId!]], !!orgId);
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto relative">

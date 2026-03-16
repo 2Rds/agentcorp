@@ -1,7 +1,7 @@
 import { query, type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { createCfoMcpServer } from "../tools/index.js";
 import { SYSTEM_PROMPT } from "./system-prompt.js";
-import { searchOrgMemories, getSessionMemories } from "../lib/mem0-client.js";
+import { searchOrgMemories, getSessionMemories } from "../lib/memory-client.js";
 import { resolveSkillsForConversation, loadPluginRegistry } from "../lib/plugin-loader.js";
 
 export interface AgentCallOptions {

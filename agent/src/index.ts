@@ -6,7 +6,6 @@ initPostHog();
 import express from "express";
 import { config } from "./config.js";
 import { corsMiddleware } from "./middleware/cors.js";
-import { initializeMem0Project } from "./lib/mem0-setup.js";
 import { initializeRedisIndexes, disconnectRedis } from "./lib/redis-client.js";
 import { loadPluginRegistry } from "./lib/plugin-loader.js";
 import healthRouter from "./routes/health.js";
@@ -41,7 +40,6 @@ app.listen(config.port, async () => {
   console.log(`CFO Agent server listening on port ${config.port}`);
   loadPluginRegistry();
   const results = await Promise.allSettled([
-    initializeMem0Project(),
     initializeRedisIndexes(),
   ]);
   for (const result of results) {

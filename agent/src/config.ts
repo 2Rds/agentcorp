@@ -24,7 +24,6 @@ export const config = {
 
   // Multi-model via OpenRouter (single key for all models)
   openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
-  mem0ApiKey: required("MEM0_API_KEY"),
 
   // Moonshot direct API (optional — falls back to OpenRouter K2.5)
   moonshotApiKey: optional("MOONSHOT_API_KEY"),
@@ -40,9 +39,6 @@ export const config = {
 
   // Cohere (Rerank for plugin resolution + document RAG)
   cohereApiKey: optional("COHERE_API_KEY"),
-
-  // Webhook secrets
-  mem0WebhookSecret: optional("MEM0_WEBHOOK_SECRET"),
 
   // Google Sheets integration via service account with domain-wide delegation (optional)
   // GOOGLE_SERVICE_ACCOUNT_KEY_FILE: path to service account JSON key file (local dev)

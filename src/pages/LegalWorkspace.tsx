@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRealtimeSubscription } from '@/hooks/useRealtimeSubscription';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import DepartmentWorkspace from '@/components/workspace/DepartmentWorkspace';
@@ -60,6 +61,10 @@ function IPTab() {
 }
 
 export default function LegalWorkspace() {
+  const { orgId } = useAuth();
+  const filter = orgId ? `org_id=eq.${orgId}` : null;
+  useRealtimeSubscription('legal_reviews', filter, [['legal-reviews', orgId!]], !!orgId);
+  useRealtimeSubscription('legal_ip_portfolio', filter, [['legal-ip', orgId!]], !!orgId);
   return <DepartmentWorkspace department="legal" tabs={[
     { id: 'reviews', label: 'Reviews', content: <ReviewsTab /> },
     { id: 'ip', label: 'IP Portfolio', content: <IPTab /> },

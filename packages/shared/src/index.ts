@@ -27,6 +27,8 @@ export type {
   VoiceConfig,
   BatchCallRecipient,
   ConversationResult,
+  // NextGenSwitch / telephony types
+  NextGenSwitchConfig,
 } from "./types.js";
 
 // Model registry and stacks
@@ -68,6 +70,25 @@ export type {
   MessageDraft,
   DeliveryReceipt,
 } from "./messaging/index.js";
+
+// Governance
+export type {
+  ApprovalCategory,
+  ApprovalStatus,
+  GovernanceConfig,
+  PendingApproval,
+  SpendEvent,
+  GovernanceDecision,
+} from "./governance/index.js";
+export {
+  isPendingApproval,
+  BLOCKDRIVE_GOVERNANCE,
+  validateGovernanceConfig,
+  APPROVAL_TTL_SECONDS,
+  APPROVAL_KEY_PREFIX,
+  SPEND_KEY_PREFIX,
+  APPROVAL_TIMEOUT_MS,
+} from "./governance/index.js";
 
 // Plugin mapping
 export {

@@ -32,8 +32,8 @@
 │                 └────────┬────────┘                                  │
 │                          │                                           │
 │                 ┌────────▼────────┐                                  │
-│                 │  mem0 (shared)  │                                  │
-│                 │  org-scoped     │                                  │
+│                 │  Redis Memory   │                                  │
+│                 │  (org-scoped)   │                                  │
 │                 └─────────────────┘                                  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -172,7 +172,7 @@ Current date: {date}
 Caller context: {dynamic_variables}
 ```
 
-This is much shorter than the full cognitive system prompt (which includes MCP tool descriptions, mem0 memories, plugin skills, etc.).
+This is much shorter than the full cognitive system prompt (which includes MCP tool descriptions, persistent memories, plugin skills, etc.).
 
 ## Signed URL Auth Flow
 
@@ -405,7 +405,7 @@ Our server → POST /v1/convai/twilio/outbound-call
 - Call transcripts may contain PII (names, phone numbers, business details)
 - Redis TTL ensures automatic cleanup (7 days for transcripts, 30 days for action items)
 - No transcript data sent to third parties beyond ElevenLabs (processing) and Redis (storage)
-- mem0 memories extracted from calls should be anonymized where possible
+- Persistent memories extracted from calls should be anonymized where possible
 
 ### Voice Cloning Ethics
 - Only clone voices with explicit consent

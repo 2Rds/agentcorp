@@ -1,5 +1,5 @@
 import { chatCompletion } from "../lib/model-router.js";
-import { addOrgMemory } from "../lib/mem0-client.js";
+import { addOrgMemory } from "../lib/memory-client.js";
 
 const EXTRACT_PROMPT = `You extract structured knowledge from a conversation between a startup founder and their AI CFO.
 Given the latest user message and assistant response, extract 0-3 distinct knowledge items that are worth remembering long-term.
@@ -58,7 +58,7 @@ export async function extractKnowledge(
     const stored = results.filter(r => r.status === "fulfilled" && r.value?.length > 0).length;
     const failed = results.filter(r => r.status === "rejected").length;
     if (failed > 0) console.warn(`${failed}/${results.length} knowledge items failed to store`);
-    if (stored > 0) console.log(`Stored ${stored} knowledge items in Mem0`);
+    if (stored > 0) console.log(`Stored ${stored} knowledge items in memory`);
   } catch (e) {
     console.error("Knowledge extraction error:", e);
   }

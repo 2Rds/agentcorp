@@ -165,6 +165,18 @@ export async function vectorSearch(
   }
 }
 
+// ─── Shared Helpers ─────────────────────────────────────────────────────────
+
+/** Escape a value for use in RediSearch TAG filters */
+export function escapeTag(value: string): string {
+  return value.replace(/[\\{}|@$%^&*()!,.<>?;:'"[\]\-\/]/g, "\\$&");
+}
+
+/** Current Unix timestamp in seconds */
+export function nowSecs(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
 function parseSearchResults(result: unknown[]): VectorSearchResult[] {
   if (!Array.isArray(result) || (result[0] as number) === 0) return [];
   const results: VectorSearchResult[] = [];

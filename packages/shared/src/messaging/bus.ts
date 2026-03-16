@@ -6,6 +6,11 @@
  * messages between agents via Telegram, enforces namespace scoping,
  * and persists message history in Redis for thread reconstruction.
  *
+ * Persistence uses Redis Streams (XADD/XRANGE) when available, with
+ * automatic fallback to LIST operations (RPUSH/LRANGE) for backwards
+ * compatibility. The runtime checks for the presence of `xadd` on the
+ * RedisClient instance to determine which mode to use.
+ *
  * Architecture:
  *   Agent → MessageBus.send() → scope check → MessageTransport.send() → Telegram Bot API
  *   Telegram webhook → MessageTransport.onMessage() → MessageBus handler → Agent
@@ -91,7 +96,7 @@ const DEFAULT_MESSAGE_TTL_SECONDS = 7 * 24 * 60 * 60;
 /** Default timeout for request-response pattern (30 seconds) */
 const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
-/** Max inbox size (capped via LTRIM) */
+/** Max inbox size (Streams: MAXLEN; LIST fallback: LTRIM) */
 const MAX_INBOX_SIZE = 500;
 
 export class MessageBus {
@@ -104,6 +109,7 @@ export class MessageBus {
     reject: (err: Error) => void;
     timer: ReturnType<typeof setTimeout>;
   }>();
+  private persistenceModeLogged = false;
 
   constructor(transport: MessageTransport, opts?: { redis?: RedisClient }) {
     this.transport = transport;
@@ -147,7 +153,7 @@ export class MessageBus {
 
     const message = this.draftToMessage(draft);
 
-    // Persist before sending (at-least-once delivery)
+    // Persist before sending (message survives transport failure but is not automatically retried)
     await this.persistMessage(message);
 
     // Send via transport (Telegram)
@@ -303,29 +309,54 @@ export class MessageBus {
   }
 
   /**
-   * Get a full message thread (all messages in a reply chain).
-   * Requires Redis for persistence. Uses LIST-based thread tracking.
+   * Get direct replies to a specific message.
+   * Does not recursively resolve threaded reply chains.
+   * Requires Redis for persistence.
    */
   async getThread(messageId: string): Promise<AgentMessage[]> {
     if (!this.redis) return [];
 
     const threadKey = `${REDIS_PREFIX.thread}${messageId}`;
-    // Thread members stored in a Redis list
-    const threadMsgIds = await this.redis.lrange(threadKey, 0, -1);
 
+    if (this.redis.xrange) {
+      // Stream-based: entries are already time-ordered
+      const entries = await this.redis.xrange(threadKey, "-", "+");
+      if (entries.length === 0) {
+        const rootRaw = await this.redis.get(`${REDIS_PREFIX.message}${messageId}`);
+        return rootRaw ? safeParseMessages([rootRaw]) : [];
+      }
+
+      const messages: AgentMessage[] = [];
+      for (const entry of entries) {
+        if (entry.message.data) {
+          const parsed = safeParseMessage(entry.message.data);
+          if (parsed) messages.push(parsed);
+        } else if (entry.message.msg_id) {
+          const raw = await this.redis.get(`${REDIS_PREFIX.message}${entry.message.msg_id}`);
+          if (raw) {
+            const parsed = safeParseMessage(raw);
+            if (parsed) messages.push(parsed);
+          }
+        }
+      }
+      return messages;
+    }
+
+    // Fallback: LIST-based
+    const threadMsgIds = await this.redis.lrange(threadKey, 0, -1);
     if (threadMsgIds.length === 0) {
-      // Try loading the root message directly
       const rootRaw = await this.redis.get(`${REDIS_PREFIX.message}${messageId}`);
-      return rootRaw ? [JSON.parse(rootRaw) as AgentMessage] : [];
+      return rootRaw ? safeParseMessages([rootRaw]) : [];
     }
 
     const messages: AgentMessage[] = [];
     for (const id of threadMsgIds) {
       const raw = await this.redis.get(`${REDIS_PREFIX.message}${id}`);
-      if (raw) messages.push(JSON.parse(raw) as AgentMessage);
+      if (raw) {
+        const parsed = safeParseMessage(raw);
+        if (parsed) messages.push(parsed);
+      }
     }
-
-    // Sort by timestamp
     messages.sort((a, b) =>
       new Date(a.metadata.timestamp).getTime() - new Date(b.metadata.timestamp).getTime(),
     );
@@ -333,23 +364,45 @@ export class MessageBus {
   }
 
   /**
-   * Get recent messages for an agent (inbox).
-   * Requires Redis for persistence. Uses LIST-based inbox (atomic RPUSH).
+   * Get messages for an agent (inbox), in chronological order.
+   * Requires Redis for persistence.
    */
   async getInbox(agentId: string, limit = 50): Promise<AgentMessage[]> {
     if (!this.redis) return [];
 
     const inboxKey = `${REDIS_PREFIX.inbox}${agentId}`;
-    // Read the most recent `limit` message IDs from the list
+
+    if (this.redis.xrange) {
+      // Stream-based: XRANGE returns entries in chronological (oldest-first) order
+      const entries = await this.redis.xrange(inboxKey, "-", "+", limit);
+      const messages: AgentMessage[] = [];
+      for (const entry of entries) {
+        if (entry.message.data) {
+          const parsed = safeParseMessage(entry.message.data);
+          if (parsed) messages.push(parsed);
+        } else if (entry.message.msg_id) {
+          const msgRaw = await this.redis.get(`${REDIS_PREFIX.message}${entry.message.msg_id}`);
+          if (msgRaw) {
+            const parsed = safeParseMessage(msgRaw);
+            if (parsed) messages.push(parsed);
+          }
+        }
+      }
+      return messages;
+    }
+
+    // Fallback: LIST-based
     const messageIds = await this.redis.lrange(inboxKey, -limit, -1);
     if (messageIds.length === 0) return [];
 
     const messages: AgentMessage[] = [];
     for (const id of messageIds) {
       const msgRaw = await this.redis.get(`${REDIS_PREFIX.message}${id}`);
-      if (msgRaw) messages.push(JSON.parse(msgRaw) as AgentMessage);
+      if (msgRaw) {
+        const parsed = safeParseMessage(msgRaw);
+        if (parsed) messages.push(parsed);
+      }
     }
-
     return messages;
   }
 
@@ -400,32 +453,60 @@ export class MessageBus {
 
   /**
    * Persist a message to Redis (inbox + thread tracking).
-   * Uses atomic LIST operations (RPUSH + LTRIM) to prevent inbox race conditions.
+   * Uses Redis Streams (XADD + MAXLEN) for ordered, auto-trimmed storage.
+   * Falls back to LIST operations if stream methods are unavailable.
    */
   private async persistMessage(message: AgentMessage): Promise<void> {
     if (!this.redis) return;
 
     try {
       const ttl = message.metadata.ttl ?? DEFAULT_MESSAGE_TTL_SECONDS;
+      const serialized = JSON.stringify(message);
 
-      // Store the message itself
+      // Store the message itself (key-value — same as before)
       await this.redis.set(
         `${REDIS_PREFIX.message}${message.metadata.id}`,
-        JSON.stringify(message),
+        serialized,
         { ex: ttl },
       );
 
-      // Atomic append to recipient's inbox list (no read-modify-write race)
-      const inboxKey = `${REDIS_PREFIX.inbox}${message.to}`;
-      await this.redis.rpush(inboxKey, message.metadata.id);
-      await this.redis.ltrim(inboxKey, -MAX_INBOX_SIZE, -1);
-      await this.redis.expire(inboxKey, ttl);
+      // Append to recipient's inbox (auto-trimmed, ordered by time)
+      if (this.redis.xadd) {
+        if (!this.persistenceModeLogged) {
+          console.log("[MessageBus] Using Redis Streams for message persistence");
+          this.persistenceModeLogged = true;
+        }
+        const inboxKey = `${REDIS_PREFIX.inbox}${message.to}`;
+        await this.redis.xadd(
+          inboxKey,
+          "*", // Auto-generated stream ID (timestamp-based)
+          { msg_id: message.metadata.id, data: serialized },
+          MAX_INBOX_SIZE,
+        );
+        await this.redis.expire(inboxKey, ttl);
 
-      // Thread tracking: if this is a reply, add to root thread's member list
-      if (message.payload.replyTo) {
-        const threadKey = `${REDIS_PREFIX.thread}${message.payload.replyTo}`;
-        await this.redis.rpush(threadKey, message.metadata.id);
-        await this.redis.expire(threadKey, ttl);
+        // Thread tracking via stream
+        if (message.payload.replyTo) {
+          const threadKey = `${REDIS_PREFIX.thread}${message.payload.replyTo}`;
+          await this.redis.xadd(threadKey, "*", { msg_id: message.metadata.id }, 100);
+          await this.redis.expire(threadKey, ttl);
+        }
+      } else {
+        if (!this.persistenceModeLogged) {
+          console.log("[MessageBus] Using Redis LISTs for message persistence (stream ops unavailable)");
+          this.persistenceModeLogged = true;
+        }
+        // Fallback: LIST operations (backwards compat)
+        const inboxKey = `${REDIS_PREFIX.inbox}${message.to}`;
+        await this.redis.rpush(inboxKey, message.metadata.id);
+        await this.redis.ltrim(inboxKey, -MAX_INBOX_SIZE, -1);
+        await this.redis.expire(inboxKey, ttl);
+
+        if (message.payload.replyTo) {
+          const threadKey = `${REDIS_PREFIX.thread}${message.payload.replyTo}`;
+          await this.redis.rpush(threadKey, message.metadata.id);
+          await this.redis.expire(threadKey, ttl);
+        }
       }
     } catch (err) {
       console.error(`Failed to persist message ${message.metadata.id}:`, err);
@@ -452,4 +533,24 @@ function generateMessageId(): string {
   const timestamp = Date.now().toString(36);
   const random = crypto.randomUUID().replace(/-/g, "").slice(0, 12);
   return `msg-${timestamp}-${random}`;
+}
+
+/** Safely parse a JSON string into an AgentMessage, logging and skipping corrupted entries */
+function safeParseMessage(raw: string): AgentMessage | null {
+  try {
+    return JSON.parse(raw) as AgentMessage;
+  } catch (err) {
+    console.error(`[MessageBus] Failed to parse stored message (skipping): ${(err as Error).message}`);
+    return null;
+  }
+}
+
+/** Parse multiple raw JSON strings into AgentMessages, skipping corrupted entries */
+function safeParseMessages(raws: string[]): AgentMessage[] {
+  const results: AgentMessage[] = [];
+  for (const raw of raws) {
+    const parsed = safeParseMessage(raw);
+    if (parsed) results.push(parsed);
+  }
+  return results;
 }

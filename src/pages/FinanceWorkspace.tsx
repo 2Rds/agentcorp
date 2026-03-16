@@ -1,11 +1,14 @@
 import DepartmentWorkspace from '@/components/workspace/DepartmentWorkspace';
-import { PlaceholderTab } from '@/components/workspace/EmptyState';
+import FinancialModelTab from '@/components/finance/FinancialModelTab';
+import FinancialOverviewTab from '@/components/finance/FinancialOverviewTab';
+import InvestorsTab from '@/components/finance/InvestorsTab';
+import KnowledgeBaseTab from '@/components/finance/KnowledgeBaseTab';
 
 export default function FinanceWorkspace() {
   return <DepartmentWorkspace department="finance" tabs={[
-    { id: 'model', label: 'Financial Model', content: <PlaceholderTab title="Financial Model" description="Will be migrated from existing Finance app." /> },
-    { id: 'captable', label: 'Cap Table', content: <PlaceholderTab title="Cap Table" description="Will be migrated from existing Finance app." /> },
-    { id: 'investors', label: 'Investors', content: <PlaceholderTab title="Investor Portal" description="Will be migrated from existing Finance app." /> },
-    { id: 'kb', label: 'Knowledge Base', content: <PlaceholderTab title="Knowledge Base" description="Will be migrated from existing Finance app." /> },
+    { id: 'overview', label: 'Overview', content: <FinancialOverviewTab /> },
+    { id: 'model', label: 'Financial Model', content: <FinancialModelTab /> },
+    { id: 'investors', label: 'Investors', content: <InvestorsTab /> },
+    { id: 'kb', label: 'Knowledge Base', content: <KnowledgeBaseTab /> },
   ]} />;
 }

@@ -167,4 +167,16 @@ export class TelegramTransport implements MessageTransport {
       agentBot.handler = undefined;
     }
   }
+
+  /**
+   * Get the grammy Bot instance for an agent.
+   * Used by GovernanceEngine to register callback handlers.
+   */
+  getBot(agentId: string): Bot {
+    const agentBot = this.bots.get(agentId);
+    if (!agentBot) {
+      throw new Error(`No Telegram bot for agent '${agentId}'`);
+    }
+    return agentBot.bot;
+  }
 }

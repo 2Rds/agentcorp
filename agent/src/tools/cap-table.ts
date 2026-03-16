@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { addOrgMemory } from "../lib/mem0-client.js";
+import { addOrgMemory } from "../lib/memory-client.js";
 
 export function capTableTools(orgId: string) {
   const get_cap_table = tool(
@@ -79,7 +79,7 @@ export function capTableTools(orgId: string) {
           metadata: { tool: "upsert_cap_table_entries", entry_count: data.length },
           timestamp: Math.floor(Date.now() / 1000),
         },
-      ).catch(e => console.error("Mem0 memory store failed (cap table):", e));
+      ).catch(e => console.error("Memory store failed (cap table):", e));
 
       return { content: [{ type: "text" as const, text: `Successfully upserted ${data.length} entries.\n${JSON.stringify(data, null, 2)}` }] };
     }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Three-tier system: a React 18 frontend deployed to Vercel, seven Express agent servers (CFO + EA + 5 department agents), and Supabase for database, auth, storage, and edge function fallback. Full-stack observability via Sentry (error tracking) and PostHog (product analytics).
+Three-tier system: a React 18 frontend deployed to Vercel, seven Express agent servers (CFO + EA + 5 department agents), and Supabase for database, auth, storage, Realtime, Vault, Database Webhooks, and edge function fallback. Full-stack observability via Sentry (error tracking) and PostHog (product analytics). Governance via C-Suite Telegram approval flow with per-agent daily spend tracking.
 
 ```
                     ┌─────────────────┐
@@ -24,9 +24,9 @@ Three-tier system: a React 18 frontend deployed to Vercel, seven Express agent s
 │Opus │ │Open ││  │  Redis   │  │Tele │    │  Notion  │
 │4.6  │ │Route││  │  8.4     │  │gram │    │  API     │
 └─────┘ └─────┘│  └──────────┘  └─────┘    └─────────┘
-           ┌───▼──┐
-           │ Mem0 │
-           └──────┘
+           ┌───▼────────┐
+           │Redis Memory│
+           └────────────┘
 ```
 
 ## Frontend (`src/`)
@@ -43,7 +43,7 @@ React 18 + TypeScript + Vite. Uses shadcn/ui (Radix primitives) with Tailwind CS
 | `/finance` | FinanceWorkspace | Protected — CFO agent chat + financial tools |
 | `/operations` | OperationsWorkspace | Protected — COA agent chat + operations |
 | `/marketing` | MarketingWorkspace | Protected — CMA agent chat + campaigns |
-| `/compliance` | ComplianceWorkspace | Protected — CCO agent chat + governance |
+| `/compliance` | ComplianceWorkspace | Protected — CCA agent chat + governance |
 | `/legal` | LegalWorkspace | Protected — Legal agent chat + reviews |
 | `/sales` | SalesWorkspace | Protected — Sales agent chat + pipeline |
 | `/settings` | Settings | Protected — user/org settings |
@@ -94,7 +94,7 @@ All non-Claude models route through OpenRouter via `model-router.ts` using nativ
 |--------|-------|-------|
 | Financial Model | 3 | get, upsert (K2.5 plan generation + memory), delete |
 | Derived Metrics | 1 | compute burn, runway, MRR, gross margin |
-| Cap Table | 3 | get, upsert (graph memory for fundraising), delete |
+| Cap Table | 3 | get, upsert (memory for fundraising), delete |
 | Knowledge Base | 5 | search (rerank + keyword), add, update, delete, rate_quality |
 | Investor Links | 4 | CRUD with `enable_data_room` support |
 | Documents | 2 | upload with Gemini vision + memory attribution |
@@ -114,9 +114,8 @@ Tools are org-scoped via closure — `orgId` passed to each factory function. As
 | `POST /api/chat` | Streaming AI chat (SSE) with memory-enriched system prompt |
 | `GET /api/model/status` | Google Sheets integration status |
 | `POST /api/model/create-sheet, get-sheet, delete-sheet` | Model sheet CRUD |
-| `GET /api/knowledge/graph` | Knowledge graph via Mem0 graph API |
+| `GET /api/knowledge/graph` | Knowledge graph visualization |
 | `GET/POST /dataroom/:slug/*` | Public investor data room |
-| `POST /api/webhooks/mem0` | Memory event webhooks |
 | `GET /health` | Health check |
 
 ### Streaming Chat Flow
@@ -125,7 +124,7 @@ Tools are org-scoped via closure — `orgId` passed to each factory function. As
 Client POST /api/chat
   → authMiddleware (token verify + org check)
   → createAgentQuery(messages, orgId, userId)
-    → Load org memories from Mem0
+    → Load org memories from Redis
     → Inject into system prompt
     → Resolve knowledge plugins (keyword → vector → Cohere rerank)
     → Claude SDK query() with includePartialMessages
@@ -135,7 +134,7 @@ Client POST /api/chat
 
 ## Department Agent Servers (`agents/{coa,cma,compliance,legal,sales}/`)
 
-Five department head agents built on `@waas/runtime` with the Claude Agent SDK (`tool()` + Zod). Each runs as an independent Express server with org-scoped MCP tools, Notion integration (conditional), and mem0 memory.
+Five department head agents built on `@waas/runtime` with the Claude Agent SDK (`tool()` + Zod). Each runs as an independent Express server with org-scoped MCP tools, Notion integration (conditional), and Redis memory.
 
 ### Agent Model Stacks
 
@@ -143,7 +142,7 @@ Five department head agents built on `@waas/runtime` with the Claude Agent SDK (
 |-------|---------|---------------|-------|--------|------|
 | COA (Jordan) | Opus 4.6 | Gemini 3.1 Pro, Grok Reasoning | Cohere v4.0 | Cohere v4.0 | 3003 |
 | CMA (Taylor) | Opus 4.6 | Gemini 3.1 Pro, Sonar Pro, Grok Fast | Cohere v4.0 | — | 3004 |
-| CCO (Compliance) | Opus 4.6 | Granite 4.0, Command A | Cohere v4.0 | Cohere v4.0 | 3005 |
+| CCA (Parker) | Opus 4.6 | Granite 4.0, Command A | Cohere v4.0 | Cohere v4.0 | 3005 |
 | Legal (Casey) | Opus 4.6 | Command A, Grok Reasoning (2M ctx) | Cohere v4.0 | Cohere v4.0 | 3006 |
 | Sales (Sam) | Opus 4.6 | Sonar Pro, Gemini 3.1 Pro | Cohere v4.0 | — | 3007 |
 
@@ -176,71 +175,130 @@ Sean (Human Principal)
 │   ├── Morgan (CFA) — financial modeling
 │   │   └── Riley (IR) — investor relations (planned)
 │   ├── Taylor (CMA) — marketing/content
-│   ├── CCO (Compliance) — governance, audit-read-all
+│   ├── Parker (CCA) — governance, audit-read-all
 │   ├── Casey (Legal) — contracts, IP
 │   └── Sam (Sales) — pipeline, prospecting
 ```
 
+### Governance
+
+Dual-mode governance system (startup/enterprise) managed by GovernanceEngine in `@waas/runtime`. Types and defaults in `@waas/shared/governance`.
+
+**Startup mode (current):** Human-configured tripwires with Telegram approval flow.
+- Daily spend tracking per agent via Redis counters (keyed by `{orgId}:{agentId}:{date}`), with in-memory fallback when Redis is unavailable
+- Pending approvals stored in Redis with TTL, resolved via Lua atomic check-and-set (no TOCTOU race), presented via Telegram inline keyboards in C-Suite group chat
+- Authorized approver enforcement (Sean's Telegram user ID)
+- 6 approval categories: external_communication, marketing_activity, social_media_post, financial_commitment, escalation, spend_limit_exceeded
+- All agent system prompts include governance directives requiring approval before external actions
+
+**Enterprise mode (future):** CCA (Parker) manages policy enforcement programmatically.
+
 ### Escalation
 
-All department agents escalate to COA (Jordan) at $5 budget threshold. COA escalates to Sean for strategic decisions, hiring, vendor contracts, and cross-department conflicts.
+Department agents escalate to COA (Jordan) for strategic decisions. COA escalates to Sean for hiring, vendor contracts, and cross-department conflicts.
 
 ## EA Agent Server (`agents/ea/src/`)
 
 Express server using the Anthropic Messages API directly (not Claude Agent SDK). Claude Opus 4.6 as the primary model with an agentic tool loop (max 15 turns).
 
-### Tools (11 total)
+### Tools (7-14 total, conditional)
 
-| Domain | Count | Tools |
-|--------|-------|-------|
-| Knowledge | 2 | search_knowledge (cross-namespace), save_knowledge |
-| Tasks | 2 | create_task, list_tasks |
-| Meeting Notes | 1 | save_meeting_notes |
-| Communications | 1 | draft_email |
-| Web Search | 1 | web_search (Perplexity Sonar) |
-| Notion | 4 | search_notion, read_notion_page, create_notion_page, update_notion_page |
+| Domain | Count | Tools | Condition |
+|--------|-------|-------|-----------|
+| Knowledge | 2 | search_knowledge (cross-namespace), save_knowledge | Always |
+| Tasks | 2 | create_task, list_tasks | Always |
+| Meeting Notes | 1 | save_meeting_notes | Always |
+| Communications | 1 | draft_email | Always |
+| Web Search | 1 | web_search (Perplexity Sonar) | Always |
+| Slack | 3 | send_slack_message, read_slack_channel, list_slack_channels | `SLACK_BOT_TOKEN` |
+| Notion | 4 | search_notion, read_notion_page, create_notion_page, update_notion_page | `NOTION_API_KEY` |
 
-Tools are defined as native Anthropic API `Tool` definitions + handler functions in `bridge.ts` (tool bridge pattern). Notion tools are conditional — only registered when `NOTION_API_KEY` is set.
+Tools are defined as native Anthropic API `Tool` definitions + handler functions in `bridge.ts` (tool bridge pattern). Slack and Notion tools are conditional — only registered when their respective env vars are set.
 
 ### Transport
 
-Primary interface: Telegram bot (`@alex_executive_assistant_bot`) via grammy. Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
+**Telegram:** Primary interface via grammy (`@alex_executive_assistant_bot`). Security: `TELEGRAM_CHAT_ID` whitelist. 20-message conversation history per chat.
+
+**Slack:** Channel-aware EA integration via `@slack/bolt` Socket Mode. Admin access to all channels. Channel classification (`channel-config.ts`): workforce (per-agent), purpose (topic-specific), feed (notification-only), DM. Thread history capped at 500 (FIFO eviction). Context builder enriches messages with channel purpose and department info.
 
 ### Enrichment Pipeline
 
 System prompt enriched via `Promise.allSettled` (parallel):
-1. EA-scoped mem0 memories (top 10)
+1. EA-scoped memories (top 10)
 2. Cross-namespace memories (top 10, all departments)
 3. Session memories (last 10 from conversation)
 4. Matched skills (keyword → vector → dedup)
 
 ## Infrastructure
 
-### Redis (vector search + caching)
+### Redis (vector search + caching + feature store)
 
-Redis 8.4 via Docker Compose. Three RediSearch indexes:
+Redis 8.4 via Docker Compose. Seven RediSearch indexes:
 
 | Index | Prefix | Purpose |
 |-------|--------|---------|
 | `idx:plugins` | `plugin:` | Skill vector matching for plugin loader |
 | `idx:documents` | `doc:` | Document RAG with hybrid search |
-| `idx:llm_cache` | `cache:` | Semantic caching of model responses |
+| `idx:llm_cache_v2` | `cache:` | Semantic caching of LLM responses (cross-agent) |
+| `idx:memories` | `mem:` | Persistent memory with vector search |
+| `idx:prospect_features` | `fs:{orgId}:prospect:` | Sales prospect features with similarity search |
+| `idx:industry_features` | `fs:{orgId}:industry:` | Industry benchmark features |
+| `idx:agent_performance` | `fs:{orgId}:agent_perf:` | Agent performance metrics |
+| `idx:call_brief` | `fs:{orgId}:call_brief:` | Sales call briefing features |
 
-All vectors are 768-dimensional (COSINE, HNSW, FLOAT32). Embeddings via Cloudflare Workers AI (`bge-base-en-v1.5`, free tier) with OpenRouter fallback.
+All vectors are 768-dimensional (COSINE, HNSW, FLOAT32). Embeddings via Cohere embed-v4.0 (primary) with Cloudflare Workers AI (`bge-base-en-v1.5`, free tier) fallback.
 
-### Mem0 (persistent memory)
+Shared helpers exported from `redis-client.ts`: `createIndex()`, `vectorSearch()`, `escapeTag()`, `nowSecs()`.
 
-Organization-scoped persistent memory with graph relationships.
+### Persistent Memory (Redis)
+
+Two memory backends, selected at startup based on availability:
+
+**Agent Memory Server (AMS)** — Primary. Two-tier cognitive memory via Redis AMS HTTP client (`agent-memory-server.ts`). Working memory (session-scoped messages + structured memories) + long-term memory (semantic search, topic modeling, entity recognition, deduplication). Health-checked at startup; falls back to RedisMemoryClient if unhealthy.
+
+**RedisMemoryClient** — Fallback. Direct Redis vector search on `idx:memories` index.
+
+Both implement the `MemoryClient` interface for transparent swap. Organization-scoped via `org:agentId:userId` namespace scheme.
 
 - 6 custom categories: `financial_metrics`, `fundraising`, `company_operations`, `strategic_decisions`, `investor_relations`, `financial_model`
 - Multi-model attribution via `agent_id`
 - Session memory via `run_id` per conversation thread
 - System prompt enriched with relevant org memories before each query
-- Feedback mechanism for memory quality
+- Cohere embeddings (768-dim) for semantic search
+- ScopedMemoryClient per department with namespace enforcement
 
 ### Semantic Cache
 
-Wraps model calls for deterministic outputs. Caches Kimi, Gemini, DeepSeek responses. Skips Claude Opus (conversational) and Sonar (web results change). 95% cosine similarity threshold, 1-hour default TTL.
+LLM response caching via `SemanticCache` class (`semantic-cache.ts`). Uses `idx:llm_cache_v2` RediSearch index with Cohere embed-v4.0 embeddings. 95% cosine similarity threshold, configurable TTL (default 1hr). Cross-agent sharing — any agent can hit another's cache entries.
+
+Cache integrated into chat route: checks cache before Claude API call, stores response on completion (fire-and-forget). Skips Sonar (web results change) and configurable per-model skip list.
+
+Promise lock on `ensureIndex()` prevents concurrent duplicate index creation. Circuit breaker stops retrying after 3 failures.
+
+### Feature Store
+
+Sub-millisecond Redis HASH-based feature retrieval via `FeatureStore` class (`feature-store.ts`). Four feature types:
+
+| Type | Index | Key Fields | Purpose |
+|------|-------|-----------|---------|
+| ProspectFeatures | `idx:prospect_features` | company, industry, budget, pain points, vector embedding | Sales prospect intelligence + similarity search |
+| IndustryFeatures | `idx:industry_features` | avg deal size, sales cycle, win rate, trends | Industry benchmarks |
+| AgentPerformanceFeatures | `idx:agent_performance` | calls, meetings, close rate, revenue | Agent performance leaderboard |
+| CallBriefFeatures | `idx:call_brief` | prospect_id, talking points, objections, strategy | Pre-call briefings |
+
+All methods accept optional `orgId` parameter for multi-tenant isolation. Used by Sales agent (Sam) via 5 dedicated MCP tools.
+
+### Voice Pipeline (Foundation)
+
+Three-component voice infrastructure in `packages/runtime/src/voice/` and `packages/runtime/src/lib/elevenlabs-client.ts`:
+
+| Component | Purpose |
+|-----------|---------|
+| `ElevenLabsClient` | WebSocket TTS/STT with Flash v2.5 model (sub-75ms), u-law 8kHz passthrough |
+| `VoicePipeline` | NextGenSwitch ↔ ElevenLabs STT → Claude → TTS bridge, per-call Redis state |
+| `VoiceTransport` | WebSocket server for inbound calls + REST API for outbound initiation |
+
+Call state managed via Redis HASH (`voice:{agentId}:call:{callId}`, 1hr TTL). Foundation for Sales agent voice calling in future phases.
 
 ### Knowledge Plugins
 
@@ -298,7 +356,7 @@ Full-stack error tracking (Sentry) and product analytics (PostHog). All init is 
 |-------|-----|-------------|
 | Frontend | `@sentry/react` | BrowserTracing, Replay (on error), ErrorBoundary, source maps via `@sentry/vite-plugin` |
 | CFO Agent | `@sentry/node` | Express error handler, unhandled rejection/exception → flush + exit |
-| EA Agent | `@sentry/node` | Re-exports from `@waas/runtime` (DRY) |
+| EA Agent | `@sentry/node` | Self-contained init (standalone Docker build, no `@waas/runtime` access) |
 | @waas/runtime | `@sentry/node` | `initSentry(agentId)` — covers COA, CMA, Compliance, Legal, Sales |
 
 All agent servers: `uncaughtException` handler calls `Sentry.close(2000)` then `process.exit(1)` (Node enters undefined state after uncaught exception). Express error handler placed after routes but before 404 handler.
@@ -319,17 +377,36 @@ Custom events: `agent_chat_sent`, `workspace_viewed`, `agent_health_checked`.
 | Frontend | `src/lib/sentry.ts` + `src/lib/posthog.ts` | React SPA |
 | CFO Agent | `agent/src/lib/observability.ts` | CFO server |
 | @waas/runtime | `packages/runtime/src/lib/observability.ts` | COA, CMA, Compliance, Legal, Sales |
-| EA Agent | `agents/ea/src/lib/observability.ts` | Re-exports from @waas/runtime |
+| EA Agent | `agents/ea/src/lib/observability.ts` | Self-contained (standalone Docker build) |
 
 ## Deployment
 
-- **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `cfo.blockdrive.co`)
-- **CFO Agent:** DigitalOcean App Platform (Docker, port 3001)
-- **EA Agent:** DigitalOcean App Platform (Docker, port 3002, `/ea` ingress)
-- **COA Agent:** DigitalOcean App Platform (Docker, port 3003, `/coa` ingress)
-- **CMA Agent:** DigitalOcean App Platform (Docker, port 3004, `/cma` ingress)
-- **Compliance Agent:** DigitalOcean App Platform (Docker, port 3005, `/compliance` ingress)
-- **Legal Agent:** DigitalOcean App Platform (Docker, port 3006, `/legal` ingress)
-- **Sales Agent:** DigitalOcean App Platform (Docker, port 3007, `/sales` ingress)
-- **Redis:** Docker Compose alongside agent server
-- **n8n:** DigitalOcean Droplet (`n8n.blockdrive.co`)
+### Supabase Realtime
+
+17 department tables added to the `supabase_realtime` publication. Frontend uses `useRealtimeSubscription` hook (unique channel IDs per component, `.subscribe()` status callbacks, race-condition-closing refetch on SUBSCRIBED). On any INSERT/UPDATE/DELETE matching the org filter, invalidates TanStack Query cache keys to trigger automatic refetch.
+
+### Supabase Vault + Database Webhooks
+
+**Vault:** pgsodium extension enabled for encrypted secret storage at the database layer.
+
+**Database Webhooks:** pg_net extension fires async HTTP requests from SQL triggers on high-value table events:
+
+```
+INSERT on ea_tasks / agent_messages / compliance_governance_log
+  → notify_webhook() trigger function (SECURITY DEFINER, BEGIN..EXCEPTION)
+  → net.http_post() to webhook-handler Edge Function
+  → Edge Function routes to agent server (/ea/webhook, /coa/webhook, /compliance/webhook)
+```
+
+Webhook handler uses timing-safe comparison for `WEBHOOK_SECRET` (or `SUPABASE_SERVICE_ROLE_KEY` fallback), validates Content-Type, and forwards events with `X-Webhook-Secret`. Returns 200 even on agent errors to prevent pg_net retries. Non-2xx agent responses are logged as warnings with response body.
+
+## Deployment
+
+- **Frontend:** Vercel (auto-builds from `npm run build`, aliased to `corp.blockdrive.co`)
+- **All 7 Agents:** DigitalOcean App Platform NYC1 (`agentcorp-ghgvq.ondigitalocean.app`), auto-deploy from GitHub
+  - EA Agent — dedicated `apps-d-1vcpu-0.5gb` ($29/mo), port 3002, `/ea` ingress
+  - Sales Agent — dedicated `apps-d-1vcpu-0.5gb` ($29/mo), auto-scales 1→3 at 75% CPU, port 3007, `/sales` ingress
+  - CFO Agent — shared `apps-s-1vcpu-1gb` ($12/mo), port 3001, `/` ingress
+  - COA, CMA, Compliance, Legal — shared `apps-s-1vcpu-1gb` ($12/mo each), ports 3003-3006
+- **Redis:** DigitalOcean Droplet NYC1 (`waas-redis-nyc1`, 67.205.165.14), password-protected, VPC `10.116.0.2`
+- **n8n:** DigitalOcean Droplet NYC1 (`n8n-nyc1`, 134.209.67.70, `n8n.blockdrive.co`), Docker + Caddy reverse proxy with auto-TLS

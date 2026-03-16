@@ -6,14 +6,14 @@ initPostHog();
 import express from "express";
 import { config } from "./config.js";
 import { corsMiddleware } from "./middleware/cors.js";
-import { initializeMem0Project } from "./lib/mem0-setup.js";
 import { initializeRedisIndexes, disconnectRedis } from "./lib/redis-client.js";
 import { loadPluginRegistry } from "./lib/plugin-loader.js";
 import healthRouter from "./routes/health.js";
 import chatRouter from "./routes/chat.js";
 import knowledgeRouter from "./routes/knowledge.js";
-import webhooksRouter from "./routes/webhooks.js";
+import webhooksRouter, { setTelegramNotifier } from "./routes/webhooks.js";
 import { createAgentQuery } from "./agent/ea-agent.js";
+import { startSlackBot, stopSlackBot } from "./transport/slack.js";
 
 const app = express();
 
@@ -65,7 +65,7 @@ async function startTelegramBot() {
       // Use the EA agent directly (returns string)
       const fullResponse = await createAgentQuery({
         messages: messages.map((m) => ({ role: m.role, content: m.content })),
-        organizationId: "telegram-direct",
+        organizationId: config.blockdriveOrgId || "telegram-direct",
         userId: `telegram-${chatId}`,
         conversationId: `tg-${chatId}`,
       });
@@ -89,6 +89,16 @@ async function startTelegramBot() {
 
   bot.start({ onStart: () => console.log("Telegram bot started: @alex_executive_assistant_bot") });
   telegramBot = bot;
+
+  // Wire Telegram notifications for webhook handlers
+  const allowedChat = process.env.TELEGRAM_CHAT_ID;
+  if (allowedChat) {
+    setTelegramNotifier(async (text: string) => {
+      await bot.api.sendMessage(Number(allowedChat), text, { parse_mode: "Markdown" }).catch(() =>
+        bot.api.sendMessage(Number(allowedChat), text),
+      );
+    });
+  }
 }
 
 // ─── Server Start ────────────────────────────────────────────────────────────
@@ -97,9 +107,9 @@ app.listen(config.port, async () => {
   console.log(`EA Agent (Alex) server listening on port ${config.port}`);
   loadPluginRegistry();
   const results = await Promise.allSettled([
-    initializeMem0Project(),
     initializeRedisIndexes(),
     startTelegramBot(),
+    startSlackBot(),
   ]);
   for (const result of results) {
     if (result.status === "rejected") {
@@ -123,6 +133,6 @@ process.on("uncaughtException", (err) => {
 process.on("SIGTERM", async () => {
   console.log("SIGTERM received, shutting down...");
   telegramBot?.stop();
-  await Promise.allSettled([disconnectRedis(), shutdownObservability()]);
+  await Promise.allSettled([stopSlackBot(), disconnectRedis(), shutdownObservability()]);
   process.exit(0);
 });

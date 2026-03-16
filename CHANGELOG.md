@@ -2,6 +2,211 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.0.0] - 2026-03-15
+
+Redis AI infrastructure: three new runtime modules (SemanticCache, AgentMemoryServerClient, FeatureStore), voice pipeline foundation (ElevenLabs + VoiceTransport), Sales agent Feature Store tools, and 9 critical/high review fixes across all new modules.
+
+### Added
+
+- **SemanticCache** (`packages/runtime/src/lib/semantic-cache.ts`) — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW COSINE). Cross-agent sharing via `idx:llm_cache_v2` index. 95% similarity threshold, configurable TTL, per-model skip list. Promise lock on `ensureIndex()` prevents duplicate concurrent index creation.
+- **AgentMemoryServerClient** (`packages/runtime/src/lib/agent-memory-server.ts`) — TypeScript HTTP client for Redis Agent Memory Server (two-tier cognitive memory: working memory + long-term semantic search). Implements `MemoryClient` interface for drop-in compatibility. Namespace isolation via `org:agentId:userId` key scheme.
+- **FeatureStore** (`packages/runtime/src/lib/feature-store.ts`) — Sub-millisecond Redis HASH-based feature retrieval for Sales agent. 4 feature types: ProspectFeatures (with vector embedding for similarity), IndustryFeatures, AgentPerformanceFeatures, CallBriefFeatures. 4 RediSearch indexes (`idx:prospect_features`, `idx:industry_features`, `idx:agent_performance`, `idx:call_brief`). Per-method `orgId` override for multi-tenant safety.
+- **ElevenLabsClient** (`packages/runtime/src/lib/elevenlabs-client.ts`) — WebSocket-based TTS/STT client for voice pipeline. Flash v2.5 model for sub-75ms latency, u-law 8kHz passthrough format.
+- **VoicePipeline** (`packages/runtime/src/voice/voice-pipeline.ts`) — WebSocket bridge: NextGenSwitch ↔ ElevenLabs STT → Claude → ElevenLabs TTS. Call state management via Redis HASH with 1hr TTL.
+- **VoiceTransport** (`packages/runtime/src/voice/voice-transport.ts`) — WebSocket server for NextGenSwitch connections + outbound call initiation via REST API.
+- **Sales Feature Store tools** (5 tools in `agents/sales/src/tools/index.ts`) — `update_prospect_features`, `get_call_intelligence`, `get_hottest_prospects`, `update_industry_features`, `create_call_brief`. All pass `orgId` from closure for multi-tenant isolation.
+- **Runtime-ref pattern** — `runtime-ref.ts` files added to all 5 department agents (COA, CMA, Compliance, Legal, Sales) for lazy runtime access in tool factories.
+- **Redis shared helpers** — `createIndex()`, `vectorSearch()`, `escapeTag()`, `nowSecs()` exported from `redis-client.ts` for FeatureStore and SemanticCache consumption.
+- **Chat route cache integration** — `POST /chat` checks SemanticCache before Claude API call; caches responses on completion (fire-and-forget).
+- **Runtime exports** — All new modules (SemanticCache, FeatureStore, AgentMemoryServerClient, ElevenLabsClient, VoicePipeline, VoiceTransport) exported from `@waas/runtime` index.
+
+### Changed
+
+- **AgentRuntime `start()`** — Initializes SemanticCache, FeatureStore, and AgentMemoryServerClient (with health-check fallback to RedisMemoryClient) during startup lifecycle.
+- **`hasMemory` in health route** — Changed from static boolean to getter (`get hasMemory() { return !!runtime._memory; }`) so health endpoint reflects runtime memory state, not construction-time snapshot.
+- **SemanticCache skip models** — Removed `claude-opus-4-6` from `DEFAULT_SKIP_MODELS` (was making cache dead code for primary model).
+
+### Fixed
+
+- **FeatureStore orgId=""** (CRITICAL) — All 14 public methods now accept optional `orgId` parameter with `resolveOrgId()` helper that warns on empty orgId. Sales tools pass orgId from closure.
+- **KEYS command in getCallBriefForProspect** (CRITICAL) — Replaced O(N) blocking `KEYS` scan with O(log N) `FT.SEARCH` using new `idx:call_brief` RediSearch index.
+- **AMS healthy:false doesn't fallback** (CRITICAL) — Added `if (healthy)` condition before setting `_memory = amsClient`. Unhealthy AMS now falls through to RedisMemoryClient.
+- **Zero Sentry in catch blocks** (HIGH) — Added `Sentry.captureException()` to all catch blocks across AgentMemoryServerClient (10), SemanticCache (3), FeatureStore (6), and AgentRuntime AMS init.
+- **ensureIndex race condition** (HIGH) — Added promise lock pattern in both SemanticCache (`indexPromise` field) and FeatureStore (`indexPromises` Map) to prevent concurrent duplicate index creation.
+- **Embedding failures silently return null** (HIGH) — Added `console.warn` in SemanticCache `get()` and `set()` when embedding generation returns empty vector.
+- **setProspectFeatures bare catch** (HIGH) — Added `console.warn` with error message for embedding failures in prospect feature storage.
+- **AMS addMemory fake NOOP** — Changed failure return from fake `[{ id, event: "NOOP" }]` to empty array `[]`.
+- **AMS isHealthy bare catch** — Added `console.warn` with error message for health check failures.
+
+## [v2.4.1] - 2026-03-15
+
+Full Mem0 cloud API removal — migrated all persistent memory to Redis-backed storage with RediSearch vector search + Cohere embeddings. Zero Mem0 references remain in any `.ts` source file.
+
+### Added
+
+- **Standalone Redis memory clients** — `memory-client.ts` for CFO (`agent/`) and EA (`agents/ea/`) agents; same `idx:memories` schema as `@waas/runtime`'s `RedisMemoryClient` so all agents share one memory pool
+- **`RedisClientType` re-export** — Both CFO and EA `redis-client.ts` now export the type for `memory-client.ts` imports
+
+### Changed
+
+- **Memory imports migrated** — All 15+ consumer files across CFO, EA, and runtime changed from `mem0-client.js` to `memory-client.js`
+- **`mem0Namespaces` → `memoryNamespaces`** — Renamed in `@waas/shared` types, scopes, and enforcement
+- **`ScopedMem0Client` → `ScopedMemoryClient`** — All enforcement method names and references updated across shared/runtime packages
+- **AgentRuntime memory lifecycle** — Removed `Mem0Client` fallback constructor; only creates `RedisMemoryClient` after Redis connects
+- **Knowledge graph routes** — Removed graph relation handling (Mem0-specific); returns flat memory entities with empty relationships
+- **Documentation purge** — Mem0 references replaced with Redis-based descriptions across 25+ files (CLAUDE.md, README.md, SECURITY.md, ARCHITECTURE.md, docs/waas/, memory/)
+
+### Fixed
+
+- **`graphEntities` → `knowledgeEntries` stat key mismatch** — Backend knowledge routes (CFO + EA) now return `knowledgeEntries` matching the frontend `KnowledgeBaseTab` interface
+- **Dead `metadata` Zod param** — Removed unused `metadata` parameter from CFO `update_knowledge_entry` tool (Redis `updateMemory` only accepts 2 args)
+- **EA `.env.example`** — Removed stale `MEM0_API_KEY` and `MEM0_WEBHOOK_SECRET` entries
+- **LLM-facing vendor leaks** — Compliance system prompt "mem0 and Redis" → "the memory system"; tool descriptions scrubbed of Mem0 branding
+
+### Removed
+
+- **`mem0-client.ts`** — Deleted from CFO agent (354 lines), EA agent (349 lines), and `@waas/runtime` (272 lines)
+- **`mem0-setup.ts`** — Deleted from CFO agent (95 lines) and EA agent (95 lines); auto-discovery of Mem0 org/project no longer needed
+- **`Mem0Client` class** — Removed from `@waas/runtime` exports; `AgentRuntimeConfig.env` no longer accepts `mem0ApiKey`, `mem0OrgId`, `mem0ProjectId`
+- **`/api/webhooks/mem0` route** — Removed from both CFO and EA webhook routers
+- **`MEM0_API_KEY` env var** — Removed from all 7 agent configs (CFO, EA, COA, CMA, Compliance, Legal, Sales)
+- **`MEM0_WEBHOOK_SECRET` env var** — Removed from CFO and EA configs
+
+## [v2.4.0] - 2026-03-15
+
+Infrastructure hardening: MessageBus dual-mode (Redis Streams + LIST fallback), scoped stream operations, governance spend fallback, 25 review issue fixes across all agents and packages, EA org-scoping for Slack/Telegram transports.
+
+### Added
+
+- **MessageBus dual-mode persistence** — Redis Streams (XADD/XRANGE with MAXLEN auto-trimming) with automatic LIST fallback when Streams unavailable; runtime logging of active persistence mode
+- **ScopedRedisClient stream operations** — `xadd`, `xrange`, `xlen`, `xtrim` with namespace enforcement (access-checked, fail-closed)
+- **Agent-runtime stream adapters** — Maps `redis` npm PascalCase API (`xAdd`, `xRange`, `xLen`, `xTrim`) to `@waas/shared` lowercase interface
+- **RedisMemoryClient circuit breaker** — `ensureIndex()` stops retrying after 3 failures (prevents hot loop of failing Redis commands)
+- **In-memory governance spend fallback** — GovernanceEngine tracks spend in memory when Redis is unavailable (resets on restart, prevents unlimited spend)
+- **Safe JSON parsing in MessageBus** — `safeParseMessage()` and `safeParseMessages()` helpers prevent corrupt messages from crashing the bus
+- **EA `BLOCKDRIVE_ORG_ID` config** — Org UUID sourced from env var for Slack/Telegram transports (replaces hardcoded strings)
+- **`message_agent` tool** — Added to CMA, Compliance, Legal, Sales agents via MessageBus (COA already had it)
+- **`StreamEntry` type export** — Exported from `@waas/shared/namespace` for consumers
+
+### Changed
+
+- **MessageBus** updated module docstring documenting dual Streams/LIST mode, persistence mode logging, `getInbox()` returns chronological (oldest-first) order
+- **Governance spend limits** — `spendLimitPerAgentPerDay` $10→$5, `spendLimitGlobalPerDay` $100→$50 (tighter control during initial deploy)
+- **Chat route token estimation** — 3x multiplier applied only to input tokens (output tokens fully captured, no multiplier needed)
+- **DataRoom auth** — Credentials sent via POST body + `x-viewer-*` headers instead of GET query params (prevents leaking in logs/URL history)
+- **useModelSheet** — Replaced `supabase.auth.getSession()` with `useAuth()` context hook (Supabase warns against direct `getSession()` usage)
+- **COA `message_agent`** — Removed Supabase INSERT fallback (no consumer reads queued messages); aligned with other 5 agents that require MessageBus
+- **GovernanceEngine callback handler** — Calls `next()` for non-governance callbacks (was swallowing unrelated `callback_query:data` events)
+
+### Fixed
+
+- **Telemetry Worker fail-closed auth** — Rejects all requests when API key is unset (was fail-open, accepting unauthenticated telemetry)
+- **Telemetry Worker error responses** — Split try-catch: JSON parse → 400, writeDataPoint → 500 (was 500 for all)
+- **Zero-vector embedding guard** — When embedding generation fails, skip embedding field entirely and return NOOP event (was storing zero-vector producing meaningless KNN results)
+- **RedisMemoryClient `updateMemory`** — Keeps existing embedding on re-embed failure (was overwriting with zero-vector)
+- **RedisMemoryClient `hashToMemory`** — Empty catch replaced with `console.warn` including key for debuggability
+- **Supabase audit log error checking** — `agent_messages` INSERT now checks `{ error }` field (Supabase JS v2 doesn't throw)
+- **Webhook handler logging** — Includes `fetchErr` in error log and response; warns when `AGENT_BASE_URL` not configured
+- **Track-view Worker** — Type-safe input validation for all body fields (was trusting `body as any`)
+- **Sales `prep_call` bare catch** — Now logs error with agent prefix instead of silently swallowing
+- **EA Slack transport org ID** — `"slack-workspace"` → `config.blockdriveOrgId` (was causing all DB-scoped tools to return empty results via Slack)
+- **EA Telegram transport org ID** — `"telegram-direct"` → `config.blockdriveOrgId` (same fix for Telegram transport)
+- **`RedisMemoryClient` class declaration** — Now declares `implements MemoryClient` for compile-time interface enforcement
+
+## [v2.3.1] - 2026-03-15
+
+PR review fixes (21 issues), pure function extraction for testability, 59 unit tests, Slack channel classification, infrastructure consolidation to NYC1.
+
+### Added
+
+- **59 unit tests** across 4 test files — `channel-config.test.ts` (16 tests), `useFinancialModel.test.ts` (9 tests), `useCapTable.test.ts` (5 tests), `useInvestorLinks.test.ts` (11 tests)
+- **`channel-config.ts`** — Pure channel classification extracted from `slack.ts` (zero runtime deps, testable): `classifyChannel()`, `buildSlackContext()`, `WORKFORCE_CHANNELS`, `PURPOSE_CHANNELS`, `FEED_CHANNELS`
+- **`computeDerivedMetrics()`** — Pure function extracted from `useFinancialModel` hook (burn rate, runway, MRR, gross margin, monthly aggregates, breakdowns)
+- **`computeCapTableSummary()`** — Pure function extracted from `useCapTable` hook (totals, by-type grouping)
+- **`computeLinkAnalytics()`** — Pure function extracted from `useInvestorLinks` hook (views, unique viewers, avg duration, completion)
+- **`generateSlug()`** — Crypto-secure slug generation exported from `useInvestorLinks`
+- **DM channel detection** — `/^D[A-Z0-9]+$/` regex in `classifyChannel()` for Slack DM channel IDs
+- **`workforce-compliance`** added to `WORKFORCE_CHANNELS` (was missing)
+- **`#waitlist-signups`** and **`#general`** added to `PURPOSE_CHANNELS`
+- **Slack thread history cap** — `MAX_THREADS = 500` with FIFO eviction (`evictOldThreads()`)
+
+### Fixed
+
+- **Broken imports** in `KnowledgeGraph.tsx` and `KnowledgeDocuments.tsx` — imported from non-existent `@/pages/Knowledge`, now import from `@/components/finance/KnowledgeBaseTab`
+- **`enable_data_room` silently dropped** in `useInvestorLinks` `createLink` mutation — now included in insert call
+- **`Math.random()` slug generation** replaced with `crypto.getRandomValues()` (cryptographically secure)
+- **`sendSlackMessage`/`readSlackChannel`** now throw when bot not initialized (was silent no-op / empty return)
+- **`useInvestorLinks` realtime** uses unique `useRef` channel ID (prevents HMR collisions)
+- **`KnowledgeBaseTab`** — `fetchDocuments` checks Supabase error, `handleUpload` surfaces failures via toast notification
+- **`DataRoom`** validates `agentUrl` and `slug` early with error states, removes non-null assertions
+
+### Changed
+
+- **`CapTableTab` renamed to `FinancialOverviewTab`** — file, component, and imports updated to match actual purpose
+- **CLAUDE.md** — EA tool count "14" → "7-14" (conditional Slack + Notion tools)
+- **Infrastructure consolidated to NYC1** — All droplets (Redis, n8n) migrated from NYC3 to NYC1 VPC; n8n runs Docker + Caddy with auto-TLS at `n8n.blockdrive.co`
+
+## [v2.3.0] - 2026-03-14
+
+DO App Platform migration (ATL → NYC3), Google Sheets cloud deployment fix, governance engine hardening from 21-issue PR review, and webhook security improvements.
+
+### Added
+
+- **Google Sheets JSON env var** — `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` support for cloud platforms that can't mount files (DO App Platform); preserves `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` for local dev
+- **PostHog proxy rewrite** — `/ingest/*` rewrite in Vercel config for ad-blocker bypass
+- **Runtime validation** — `isPendingApproval()` type guard for Redis deserialization safety
+- **Governance config validation** — `validateGovernanceConfig()` for fail-fast startup checks
+- **`AgentConfigBase`** exported from `@waas/shared` for TypeScript declaration emit compatibility
+
+### Changed
+
+- **DO App Platform migrated from ATL to NYC3** — All 7 agent services co-located with Redis droplet and n8n; EA + Sales on dedicated instances ($29/mo), other 5 on shared ($12/mo); Sales auto-scales 1→3 at 75% CPU; total $118/mo (was $203/mo)
+- `AGENT_REGISTRY` typed with `satisfies Record<AgentId, AgentConfig>` for compile-time key safety
+- `requireApproval` config keyed on `ApprovalCategory` type (was manual switch statement)
+- `GovernanceDecision` refactored to discriminated union (`{ approved: true } | { approved: false, reason }`)
+- `SpendEvent.agentId` typed as `AgentId | (string & {})` for type safety
+- `PendingApproval.telegramMessageId` uses `null` instead of sentinel `0`
+- Spend recording in chat routes is fire-and-forget (no longer blocks event loop after `res.end()`)
+- Webhook handler uses timing-safe string comparison for auth token validation
+- Webhook handler uses `WEBHOOK_SECRET` env var with `SUPABASE_SERVICE_ROLE_KEY` fallback
+- Database webhook migration reads `app.webhook_secret` with service role key fallback
+- HMR-safe channel IDs in `useRealtimeSubscription` (timestamp+random instead of module-level counter)
+
+### Fixed
+
+- EA `package-lock.json` out of sync (missing `@sentry/node`, `posthog-node`)
+- EA `observability.ts` inlined — standalone Docker build can't access `@waas/runtime`
+- Redis TOCTOU race in `resolveApproval` fixed with Lua atomic check-and-set script
+- Silent failures in `getDailySpend`, `resolveApproval`, `updateApprovalInRedis`, `getBot()` now log + alert via Sentry
+- Empty catch blocks replaced with error logging + Sentry alerts
+- SSE JSON parse catch now logs at debug level (diagnosable persistent parse failures)
+- Webhook handler logs non-2xx agent responses as warnings with response body
+- Webhook handler includes fetch error message in logs (was "Agent unreachable" only)
+
+## [v2.2.0] - 2026-03-14
+
+Governance system with C-Suite Telegram approval flow, Supabase Realtime for live frontend updates, Vault for encrypted secret storage, and Database Webhooks for event-driven agent notifications.
+
+### Added
+
+- **Governance Engine** — Dual-mode (startup/enterprise) governance with daily spend tracking per agent (Redis counters), pending approval management via Telegram inline keyboards, and authorized approver enforcement via C-Suite group chat
+- **Governance types in `@waas/shared`** — `GovernanceConfig`, `ApprovalCategory`, `PendingApproval`, `GovernanceDecision`, `SpendEvent` types with `BLOCKDRIVE_GOVERNANCE` defaults
+- **GovernanceEngine in `@waas/runtime`** — `checkSpendLimit()`, `recordSpend()`, `requestApproval()`, `setupCallbackHandler()` methods with Redis-backed state
+- **Spend tracking in chat routes** — Estimated token costs written to Redis via GovernanceEngine after every agent query
+- **Agent usage events bridge** — `agent_usage_events` table now receives writes from chat routes (was Redis-only, table stayed empty); Operations workspace AgentUsageTab shows real cost/latency data
+- **Supabase Realtime** — `useRealtimeSubscription` hook with unique channel IDs, `.subscribe()` status callbacks, and race-condition-closing refetch on SUBSCRIBED; 17 department tables added to `supabase_realtime` publication (idempotent DO blocks)
+- **Live frontend updates** — All 7 workspace pages + Dashboard subscribe to their department tables, auto-invalidating TanStack Query cache on changes
+- **Supabase Vault** — Enabled pgsodium + pg_net extensions for encrypted secret storage and database-level HTTP calls
+- **Database Webhooks** — `webhook-handler` Edge Function receives pg_net triggers and routes events to agent servers; INSERT triggers on `ea_tasks`, `agent_messages`, `compliance_governance_log`
+- **Webhook security** — Exact Bearer token auth (not substring match), Content-Type validation, `REVOKE EXECUTE FROM PUBLIC` on trigger functions, `BEGIN..EXCEPTION` handler around `PERFORM`
+- Governance directives added to all 7 agent system prompts (approval gates for external comms, marketing, social media, financial commitments)
+
+### Changed
+
+- GitHub repo references updated from `2rds/cfo` to `2Rds/agentcorp`
+- Frontend URL renamed from `cfo.blockdrive.co` to `corp.blockdrive.co`
+- Dashboard org hierarchy updated: CCO → Parker (CCA), Legal → Casey (CLA), Sales → Sam (CSA)
+
 ## [v2.1.0] - 2026-03-14
 
 PostHog product analytics + Sentry error monitoring across the full stack (frontend + all 7 agent servers).

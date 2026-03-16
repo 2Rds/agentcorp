@@ -67,8 +67,8 @@ export interface ModelStack {
 /** Agent tier in the org hierarchy */
 export type AgentTier = "executive" | "department-head" | "junior";
 
-/** Common fields shared by all agent tiers */
-interface AgentConfigBase {
+/** Common fields shared by all agent tiers (exported for declaration emit) */
+export interface AgentConfigBase {
   /** Unique agent identifier (e.g., "blockdrive-ea") */
   id: string;
   /** Display name (e.g., "Executive Assistant") */
@@ -145,8 +145,8 @@ export interface ToolScope {
   notionDatabases: { id: string; access: AccessLevel }[];
   /** Redis key prefixes this agent can access */
   redisNamespaces: { prefix: string; access: AccessLevel }[];
-  /** mem0 agent_ids this agent can query ("*" = all, for executives) */
-  mem0Namespaces: { agentId: string; access: AccessLevel }[];
+  /** Memory namespaces (agent_ids) this agent can query ("*" = all, for executives) */
+  memoryNamespaces: { agentId: string; access: AccessLevel }[];
   /** External APIs this agent can call */
   externalApis: string[];
   /** Other agent IDs this agent can directly message */
@@ -332,6 +332,22 @@ export interface ConversationResult {
   successful: boolean;
   /** Timestamp */
   timestamp: string;
+}
+
+// ─── NextGenSwitch / Telephony Types ─────────────────────────────────────
+
+/** NextGenSwitch PBX configuration for voice telephony */
+export interface NextGenSwitchConfig {
+  /** NextGenSwitch base URL (e.g., https://sales.blockdrive.co) */
+  baseUrl: string;
+  /** API key for NextGenSwitch REST API authentication */
+  apiKey: string;
+  /** AI Assistant ID for inbound call routing */
+  assistantId?: string;
+  /** Campaign ID for outbound calling */
+  campaignId?: string;
+  /** WebSocket path for media streams (default: /voice/ws) */
+  wsPath?: string;
 }
 
 // ─── Provider Credentials ───────────────────────────────────────────────────

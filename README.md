@@ -3,7 +3,7 @@
 Cognitive agent orchestration platform for enterprise operations. Namespace-isolated, memory-enriched AI agents that communicate, delegate, and execute across departments.
 
 **Live:**
-- CFO Dashboard: [cfo.blockdrive.co](https://cfo.blockdrive.co)
+- AgentCorp Dashboard: [corp.blockdrive.co](https://corp.blockdrive.co)
 - EA Agent (Alex): DigitalOcean App Platform (Telegram: @alex_executive_assistant_bot)
 
 ## Quick Start
@@ -56,8 +56,9 @@ ANTHROPIC_API_KEY=...              # Claude Opus 4.6
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENROUTER_API_KEY=...             # Non-Claude models
-MEM0_API_KEY=...                   # Persistent memory
-# Optional: PORT, CORS_ORIGINS, COHERE_API_KEY, REDIS_URL, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, NOTION_API_KEY, SENTRY_DSN, POSTHOG_API_KEY, POSTHOG_HOST
+REDIS_URL=...                      # Persistent memory + vector search
+COHERE_API_KEY=...                 # Embeddings + reranking
+# Optional: PORT, CORS_ORIGINS, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, GOOGLE_SERVICE_ACCOUNT_KEY_JSON, NOTION_API_KEY, SENTRY_DSN, POSTHOG_API_KEY, POSTHOG_HOST
 ```
 
 **EA Agent (`agents/ea/.env`):**
@@ -66,7 +67,8 @@ ANTHROPIC_API_KEY=...              # Claude Opus 4.6
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
 OPENROUTER_API_KEY=...
-MEM0_API_KEY=...
+REDIS_URL=...                      # Persistent memory + vector search
+COHERE_API_KEY=...                 # Embeddings + reranking
 # Optional: PORT (3002), TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN, AGENT_MESSAGE_SECRET, NOTION_API_KEY
 ```
 
@@ -79,7 +81,7 @@ waas/
 ├── agents/ea/              # EA Agent "Alex" — Anthropic Messages API, 11 tools (port 3002)
 ├── agents/coa/             # COA Agent "Jordan" — Agent SDK, 13 tools (port 3003)
 ├── agents/cma/             # CMA Agent "Taylor" — Agent SDK, 11 tools (port 3004)
-├── agents/compliance/      # CCO Agent — Agent SDK, 10 tools (port 3005)
+├── agents/compliance/      # CCA Agent "Parker" — Agent SDK, 10 tools (port 3005)
 ├── agents/legal/           # Legal Agent "Casey" — Agent SDK, 11 tools (port 3006)
 ├── agents/sales/           # Sales Agent "Sam" — Agent SDK, 12 tools (port 3007)
 ├── packages/shared/        # @waas/shared — types, model registry, namespace, messaging
@@ -92,30 +94,38 @@ waas/
 
 | Agent | Role | Runtime | Tools | Status |
 |-------|------|---------|-------|--------|
-| **Alex** (EA) | Executive Assistant — scheduling, comms, cross-dept coordination | Anthropic Messages API + tool loop | 11 | **Deployed** |
+| **Alex** (EA) | Executive Assistant — scheduling, comms, cross-dept coordination | Anthropic Messages API + tool loop | 7-14 | **Deployed** |
 | **Morgan** (CFA) | Financial modeling, cap table, investor data rooms, analytics | Claude Agent SDK + MCP | 31 | **Deployed** |
 | **Jordan** (COA) | Operations — workforce management, cross-dept coordination | Agent SDK + @waas/runtime | 13 | **Built** |
 | **Taylor** (CMA) | Marketing — content, campaigns, SEO, X/Twitter | Agent SDK + @waas/runtime | 11 | **Built** |
-| **CCO** (Compliance) | Governance — regulatory audit, risk, policy (Granite 4.0) | Agent SDK + @waas/runtime | 10 | **Built** |
+| **Parker** (CCA) | Governance — regulatory audit, risk, policy (Granite 4.0) | Agent SDK + @waas/runtime | 10 | **Built** |
 | **Casey** (Legal) | Contracts, IP portfolio, legal review (Grok 2M context) | Agent SDK + @waas/runtime | 11 | **Built** |
-| **Sam** (Sales) | Pipeline, prospecting, proposals, call prep | Agent SDK + @waas/runtime | 12 | **Built** |
+| **Sam** (Sales) | Pipeline, prospecting, proposals, call prep, feature store | Agent SDK + @waas/runtime | 17 | **Built** |
 
 ## Features
 
 - **AgentCorp Workspace UI** — 7 department workspaces with agent chat, task management, and department-specific dashboards
 - **AI Agent Chat** — Streaming SSE chat with Markdown rendering, conversation persistence, per-agent URL routing
 - **Agent Health Monitoring** — Real-time agent status dashboard with online/offline/unknown tracking
+- **Semantic Cache** — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW). Cross-agent sharing, 95% similarity threshold, configurable TTL
+- **Agent Memory Server** — Two-tier cognitive memory (working memory + long-term semantic search) via Redis AMS HTTP client
+- **Feature Store** — Sub-millisecond Redis HASH-based feature retrieval for Sales (prospect, industry, agent performance, call brief features with 4 RediSearch indexes)
+- **Voice Pipeline** — ElevenLabs TTS/STT + VoiceTransport WebSocket bridge for NextGenSwitch telephony integration (foundation)
 - **Financial Model** — SaaS-template with scenario toggling, derived metrics (burn, runway, MRR)
 - **Cap Table** — Equity tracking across funding rounds
 - **Investor Portal** — DocSend-style links with password gating and analytics
-- **Knowledge Base** — Document uploads with Gemini vision, semantic search, graph memory
+- **Knowledge Base** — Document uploads with Gemini vision, semantic search, vector search via Redis
 - **Notion Integration** — Read/write access to Notion databases (Decision Log, Project Hub, Investor Pipeline) with scope enforcement
 - **PDF Generation** — Branded investor documents (exec summaries, metrics one-pagers) via Playwright HTML→PDF
 - **Google Sheets** — Model sync via service account with domain-wide delegation
 - **Multi-Model Orchestration** — 9 models via OpenRouter with semantic caching
 - **7-Agent Network** — EA, CFA, COA, CMA, Compliance, Legal, Sales with specialized model stacks
-- **Inter-Agent Messaging** — Redis inbox + Telegram bot-to-bot transport
-- **Namespace Isolation** — Scoped Redis + mem0 per department, fail-closed enforcement
+- **Governance System** — Dual-mode (startup/enterprise) with daily spend tracking, C-Suite Telegram approval flow, and per-agent budget enforcement
+- **Supabase Realtime** — Live frontend updates via postgres_changes subscriptions on 17 department tables with TanStack Query cache invalidation
+- **Database Webhooks** — pg_net triggers → Edge Function → agent server notifications on high-value table events
+- **Supabase Vault** — pgsodium encrypted secret storage + pg_net for database-level HTTP calls
+- **Inter-Agent Messaging** — MessageBus with dual-mode persistence (Redis Streams + LIST fallback) + Telegram transport
+- **Namespace Isolation** — Scoped Redis per department, fail-closed enforcement
 - **SSRF Protection** — URL validation blocking private IPs, cloud metadata, internal hosts
 - **Observability** — Sentry error tracking + PostHog product analytics across frontend and all 7 agent servers (zero-config when env vars unset)
 
@@ -126,14 +136,15 @@ waas/
 | Frontend | React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui, Recharts |
 | Backend | Supabase (Postgres, Auth, RLS, Edge Functions) |
 | CFO Agent | Express, Claude Agent SDK, 31 MCP tools (incl. Notion + PDF) |
-| EA Agent | Express, Anthropic Messages API, 11 native tools, grammy (Telegram) |
+| EA Agent | Express, Anthropic Messages API, 7-14 native tools, grammy (Telegram), Slack (Socket Mode) |
 | Dept Agents | Express, Agent SDK + @waas/runtime, org-scoped MCP tools |
 | Platform | @waas/shared (types), @waas/runtime (execution engine + tool-helpers) |
 | Models | Claude Opus 4.6, Gemini 3.1 Pro, Sonar Pro, Grok 4.1 Fast, Granite 4.0, Command A |
-| Search | Redis 8.4 (vector search, semantic cache) |
-| Memory | Mem0 (graph memory, org-scoped, cross-namespace read for EA) |
+| Search | Redis 8.4 (RediSearch vector indexes, semantic cache, feature store) |
+| Memory | Redis (persistent memory + Agent Memory Server, org-scoped) |
+| Voice | ElevenLabs (TTS/STT), VoicePipeline (WebSocket bridge), VoiceTransport |
 | Observability | Sentry (@sentry/react + @sentry/node), PostHog (posthog-js + posthog-node) |
-| Deployment | Vercel (frontend), DigitalOcean App Platform (agents), n8n (automation) |
+| Deployment | Vercel (frontend), DigitalOcean App Platform NYC1 (agents), n8n NYC1 (automation) |
 
 ## Documentation
 
