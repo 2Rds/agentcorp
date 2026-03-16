@@ -245,7 +245,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 | `/auth` | Auth | Supabase email+password sign-in |
 | `/` | Dashboard | Agent health grid, department metrics, activity feed |
 | `/ea` | EAWorkspace | Executive Assistant chat + tasks |
-| `/finance` | FinanceWorkspace | CFO agent chat + financial tools |
+| `/finance` | FinanceWorkspace | CFO agent chat + overview, financial model, cap table, investors, knowledge base |
 | `/operations` | OperationsWorkspace | COA agent chat + operations |
 | `/marketing` | MarketingWorkspace | CMA agent chat + campaigns |
 | `/compliance` | ComplianceWorkspace | CCA agent chat + governance |

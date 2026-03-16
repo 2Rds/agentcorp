@@ -2,6 +2,24 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.0.1] - 2026-03-16
+
+Finance workspace migration + UI overhaul. Replaced placeholder tabs with real implementations, added dedicated Cap Table tab with full CRUD, wired Realtime subscriptions for live data updates.
+
+### Added
+
+- **CapTableTab** (`src/components/finance/CapTableTab.tsx`) — Dedicated cap table tab with summary stats (stakeholders, total shares, total investment, type breakdown), ownership pie chart, sortable/searchable DataTable, add entry dialog, and delete entry support
+- **Finance Realtime subscriptions** — `useRealtimeSubscription` for `financial_model`, `cap_table_entries`, `knowledge_base`, `documents` tables in FinanceWorkspace (matches pattern from all other workspace pages)
+
+### Changed
+
+- **FinanceWorkspace tabs** — Replaced `PlaceholderTab` stubs ("Will be migrated from existing Finance app.") with real tab components: Overview, Financial Model, Cap Table, Investors, Knowledge Base
+- **UI overhaul** — Decluttered dashboard, muted color palette, added design system with glass-card components, framer-motion animations, and agent fleet grid
+
+### Fixed
+
+- **Finance workspace placeholders** — All 4 finance tabs were showing "Will be migrated" placeholder text instead of real UI components (FinancialOverviewTab, FinancialModelTab, InvestorsTab, KnowledgeBaseTab)
+
 ## [v3.0.0] - 2026-03-15
 
 Redis AI infrastructure: three new runtime modules (SemanticCache, AgentMemoryServerClient, FeatureStore), voice pipeline foundation (ElevenLabs + VoiceTransport), Sales agent Feature Store tools, and 9 critical/high review fixes across all new modules.

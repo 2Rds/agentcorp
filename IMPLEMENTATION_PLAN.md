@@ -2,6 +2,14 @@
 
 ## Current Status
 
+### Completed — v3.0.1 (2026-03-16)
+
+**Finance Workspace Migration**
+- [x] Replaced `PlaceholderTab` stubs with real finance tab components (Overview, Financial Model, Investors, Knowledge Base)
+- [x] `CapTableTab` — Dedicated cap table tab with summary stats, pie chart, DataTable, add/delete entry dialog
+- [x] Realtime subscriptions for `financial_model`, `cap_table_entries`, `knowledge_base`, `documents` tables
+- [x] UI overhaul — decluttered dashboard, muted colors, glass-card design system, framer-motion animations
+
 ### Completed — v3.0.0 (2026-03-15)
 
 **Redis AI Infrastructure (3 new runtime modules)**
