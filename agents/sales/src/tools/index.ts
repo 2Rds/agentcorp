@@ -11,12 +11,25 @@ import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
 import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
-import { safeFetch, safeFetchText, safeJsonParse, stripHtml } from "@waas/runtime";
+import { safeFetch, safeFetchText, safeJsonParse, stripHtml, type ProspectFeatures, type IndustryFeatures, type CallBriefFeatures, type FeatureStore } from "@waas/runtime";
 import { config } from "../config.js";
 import { getRuntime } from "../runtime-ref.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const err = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
+
+type ToolResult = ReturnType<typeof text> | ReturnType<typeof err>;
+
+/** Run a callback with the FeatureStore, handling null checks and errors */
+async function withFeatureStore(fn: (fs: FeatureStore) => Promise<ToolResult>, context?: string): Promise<ToolResult> {
+  const fs = getRuntime()?.featureStore;
+  if (!fs) return err("Feature Store not available — requires Redis + featureStore.enabled");
+  try {
+    return await fn(fs);
+  } catch (e) {
+    return err(`Feature Store${context ? ` (${context})` : ""} operation failed: ${String(e)}`);
+  }
+}
 
 export function createMcpServer(orgId: string, _userId: string) {
   const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
@@ -380,6 +393,176 @@ export function createMcpServer(orgId: string, _userId: string) {
           return err(`Call log failed: ${String(e)}`);
         }
       },
+    ),
+
+    // ── Feature Store Tools ──
+    tool(
+      "compute_prospect_features",
+      "Store prospect intelligence in the Feature Store for sub-ms retrieval during voice calls. Call after researching a prospect or updating deal info. This is how you make voice agents smarter — they read what you write.",
+      {
+        prospect_id: z.string().max(100).describe("Prospect ID (email, phone, or CRM ID)"),
+        company: z.string().max(200).describe("Company name"),
+        industry: z.string().max(100).describe("Industry slug (e.g., 'fintech', 'healthcare', 'saas')"),
+        heat_score: z.number().min(0).max(100).describe("Heat score 0-100 (0=cold, 100=ready to buy)"),
+        stage: z.enum(["prospect", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"]),
+        deal_size: z.number().default(0).describe("Estimated deal size in USD"),
+        pain_points: z.array(z.string()).default([]).describe("Known pain points"),
+        objections: z.array(z.string()).default([]).describe("Known objections encountered"),
+        buying_signals: z.array(z.string()).default([]).describe("Buying signals observed"),
+        competitors: z.array(z.string()).default([]).describe("Competitors mentioned"),
+        decision_maker: z.string().max(200).default("").describe("Decision maker name"),
+        decision_maker_title: z.string().max(200).default("").describe("Decision maker title"),
+        comm_style: z.string().max(50).default("direct").describe("Communication style preference"),
+        next_action: z.string().max(500).default("").describe("Recommended next action"),
+      },
+      async (args) => withFeatureStore(async (fs) => {
+        const now = Math.floor(Date.now() / 1000);
+        const features: ProspectFeatures = {
+          prospectId: args.prospect_id,
+          company: args.company,
+          industry: args.industry,
+          heatScore: args.heat_score,
+          stage: args.stage,
+          dealSize: args.deal_size,
+          totalTouches: 0,
+          daysSinceLastTouch: 0,
+          painPoints: args.pain_points,
+          objections: args.objections,
+          buyingSignals: args.buying_signals,
+          competitors: args.competitors,
+          decisionMaker: args.decision_maker,
+          decisionMakerTitle: args.decision_maker_title,
+          bestCallHour: 10,
+          commStyle: args.comm_style,
+          lastCallSummary: "",
+          nextAction: args.next_action,
+          computedAt: now,
+          expiresAt: now + 86400,
+        };
+        await fs.setProspectFeatures(features, undefined, orgId);
+        return text(`Prospect features stored for ${args.company} (${args.prospect_id}), heat: ${args.heat_score}, stage: ${args.stage}`);
+      }),
+    ),
+
+    tool(
+      "get_prospect_intelligence",
+      "Get the full intelligence package for a prospect — features, industry data, and call brief combined. Sub-millisecond reads from the Feature Store. Use before or during a call.",
+      {
+        prospect_id: z.string().max(100).describe("Prospect ID to look up"),
+        call_id: z.string().max(100).optional().describe("Call ID for a specific call brief"),
+      },
+      async (args) => withFeatureStore(async (fs) => {
+        const intel = await fs.getCallIntelligence(args.prospect_id, args.call_id, orgId);
+        if (!intel.prospect) return text(JSON.stringify({ found: false, message: `No features found for ${args.prospect_id}. Use compute_prospect_features first.` }));
+        return text(JSON.stringify({
+          found: true,
+          prospect: intel.prospect,
+          industry: intel.industry,
+          brief: intel.brief,
+        }));
+      }),
+    ),
+
+    tool(
+      "get_hottest_prospects",
+      "Get the highest-scoring prospects from the Feature Store, sorted by heat score. Use to prioritize your call queue.",
+      {
+        limit: z.number().default(10).describe("Max number of prospects to return"),
+      },
+      async (args) => withFeatureStore(async (fs) => {
+        const prospects = await fs.getHottestProspects(args.limit, orgId);
+        if (prospects.length === 0) return text("No prospects in Feature Store. Use compute_prospect_features to add them.");
+        return text(JSON.stringify(prospects.map(p => ({
+          id: p.prospectId,
+          company: p.company,
+          heat: p.heatScore,
+          stage: p.stage,
+          dealSize: p.dealSize,
+          nextAction: p.nextAction,
+        }))));
+      }),
+    ),
+
+    tool(
+      "compute_industry_features",
+      "Store industry-level intelligence in the Feature Store. Objection maps, value props, competitors, win rates — shared across all prospects in this industry.",
+      {
+        industry_slug: z.string().max(100).describe("Industry slug (e.g., 'fintech', 'healthcare')"),
+        name: z.string().max(200).describe("Human-readable industry name"),
+        objection_map: z.array(z.object({
+          objection: z.string(),
+          response: z.string(),
+          win_rate: z.number().min(0).max(1),
+        })).default([]).describe("Objection → response mappings with win rates"),
+        value_props: z.array(z.string()).default([]).describe("Key value propositions for this industry"),
+        competitors: z.array(z.string()).default([]).describe("Common competitors in this industry"),
+        avg_deal_cycle_days: z.number().default(60).describe("Average deal cycle in days"),
+        avg_deal_size: z.number().default(0).describe("Average deal size in USD"),
+        win_rate: z.number().min(0).max(1).default(0).describe("Overall win rate (0-1)"),
+        talking_points: z.array(z.string()).default([]).describe("Effective talking points"),
+        opening_lines: z.array(z.object({
+          line: z.string(),
+          response_rate: z.number().min(0).max(1),
+        })).default([]).describe("Best opening lines with response rates"),
+      },
+      async (args) => withFeatureStore(async (fs) => {
+        const now = Math.floor(Date.now() / 1000);
+        const features: IndustryFeatures = {
+          industrySlug: args.industry_slug,
+          name: args.name,
+          objectionMap: args.objection_map.map(o => ({ objection: o.objection, response: o.response, winRate: o.win_rate })),
+          valueProps: args.value_props,
+          competitors: args.competitors,
+          avgDealCycleDays: args.avg_deal_cycle_days,
+          avgDealSize: args.avg_deal_size,
+          winRate: args.win_rate,
+          talkingPoints: args.talking_points,
+          regulations: [],
+          openingLines: args.opening_lines.map(l => ({ line: l.line, responseRate: l.response_rate })),
+          computedAt: now,
+          expiresAt: now + 604800,
+        };
+        await fs.setIndustryFeatures(features, undefined, orgId);
+        return text(`Industry features stored for ${args.name} (${args.industry_slug}), win rate: ${(args.win_rate * 100).toFixed(0)}%`);
+      }),
+    ),
+
+    tool(
+      "prepare_call_brief",
+      "Write a pre-computed call brief to the Feature Store. Voice agents read this at call start for instant context. Prepare briefs before scheduled calls.",
+      {
+        call_id: z.string().max(100).describe("Unique call identifier"),
+        prospect_id: z.string().max(100).describe("Prospect ID this brief is for"),
+        company: z.string().max(200).describe("Company name"),
+        purpose: z.enum(["cold_call", "follow_up", "demo", "closing"]).describe("Call purpose"),
+        opening_script: z.string().max(2000).describe("The opening script to use"),
+        talking_points: z.array(z.string()).default([]).describe("Key talking points"),
+        predicted_objections: z.array(z.string()).default([]).describe("Objections likely to come up"),
+        objection_responses: z.record(z.string()).default({}).describe("Prepared responses to each objection"),
+        competitive_notes: z.string().max(2000).default("").describe("Competitive positioning notes"),
+        meeting_booking_info: z.string().max(500).default("").describe("How to book a meeting"),
+        sdr_notes: z.string().max(5000).default("").describe("SDR research and notes"),
+      },
+      async (args) => withFeatureStore(async (fs) => {
+        const now = Math.floor(Date.now() / 1000);
+        const brief: CallBriefFeatures = {
+          callId: args.call_id,
+          prospectId: args.prospect_id,
+          company: args.company,
+          purpose: args.purpose,
+          openingScript: args.opening_script,
+          talkingPoints: args.talking_points,
+          predictedObjections: args.predicted_objections,
+          objectionResponses: args.objection_responses,
+          competitiveNotes: args.competitive_notes,
+          meetingBookingInfo: args.meeting_booking_info,
+          sdrNotes: args.sdr_notes,
+          computedAt: now,
+          expiresAt: now + 14400,
+        };
+        await fs.setCallBrief(brief, undefined, orgId);
+        return text(`Call brief prepared for ${args.company} (${args.prospect_id}), purpose: ${args.purpose}, call: ${args.call_id}`);
+      }),
     ),
 
     // ── Voice Tools ──

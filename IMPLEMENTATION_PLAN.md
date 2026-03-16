@@ -2,6 +2,45 @@
 
 ## Current Status
 
+### Completed — v3.0.0 (2026-03-15)
+
+**Redis AI Infrastructure (3 new runtime modules)**
+- [x] `SemanticCache` — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW COSINE, `idx:llm_cache_v2` index). Cross-agent sharing, 95% similarity threshold, configurable TTL. Promise lock on `ensureIndex()`.
+- [x] `AgentMemoryServerClient` — HTTP client for Redis Agent Memory Server (two-tier: working memory + long-term semantic search). Implements `MemoryClient` interface. Health-check fallback to `RedisMemoryClient`.
+- [x] `FeatureStore` — Sub-millisecond Redis HASH feature retrieval for Sales agent. 4 feature types × 4 RediSearch indexes (`idx:prospect_features`, `idx:industry_features`, `idx:agent_performance`, `idx:call_brief`). Per-method `orgId` override.
+- [x] `AgentRuntime.start()` initializes all three modules during startup lifecycle
+
+**Voice Pipeline Foundation**
+- [x] `ElevenLabsClient` — WebSocket TTS/STT (Flash v2.5, u-law 8kHz passthrough)
+- [x] `VoicePipeline` — NextGenSwitch ↔ ElevenLabs ↔ Claude bridge, Redis call state
+- [x] `VoiceTransport` — WebSocket server + outbound REST API
+- [x] All voice types exported from `@waas/runtime`
+
+**Sales Agent Feature Store Integration**
+- [x] 5 new MCP tools: `update_prospect_features`, `get_call_intelligence`, `get_hottest_prospects`, `update_industry_features`, `create_call_brief`
+- [x] All tools pass `orgId` from closure for multi-tenant isolation
+- [x] `runtime-ref.ts` pattern for lazy runtime access
+
+**Redis Shared Infrastructure**
+- [x] `createIndex()`, `vectorSearch()`, `escapeTag()`, `nowSecs()` exported from `redis-client.ts`
+- [x] Chat route cache integration (check cache → Claude API → store response)
+- [x] All new modules exported from `@waas/runtime` index
+
+**9 Critical/High Review Fixes**
+- [x] CRITICAL: FeatureStore `orgId=""` — per-method `orgId` parameter + `resolveOrgId()` helper
+- [x] CRITICAL: `KEYS` command in `getCallBriefForProspect` — replaced with `FT.SEARCH` on `idx:call_brief`
+- [x] CRITICAL: AMS `healthy:false` doesn't fallback — added `if (healthy)` condition
+- [x] HIGH: `claude-opus-4-6` in `DEFAULT_SKIP_MODELS` — removed (was making cache dead code)
+- [x] HIGH: Zero Sentry in catch blocks — added `Sentry.captureException()` to 19 catch blocks across AMS/SemanticCache/FeatureStore
+- [x] HIGH: `ensureIndex` race condition — promise lock in SemanticCache + FeatureStore
+- [x] HIGH: `hasMemory` stale in health route — changed to getter
+- [x] HIGH: Embedding failures silently return null — added `console.warn`
+- [x] HIGH: `setProspectFeatures` bare catch — added error logging
+
+### Completed — v2.4.1 (2026-03-15)
+
+(was previous: Completed — v2.4.0)
+
 ### Completed — v2.4.0 (2026-03-15)
 
 **MessageBus Dual-Mode + Stream Operations**
@@ -278,6 +317,9 @@
 - **Governance approval flow untested end-to-end** — GovernanceEngine built and hardened, but agent webhook routes (`/webhook`) not yet implemented
 - **Database webhooks require deployed Edge Function** — `webhook-handler` exists but needs `supabase functions deploy` and `AGENT_BASE_URL` env var
 - **Realtime requires migration push** — `supabase_realtime` publication changes need `supabase db push` on the hosted project
+- **Voice pipeline not yet deployed** — ElevenLabs client, VoicePipeline, and VoiceTransport are built but require NextGenSwitch infrastructure (Phase 3) and env vars (`ELEVENLABS_API_KEY`, `NEXTGENSWITCH_URL`) to activate
+- **Feature Store indexes not yet created in production** — Indexes auto-create on first use, but production Redis needs sufficient memory for 4 new indexes
+- **Agent Memory Server not deployed** — AMS Docker container needs deployment to Redis droplet; runtime falls back to RedisMemoryClient until deployed
 
 ## Technical Debt
 
@@ -289,6 +331,9 @@
 - CFO agent still uses Claude Agent SDK; EA uses Anthropic Messages API directly — should standardize
 - `@waas/runtime` exists but EA agent was built with direct Express setup (not using runtime package yet)
 - Department agent tools have no automated tests (manual testing only)
+- `runtime-ref.ts` files in all 5 department agents use module-level mutable state — works but less clean than dependency injection
+- SemanticCache and FeatureStore share embedding logic but don't share a common embedding abstraction
+- Voice pipeline modules are built but have no integration tests (require live NextGenSwitch + ElevenLabs)
 
 ## Roadmap
 
@@ -304,6 +349,12 @@
 - [x] ~~MessageBus dual-mode persistence (Redis Streams + LIST fallback)~~ (v2.4.0)
 - [x] ~~`message_agent` tool added to all 6 department agents via MessageBus~~ (v2.4.0)
 - [x] ~~Slack integration for EA (channel monitoring, message sending)~~ (v2.3.1)
+- [x] ~~SemanticCache + AgentMemoryServerClient + FeatureStore~~ (v3.0.0)
+- [x] ~~Voice pipeline foundation (ElevenLabs + VoicePipeline + VoiceTransport)~~ (v3.0.0)
+- [x] ~~Sales Feature Store tools (5 MCP tools)~~ (v3.0.0)
+- [ ] Deploy Agent Memory Server to Redis droplet (Docker container)
+- [ ] Wire MessageBus into AgentRuntime (Phase 2)
+- [ ] Add `/webhook` routes to EA + COA + Compliance agents
 - [ ] Add `message_agent` tool to EA agent (executive-tier cross-namespace messaging)
 - [ ] Wire EA into @waas/runtime (replace direct Express setup)
 - [ ] Agent server test suite (Vitest + supertest)
@@ -312,9 +363,12 @@
 
 ### Medium-term
 
+- [ ] NextGenSwitch PBX deployment (DO NYC1 droplet) — SIP trunk, AI assistants, campaigns
+- [ ] Wire voice pipeline end-to-end (NextGenSwitch → VoiceTransport → ElevenLabs → Claude → TTS → caller)
+- [ ] Sales voice tools (`make_call`, `get_call_transcript`, `update_pipeline_from_call`)
 - [ ] IR agent (Riley) — investor relations, dual-mode (cognitive + voice)
 - [ ] Redis FT.HYBRID search for enrichment pipeline
-- [ ] ElevenLabs voice integration (Phase 2 — TTS/STT, phone calls, batch calling)
+- [ ] n8n workflows (agent health monitoring, waitlist processing, call result processing)
 - [ ] OAuth/SSO support (Google, GitHub)
 - [ ] Multi-org support (org switcher)
 - [ ] Server-side metric caching

@@ -2,6 +2,42 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.0.0] - 2026-03-15
+
+Redis AI infrastructure: three new runtime modules (SemanticCache, AgentMemoryServerClient, FeatureStore), voice pipeline foundation (ElevenLabs + VoiceTransport), Sales agent Feature Store tools, and 9 critical/high review fixes across all new modules.
+
+### Added
+
+- **SemanticCache** (`packages/runtime/src/lib/semantic-cache.ts`) — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW COSINE). Cross-agent sharing via `idx:llm_cache_v2` index. 95% similarity threshold, configurable TTL, per-model skip list. Promise lock on `ensureIndex()` prevents duplicate concurrent index creation.
+- **AgentMemoryServerClient** (`packages/runtime/src/lib/agent-memory-server.ts`) — TypeScript HTTP client for Redis Agent Memory Server (two-tier cognitive memory: working memory + long-term semantic search). Implements `MemoryClient` interface for drop-in compatibility. Namespace isolation via `org:agentId:userId` key scheme.
+- **FeatureStore** (`packages/runtime/src/lib/feature-store.ts`) — Sub-millisecond Redis HASH-based feature retrieval for Sales agent. 4 feature types: ProspectFeatures (with vector embedding for similarity), IndustryFeatures, AgentPerformanceFeatures, CallBriefFeatures. 4 RediSearch indexes (`idx:prospect_features`, `idx:industry_features`, `idx:agent_performance`, `idx:call_brief`). Per-method `orgId` override for multi-tenant safety.
+- **ElevenLabsClient** (`packages/runtime/src/lib/elevenlabs-client.ts`) — WebSocket-based TTS/STT client for voice pipeline. Flash v2.5 model for sub-75ms latency, u-law 8kHz passthrough format.
+- **VoicePipeline** (`packages/runtime/src/voice/voice-pipeline.ts`) — WebSocket bridge: NextGenSwitch ↔ ElevenLabs STT → Claude → ElevenLabs TTS. Call state management via Redis HASH with 1hr TTL.
+- **VoiceTransport** (`packages/runtime/src/voice/voice-transport.ts`) — WebSocket server for NextGenSwitch connections + outbound call initiation via REST API.
+- **Sales Feature Store tools** (5 tools in `agents/sales/src/tools/index.ts`) — `update_prospect_features`, `get_call_intelligence`, `get_hottest_prospects`, `update_industry_features`, `create_call_brief`. All pass `orgId` from closure for multi-tenant isolation.
+- **Runtime-ref pattern** — `runtime-ref.ts` files added to all 5 department agents (COA, CMA, Compliance, Legal, Sales) for lazy runtime access in tool factories.
+- **Redis shared helpers** — `createIndex()`, `vectorSearch()`, `escapeTag()`, `nowSecs()` exported from `redis-client.ts` for FeatureStore and SemanticCache consumption.
+- **Chat route cache integration** — `POST /chat` checks SemanticCache before Claude API call; caches responses on completion (fire-and-forget).
+- **Runtime exports** — All new modules (SemanticCache, FeatureStore, AgentMemoryServerClient, ElevenLabsClient, VoicePipeline, VoiceTransport) exported from `@waas/runtime` index.
+
+### Changed
+
+- **AgentRuntime `start()`** — Initializes SemanticCache, FeatureStore, and AgentMemoryServerClient (with health-check fallback to RedisMemoryClient) during startup lifecycle.
+- **`hasMemory` in health route** — Changed from static boolean to getter (`get hasMemory() { return !!runtime._memory; }`) so health endpoint reflects runtime memory state, not construction-time snapshot.
+- **SemanticCache skip models** — Removed `claude-opus-4-6` from `DEFAULT_SKIP_MODELS` (was making cache dead code for primary model).
+
+### Fixed
+
+- **FeatureStore orgId=""** (CRITICAL) — All 14 public methods now accept optional `orgId` parameter with `resolveOrgId()` helper that warns on empty orgId. Sales tools pass orgId from closure.
+- **KEYS command in getCallBriefForProspect** (CRITICAL) — Replaced O(N) blocking `KEYS` scan with O(log N) `FT.SEARCH` using new `idx:call_brief` RediSearch index.
+- **AMS healthy:false doesn't fallback** (CRITICAL) — Added `if (healthy)` condition before setting `_memory = amsClient`. Unhealthy AMS now falls through to RedisMemoryClient.
+- **Zero Sentry in catch blocks** (HIGH) — Added `Sentry.captureException()` to all catch blocks across AgentMemoryServerClient (10), SemanticCache (3), FeatureStore (6), and AgentRuntime AMS init.
+- **ensureIndex race condition** (HIGH) — Added promise lock pattern in both SemanticCache (`indexPromise` field) and FeatureStore (`indexPromises` Map) to prevent concurrent duplicate index creation.
+- **Embedding failures silently return null** (HIGH) — Added `console.warn` in SemanticCache `get()` and `set()` when embedding generation returns empty vector.
+- **setProspectFeatures bare catch** (HIGH) — Added `console.warn` with error message for embedding failures in prospect feature storage.
+- **AMS addMemory fake NOOP** — Changed failure return from fake `[{ id, event: "NOOP" }]` to empty array `[]`.
+- **AMS isHealthy bare catch** — Added `console.warn` with error message for health check failures.
+
 ## [v2.4.1] - 2026-03-15
 
 Full Mem0 cloud API removal — migrated all persistent memory to Redis-backed storage with RediSearch vector search + Cohere embeddings. Zero Mem0 references remain in any `.ts` source file.

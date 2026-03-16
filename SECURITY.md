@@ -238,5 +238,34 @@ All user-facing data is scoped to organizations:
 - Memories are org-scoped via `org_id` TAG filter in Redis indexes
 - Redis indexes include `org_id` TAG filters
 - Storage objects are organized by `{organization_id}/` folder prefix
+- Feature Store keys are prefixed with `fs:{orgId}:` for per-org isolation
+- Agent Memory Server uses `org:agentId:userId` namespace scheme for full isolation
 
 There is no cross-organization data access path.
+
+## Redis AI Infrastructure Security
+
+### Semantic Cache
+
+- Cache entries keyed by embedding similarity — no org-level isolation (cross-agent sharing by design)
+- Skip list prevents caching of non-deterministic model outputs (Sonar web results)
+- Promise lock prevents race conditions during index creation
+- Circuit breaker stops retrying after 3 failures (prevents hot loop)
+- All errors reported to Sentry
+
+### Feature Store
+
+- All 14 public methods accept per-call `orgId` override — prevents empty-orgId key malformation
+- `resolveOrgId()` helper warns on empty orgId (defense-in-depth logging)
+- `FT.SEARCH` used exclusively (no `KEYS` command) — O(log N) performance, no blocking
+- Promise lock on index creation (per-index `Map`) prevents duplicate concurrent creation
+- All errors reported to Sentry with structured logging
+
+### Agent Memory Server
+
+- Health-checked at startup — unhealthy AMS falls back to RedisMemoryClient (no silent failure)
+- Namespace isolation via `org:agentId:userId` composite key
+- Cross-agent search uses `org:userId` (no agent prefix) — intentional for organizational queries
+- Request timeout (default 10s) with `AbortController`
+- Optional Bearer token auth (`apiKey` config)
+- All 10 catch blocks report to Sentry

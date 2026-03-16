@@ -42,7 +42,7 @@ waas/
 │   ├── cma/                # CMA Agent "Taylor" (Agent SDK, 11 tools, port 3004)
 │   ├── compliance/         # CCA Agent "Parker" (Agent SDK, 10 tools, port 3005)
 │   ├── legal/              # Legal Agent "Casey" (Agent SDK, 11 tools, port 3006)
-│   └── sales/              # Sales Agent "Sam" (Agent SDK, 12 tools, port 3007)
+│   └── sales/              # Sales Agent "Sam" (Agent SDK, 17 tools, port 3007)
 ├── packages/
 │   ├── shared/             # @waas/shared — pure types + logic (zero runtime deps)
 │   └── runtime/            # @waas/runtime — Express agent execution engine + tool-helpers
@@ -95,7 +95,7 @@ Tests use Vitest with jsdom. Test files live alongside source using `*.test.ts` 
 3. **EA Agent** (`agents/ea/`) — Express + Anthropic Messages API (direct), native tool loop, Telegram bot + Slack (BlockDrive Bot)
 4. **Department Agents** (`agents/{coa,cma,compliance,legal,sales}/`) — Express + Agent SDK + @waas/runtime, specialized model stacks
 
-Backend: Supabase (Postgres, Auth, RLS, Realtime, Vault, Edge Functions). Memory: Redis (org-scoped persistent memory with vector search via RediSearch + Cohere embeddings). Governance: GovernanceEngine (spend tracking + Telegram approval flow).
+Backend: Supabase (Postgres, Auth, RLS, Realtime, Vault, Edge Functions). Memory: Agent Memory Server (two-tier: working + long-term semantic search) with RedisMemoryClient fallback. Cache: SemanticCache (LLM response caching via Redis vector search). Feature Store: sub-ms Redis HASH features for Sales agent (4 types, 4 indexes). Governance: GovernanceEngine (spend tracking + Telegram approval flow).
 
 ### Auth & Multi-tenancy
 
@@ -223,7 +223,8 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 - `middleware/auth.ts` — Supabase JWT verification + org membership + token cache
 - `routes/` — health (GET /health) + chat (POST /chat, SSE streaming)
 - `transport/telegram.ts` — Telegram bot transport (grammy) for inter-agent messaging
-- `lib/` — redis-client, plugin-loader, stream-adapter, tool-helpers (safeFetch, SSRF protection, stripHtml), observability (Sentry + PostHog init/shutdown), governance (GovernanceEngine: spend tracking, Telegram approval flow)
+- `lib/` — redis-client, semantic-cache (LLM response caching via RediSearch), agent-memory-server (AMS two-tier memory client), feature-store (sub-ms Redis HASH features for Sales), elevenlabs-client (WebSocket TTS/STT), plugin-loader, stream-adapter, tool-helpers (safeFetch, SSRF protection, stripHtml), observability (Sentry + PostHog init/shutdown), governance (GovernanceEngine: spend tracking, Telegram approval flow)
+- `voice/` — VoicePipeline (NextGenSwitch ↔ ElevenLabs ↔ Claude bridge), VoiceTransport (WebSocket server + outbound calls)
 
 ### Key Hooks (src/hooks/)
 
@@ -321,6 +322,11 @@ Deno runtime.
 - **Supabase Realtime pattern**: `useRealtimeSubscription` hook subscribes to `postgres_changes`, invalidates TanStack Query keys on change. Each component gets a unique channel ID (module-level counter) to prevent collision. Refetches on SUBSCRIBED to close race condition.
 - **Database Webhooks**: pg_net triggers → `webhook-handler` Edge Function → agent servers. Trigger function uses `SECURITY DEFINER` + `BEGIN..EXCEPTION` (never blocks INSERT). `REVOKE EXECUTE FROM PUBLIC` on trigger functions.
 - **Observability (Sentry + PostHog)**: All SDK init wrapped in try-catch (non-fatal). Zero-config when env vars unset. Frontend: `@sentry/react` + `posthog-js`. Agents: `@sentry/node` + `posthog-node`. EA inlines observability (standalone Docker build, no @waas/runtime access). `uncaughtException` → Sentry flush + `process.exit(1)`. Source maps conditional on `SENTRY_AUTH_TOKEN`.
+- **Runtime-ref pattern** (dept agents): `runtime-ref.ts` module exports a mutable `AgentRuntime` reference set after `runtime.start()`. Tool factories import this for lazy access to runtime services (memory, feature store, etc.).
+- **AMS health fallback**: AgentRuntime checks AMS health at startup. If healthy, uses `AgentMemoryServerClient`; otherwise falls back to `RedisMemoryClient`. Both implement `MemoryClient` interface.
+- **Feature Store per-method orgId**: All 14 FeatureStore methods accept optional `orgId` parameter for multi-tenant safety. `resolveOrgId()` warns on empty orgId.
+- **Promise lock on ensureIndex**: SemanticCache and FeatureStore use stored promise fields to prevent concurrent duplicate Redis index creation.
+- **Chat route cache integration**: `POST /chat` checks SemanticCache before Claude API call, stores response on completion (fire-and-forget). Skips non-deterministic models (Sonar).
 
 ## Agent Network
 
@@ -332,7 +338,7 @@ Deno runtime.
 | `blockdrive-cma` | Chief Marketing Agent (Taylor) | 3004 | 11 | **Built** |
 | `blockdrive-compliance` | Chief Compliance Agent Parker (CCA) | 3005 | 10 | **Built** |
 | `blockdrive-legal` | Legal Counsel (Casey) | 3006 | 11 | **Built** |
-| `blockdrive-sales` | Head of Sales (Sam) | 3007 | 12 | **Built** |
+| `blockdrive-sales` | Head of Sales (Sam) | 3007 | 17 | **Built** |
 | `blockdrive-ir` | Investor Relations (Riley) | — | — | Planned |
 
 ## UI Patterns

@@ -38,6 +38,9 @@ import { ModelRouter as ModelRouterImpl, BLOCKDRIVE_GOVERNANCE } from "@waas/sha
 import { GovernanceEngine } from "./lib/governance.js";
 import { getRedis, disconnectRedis } from "./lib/redis-client.js";
 import { RedisMemoryClient, type MemoryClient } from "./lib/redis-memory.js";
+import { SemanticCache } from "./lib/semantic-cache.js";
+import { AgentMemoryServerClient } from "./lib/agent-memory-server.js";
+import { FeatureStore } from "./lib/feature-store.js";
 import { TelemetryClient } from "./lib/telemetry.js";
 import { initSentry, initPostHog, shutdownObservability, Sentry } from "./lib/observability.js";
 import { setPluginsDir, loadPluginRegistry } from "./lib/plugin-loader.js";
@@ -110,6 +113,28 @@ export interface AgentRuntimeConfig {
 
   /** Handler for inbound inter-agent messages via MessageBus */
   onAgentMessage?: InboundHandler;
+
+  /** Semantic cache config override (enabled by default when Redis is available) */
+  semanticCache?: {
+    enabled?: boolean;
+    defaultTtlSeconds?: number;
+    defaultThreshold?: number;
+    crossAgentSharing?: boolean;
+    skipModels?: Set<string>;
+    cacheableModels?: Set<string>;
+  };
+
+  /** Agent Memory Server config (enables two-tier cognitive memory with auto-extraction) */
+  agentMemoryServer?: {
+    baseUrl: string;
+    apiKey?: string;
+    timeoutMs?: number;
+  };
+
+  /** Feature Store config (enables sub-ms feature serving for sales agents) */
+  featureStore?: {
+    enabled?: boolean;
+  };
 }
 
 // ─── Runtime ───────────────────────────────────────────────────────────────
@@ -120,6 +145,8 @@ export class AgentRuntime {
   readonly supabaseAdmin: SupabaseClient;
   readonly router: ModelRouter;
   private _memory?: MemoryClient;
+  private _semanticCache?: SemanticCache;
+  private _featureStore?: FeatureStore;
   readonly governance: GovernanceEngine;
   readonly telemetry: TelemetryClient;
 
@@ -233,15 +260,76 @@ export class AgentRuntime {
     if (redisResult.status === "fulfilled" && redisResult.value) {
       console.log(`[${agentId}] Redis connected`);
 
-      // Initialize RedisMemoryClient
-      try {
-        this._memory = new RedisMemoryClient({
-          redis: redisResult.value,
-          router: this.router,
-        });
-        console.log(`[${agentId}] RedisMemoryClient initialized`);
-      } catch (memErr) {
-        console.error(`[${agentId}] RedisMemoryClient creation failed:`, memErr);
+      // Initialize memory backend — AMS if configured + healthy, else RedisMemoryClient
+      const amsConfig = this.runtimeConfig.agentMemoryServer;
+      if (amsConfig) {
+        try {
+          const amsClient = new AgentMemoryServerClient({
+            baseUrl: amsConfig.baseUrl,
+            agentId,
+            orgId: undefined, // Set per-request via the MemoryClient methods
+            timeoutMs: amsConfig.timeoutMs,
+            apiKey: amsConfig.apiKey,
+          });
+          const healthy = await amsClient.isHealthy();
+          if (healthy) {
+            this._memory = amsClient;
+            console.log(`[${agentId}] AgentMemoryServer initialized (healthy)`);
+          } else {
+            console.warn(`[${agentId}] AgentMemoryServer unhealthy, falling back to RedisMemoryClient`);
+          }
+        } catch (amsErr) {
+          console.error(`[${agentId}] AgentMemoryServer failed, falling back to RedisMemoryClient:`, amsErr);
+          Sentry.captureException(amsErr);
+        }
+      }
+
+      // RedisMemoryClient: primary (no AMS configured) or fallback (AMS failed)
+      if (!this._memory) {
+        try {
+          this._memory = new RedisMemoryClient({ redis: redisResult.value, router: this.router });
+          console.log(`[${agentId}] RedisMemoryClient initialized${amsConfig ? " (AMS fallback)" : ""}`);
+        } catch (memErr) {
+          console.error(`[${agentId}] RedisMemoryClient creation failed:`, memErr);
+        }
+      }
+
+      // Initialize Semantic Cache (enabled by default when Redis is available)
+      const cacheConfig = this.runtimeConfig.semanticCache;
+      if (cacheConfig?.enabled !== false) {
+        try {
+          this._semanticCache = new SemanticCache({
+            redis: redisResult.value,
+            router: this.router,
+            agentId,
+            defaultTtlSeconds: cacheConfig?.defaultTtlSeconds,
+            defaultThreshold: cacheConfig?.defaultThreshold,
+            crossAgentSharing: cacheConfig?.crossAgentSharing,
+            skipModels: cacheConfig?.skipModels,
+            cacheableModels: cacheConfig?.cacheableModels,
+          });
+          await this._semanticCache.ensureIndex();
+          console.log(`[${agentId}] SemanticCache initialized`);
+        } catch (cacheErr) {
+          console.error(`[${agentId}] SemanticCache creation failed (non-fatal):`, cacheErr);
+          this._semanticCache = undefined;
+        }
+      }
+
+      // Initialize Feature Store (only when explicitly enabled)
+      if (this.runtimeConfig.featureStore?.enabled) {
+        try {
+          this._featureStore = new FeatureStore({
+            redis: redisResult.value,
+            router: this.router,
+            orgId: "", // Org ID set per-request via tool closures
+          });
+          await this._featureStore.initializeIndexes();
+          console.log(`[${agentId}] FeatureStore initialized`);
+        } catch (fsErr) {
+          console.error(`[${agentId}] FeatureStore creation failed (non-fatal):`, fsErr);
+          this._featureStore = undefined;
+        }
       }
     } else if (redisResult.status === "rejected") {
       console.error(`[${agentId}] Redis initialization failed:`, redisResult.reason);
@@ -349,6 +437,16 @@ export class AgentRuntime {
     return this._memory;
   }
 
+  /** Public accessor — returns semantic cache (available after start() if Redis connected) */
+  get semanticCache(): SemanticCache | undefined {
+    return this._semanticCache;
+  }
+
+  /** Public accessor — returns feature store (available after start() if Redis connected + enabled) */
+  get featureStore(): FeatureStore | undefined {
+    return this._featureStore;
+  }
+
   private setupRoutes(rtConfig: AgentRuntimeConfig): void {
     // Instance-scoped token cache (not module-level singleton)
     const tokenCache = new Map<string, { userId: string; expiresAt: number }>();
@@ -356,21 +454,22 @@ export class AgentRuntime {
     // Capture `this` for closures inside object literals
     const runtime = this;
 
-    // Public routes
+    // Public routes (use getter for hasMemory — _memory is set in start(), not constructor)
     this.app.use(createHealthRouter({
       agentId: this.config.id,
       agentName: this.config.name,
       version: "0.1.0",
-      hasMemory: !!this._memory,
+      get hasMemory() { return !!runtime._memory; },
       hasTelegram: !!rtConfig.telegram,
     }));
 
-    // Protected routes (memory uses getter so it picks up RedisMemoryClient after start())
+    // Protected routes (memory + cache use getters so they pick up instances after start())
     this.app.use(authMiddleware, createChatRouter({
       agentId: this.config.id,
       systemPrompt: rtConfig.systemPrompt,
       createMcpServer: rtConfig.createMcpServer,
       get memory() { return runtime._memory; },
+      get semanticCache() { return runtime._semanticCache; },
       router: this.router,
       getRedis: () => getRedis(rtConfig.env.redisUrl),
       onResponse: rtConfig.onResponse,

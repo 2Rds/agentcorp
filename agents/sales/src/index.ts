@@ -29,6 +29,7 @@ const runtime = new AgentRuntime({
     perplexityApiKey: config.perplexityApiKey || undefined,
     pluginsDir: new URL("../plugins", import.meta.url).pathname,
   },
+  featureStore: { enabled: true },
   corsOrigins: config.corsOrigins,
   telegram: config.telegramEnabled ? {
     agents: {

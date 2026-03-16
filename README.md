@@ -100,13 +100,17 @@ waas/
 | **Taylor** (CMA) | Marketing — content, campaigns, SEO, X/Twitter | Agent SDK + @waas/runtime | 11 | **Built** |
 | **Parker** (CCA) | Governance — regulatory audit, risk, policy (Granite 4.0) | Agent SDK + @waas/runtime | 10 | **Built** |
 | **Casey** (Legal) | Contracts, IP portfolio, legal review (Grok 2M context) | Agent SDK + @waas/runtime | 11 | **Built** |
-| **Sam** (Sales) | Pipeline, prospecting, proposals, call prep | Agent SDK + @waas/runtime | 12 | **Built** |
+| **Sam** (Sales) | Pipeline, prospecting, proposals, call prep, feature store | Agent SDK + @waas/runtime | 17 | **Built** |
 
 ## Features
 
 - **AgentCorp Workspace UI** — 7 department workspaces with agent chat, task management, and department-specific dashboards
 - **AI Agent Chat** — Streaming SSE chat with Markdown rendering, conversation persistence, per-agent URL routing
 - **Agent Health Monitoring** — Real-time agent status dashboard with online/offline/unknown tracking
+- **Semantic Cache** — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW). Cross-agent sharing, 95% similarity threshold, configurable TTL
+- **Agent Memory Server** — Two-tier cognitive memory (working memory + long-term semantic search) via Redis AMS HTTP client
+- **Feature Store** — Sub-millisecond Redis HASH-based feature retrieval for Sales (prospect, industry, agent performance, call brief features with 4 RediSearch indexes)
+- **Voice Pipeline** — ElevenLabs TTS/STT + VoiceTransport WebSocket bridge for NextGenSwitch telephony integration (foundation)
 - **Financial Model** — SaaS-template with scenario toggling, derived metrics (burn, runway, MRR)
 - **Cap Table** — Equity tracking across funding rounds
 - **Investor Portal** — DocSend-style links with password gating and analytics
@@ -136,8 +140,9 @@ waas/
 | Dept Agents | Express, Agent SDK + @waas/runtime, org-scoped MCP tools |
 | Platform | @waas/shared (types), @waas/runtime (execution engine + tool-helpers) |
 | Models | Claude Opus 4.6, Gemini 3.1 Pro, Sonar Pro, Grok 4.1 Fast, Granite 4.0, Command A |
-| Search | Redis 8.4 (vector search, semantic cache) |
-| Memory | Redis (persistent memory with vector search, org-scoped) |
+| Search | Redis 8.4 (RediSearch vector indexes, semantic cache, feature store) |
+| Memory | Redis (persistent memory + Agent Memory Server, org-scoped) |
+| Voice | ElevenLabs (TTS/STT), VoicePipeline (WebSocket bridge), VoiceTransport |
 | Observability | Sentry (@sentry/react + @sentry/node), PostHog (posthog-js + posthog-node) |
 | Deployment | Vercel (frontend), DigitalOcean App Platform NYC1 (agents), n8n NYC1 (automation) |
 

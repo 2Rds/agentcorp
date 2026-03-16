@@ -5,8 +5,21 @@ export type { AgentRuntimeConfig } from "./agent-runtime.js";
 // Memory
 export { RedisMemoryClient } from "./lib/redis-memory.js";
 export type { MemoryClient, Memory, MemoryEvent, MemoryCategory, GraphRelation, GraphMemoryResponse } from "./lib/redis-memory.js";
-export { getRedis, isRedisAvailable, disconnectRedis, createIndex, vectorSearch } from "./lib/redis-client.js";
+export { AgentMemoryServerClient } from "./lib/agent-memory-server.js";
+export type { AgentMemoryServerConfig, AMSLongTermMemory, AMSWorkingMemory, AMSMessage, AMSStructuredMemory, AMSSearchResult } from "./lib/agent-memory-server.js";
+export { getRedis, isRedisAvailable, disconnectRedis, createIndex, vectorSearch, escapeTag, nowSecs } from "./lib/redis-client.js";
 export type { VectorSearchResult, IndexFieldSchema } from "./lib/redis-client.js";
+
+// Semantic Cache
+export { SemanticCache } from "./lib/semantic-cache.js";
+export type { SemanticCacheConfig, CacheEntry, CacheStats, CacheSearchOptions, CacheWriteOptions } from "./lib/semantic-cache.js";
+
+// Feature Store
+export { FeatureStore } from "./lib/feature-store.js";
+export type {
+  FeatureStoreConfig, ProspectFeatures, IndustryFeatures,
+  AgentPerformanceFeatures, CallBriefFeatures,
+} from "./lib/feature-store.js";
 export { sdkMessageToSSE, extractAssistantText } from "./lib/stream-adapter.js";
 export {
   setPluginsDir, loadPluginRegistry, resolveSkills,

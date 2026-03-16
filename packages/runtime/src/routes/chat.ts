@@ -21,6 +21,7 @@ import { Sentry, getPostHog } from "../lib/observability.js";
 import type { GovernanceEngine } from "../lib/governance.js";
 import type { TelemetryClient } from "../lib/telemetry.js";
 import type { MemoryClient } from "../lib/redis-memory.js";
+import type { SemanticCache } from "../lib/semantic-cache.js";
 import type { ModelRouter } from "@waas/shared";
 import { MODEL_REGISTRY } from "@waas/shared";
 import type { RedisClientType } from "redis";
@@ -36,6 +37,8 @@ export interface ChatRouteDeps {
   createMcpServer: (orgId: string, userId: string) => McpSdkServerConfigWithInstance;
   /** Memory client for enrichment (RedisMemoryClient) */
   memory?: MemoryClient;
+  /** Semantic cache for LLM response caching (optional) */
+  semanticCache?: SemanticCache;
   /** Model router for embeddings (plugin matching) */
   router: ModelRouter;
   /** Redis client (for plugin vector search) */
@@ -127,6 +130,45 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
         }
       }
 
+      // ── Semantic Cache: check for cached response ──
+      // Only check cache when there's no conversation history (stateless queries).
+      // Multi-turn conversations need the full agentic loop — caching them
+      // would return stale responses that don't account for prior context.
+      const shouldCheckCache = deps.semanticCache && !history?.length;
+      let cacheHit: { response: string; model: string; similarity: number } | null = null;
+      if (shouldCheckCache) {
+        try {
+          cacheHit = await deps.semanticCache!.get(message, "claude-opus-4-6", {
+            orgId: organizationId,
+          });
+        } catch (cacheErr) {
+          console.debug(`[${deps.agentId}] Semantic cache check failed (non-fatal):`, cacheErr);
+        }
+      }
+
+      // If cache hit, stream the cached response and skip the LLM call
+      if (cacheHit && !clientDisconnected) {
+        console.log(`[${deps.agentId}] Semantic cache hit (similarity: ${cacheHit.similarity.toFixed(3)})`);
+        const cachedChunks = chunkText(cacheHit.response, 100);
+        for (const chunk of cachedChunks) {
+          if (clientDisconnected) break;
+          const ssePayload = JSON.stringify({
+            choices: [{ delta: { content: chunk } }],
+          });
+          res.write(`data: ${ssePayload}\n\n`);
+        }
+
+        if (!clientDisconnected) {
+          res.write("data: [DONE]\n\n");
+          res.end();
+        }
+
+        // PostHog event for cache hit
+        try { getPostHog()?.capture({ distinctId: userId, event: "agent_query_cache_hit", properties: { agent: deps.agentId, org_id: organizationId, similarity: cacheHit.similarity } }); }
+        catch (analyticsErr) { console.error("[PostHog] capture failed (non-fatal):", analyticsErr); }
+        return;
+      }
+
       // Create MCP server with org-scoped tools
       const mcpServer = deps.createMcpServer(organizationId, userId);
 
@@ -171,6 +213,13 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
       if (!clientDisconnected) {
         res.write("data: [DONE]\n\n");
         res.end();
+      }
+
+      // ── Semantic Cache: write response for future hits (fire-and-forget) ──
+      if (shouldCheckCache && fullText.length > 0 && deps.semanticCache) {
+        deps.semanticCache.set(message, fullText, "claude-opus-4-6", {
+          orgId: organizationId,
+        }).catch((err) => console.debug(`[${deps.agentId}] Semantic cache write failed (non-fatal):`, err));
       }
 
       // Fire-and-forget post-response hook (handles both sync and async)
@@ -328,4 +377,13 @@ function escapeXml(str: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;");
+}
+
+/** Split text into chunks for SSE streaming of cached responses */
+function chunkText(text: string, charsPerChunk: number): string[] {
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length; i += charsPerChunk) {
+    chunks.push(text.slice(i, i + charsPerChunk));
+  }
+  return chunks;
 }

@@ -16,7 +16,7 @@
 import { randomUUID } from "crypto";
 import type { RedisClientType } from "redis";
 import type { ModelRouter } from "@waas/shared";
-import { createIndex, vectorSearch, type IndexFieldSchema } from "./redis-client.js";
+import { createIndex, vectorSearch, escapeTag, type IndexFieldSchema } from "./redis-client.js";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -378,12 +378,6 @@ export class RedisMemoryClient implements MemoryClient {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-
-/** Escape special TAG characters for RediSearch queries */
-function escapeTag(value: string): string {
-  // RediSearch TAG values: escape - . : / and other special chars
-  return value.replace(/[\\{}|@$%^&*()!,.<>?;:'"[\]\-\/]/g, "\\$&");
-}
 
 /** Convert a Redis HASH result to a Memory object */
 function hashToMemory(key: string, fields: Record<string, string>): Memory {

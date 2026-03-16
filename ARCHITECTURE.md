@@ -231,21 +231,34 @@ System prompt enriched via `Promise.allSettled` (parallel):
 
 ## Infrastructure
 
-### Redis (vector search + caching)
+### Redis (vector search + caching + feature store)
 
-Redis 8.4 via Docker Compose. Three RediSearch indexes:
+Redis 8.4 via Docker Compose. Seven RediSearch indexes:
 
 | Index | Prefix | Purpose |
 |-------|--------|---------|
 | `idx:plugins` | `plugin:` | Skill vector matching for plugin loader |
 | `idx:documents` | `doc:` | Document RAG with hybrid search |
-| `idx:llm_cache` | `cache:` | Semantic caching of model responses |
+| `idx:llm_cache_v2` | `cache:` | Semantic caching of LLM responses (cross-agent) |
+| `idx:memories` | `mem:` | Persistent memory with vector search |
+| `idx:prospect_features` | `fs:{orgId}:prospect:` | Sales prospect features with similarity search |
+| `idx:industry_features` | `fs:{orgId}:industry:` | Industry benchmark features |
+| `idx:agent_performance` | `fs:{orgId}:agent_perf:` | Agent performance metrics |
+| `idx:call_brief` | `fs:{orgId}:call_brief:` | Sales call briefing features |
 
-All vectors are 768-dimensional (COSINE, HNSW, FLOAT32). Embeddings via Cloudflare Workers AI (`bge-base-en-v1.5`, free tier) with OpenRouter fallback.
+All vectors are 768-dimensional (COSINE, HNSW, FLOAT32). Embeddings via Cohere embed-v4.0 (primary) with Cloudflare Workers AI (`bge-base-en-v1.5`, free tier) fallback.
+
+Shared helpers exported from `redis-client.ts`: `createIndex()`, `vectorSearch()`, `escapeTag()`, `nowSecs()`.
 
 ### Persistent Memory (Redis)
 
-Organization-scoped persistent memory with vector search via RediSearch.
+Two memory backends, selected at startup based on availability:
+
+**Agent Memory Server (AMS)** — Primary. Two-tier cognitive memory via Redis AMS HTTP client (`agent-memory-server.ts`). Working memory (session-scoped messages + structured memories) + long-term memory (semantic search, topic modeling, entity recognition, deduplication). Health-checked at startup; falls back to RedisMemoryClient if unhealthy.
+
+**RedisMemoryClient** — Fallback. Direct Redis vector search on `idx:memories` index.
+
+Both implement the `MemoryClient` interface for transparent swap. Organization-scoped via `org:agentId:userId` namespace scheme.
 
 - 6 custom categories: `financial_metrics`, `fundraising`, `company_operations`, `strategic_decisions`, `investor_relations`, `financial_model`
 - Multi-model attribution via `agent_id`
@@ -256,7 +269,36 @@ Organization-scoped persistent memory with vector search via RediSearch.
 
 ### Semantic Cache
 
-Wraps model calls for deterministic outputs. Caches Kimi, Gemini, DeepSeek responses. Skips Claude Opus (conversational) and Sonar (web results change). 95% cosine similarity threshold, 1-hour default TTL.
+LLM response caching via `SemanticCache` class (`semantic-cache.ts`). Uses `idx:llm_cache_v2` RediSearch index with Cohere embed-v4.0 embeddings. 95% cosine similarity threshold, configurable TTL (default 1hr). Cross-agent sharing — any agent can hit another's cache entries.
+
+Cache integrated into chat route: checks cache before Claude API call, stores response on completion (fire-and-forget). Skips Sonar (web results change) and configurable per-model skip list.
+
+Promise lock on `ensureIndex()` prevents concurrent duplicate index creation. Circuit breaker stops retrying after 3 failures.
+
+### Feature Store
+
+Sub-millisecond Redis HASH-based feature retrieval via `FeatureStore` class (`feature-store.ts`). Four feature types:
+
+| Type | Index | Key Fields | Purpose |
+|------|-------|-----------|---------|
+| ProspectFeatures | `idx:prospect_features` | company, industry, budget, pain points, vector embedding | Sales prospect intelligence + similarity search |
+| IndustryFeatures | `idx:industry_features` | avg deal size, sales cycle, win rate, trends | Industry benchmarks |
+| AgentPerformanceFeatures | `idx:agent_performance` | calls, meetings, close rate, revenue | Agent performance leaderboard |
+| CallBriefFeatures | `idx:call_brief` | prospect_id, talking points, objections, strategy | Pre-call briefings |
+
+All methods accept optional `orgId` parameter for multi-tenant isolation. Used by Sales agent (Sam) via 5 dedicated MCP tools.
+
+### Voice Pipeline (Foundation)
+
+Three-component voice infrastructure in `packages/runtime/src/voice/` and `packages/runtime/src/lib/elevenlabs-client.ts`:
+
+| Component | Purpose |
+|-----------|---------|
+| `ElevenLabsClient` | WebSocket TTS/STT with Flash v2.5 model (sub-75ms), u-law 8kHz passthrough |
+| `VoicePipeline` | NextGenSwitch ↔ ElevenLabs STT → Claude → TTS bridge, per-call Redis state |
+| `VoiceTransport` | WebSocket server for inbound calls + REST API for outbound initiation |
+
+Call state managed via Redis HASH (`voice:{agentId}:call:{callId}`, 1hr TTL). Foundation for Sales agent voice calling in future phases.
 
 ### Knowledge Plugins
 
