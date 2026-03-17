@@ -4,7 +4,7 @@
 **Priority:** P1 High
 **Linear project:** n8n Automation Hub — Full Stack Integration
 **Notion page:** BlockDrive HQ > Project Hub > n8n Automation Hub
-**Host:** DO droplet 167.172.24.255, n8n.blockdrive.co
+**Host:** DO droplet 134.209.67.70, n8n.blockdrive.co
 
 ## Milestones
 - **M1:** Infrastructure — Domain, SSL, Firewall
@@ -40,6 +40,6 @@
 ## Health Check Targets (WF8)
 - Signing Service: `blockdrive-signing.fly.dev/health`
 - n8n: self-check
-- CFO Agent: `cfo-agent-9glt5.ondigitalocean.app/health`
-- EA Agent: `cfo-agent-9glt5.ondigitalocean.app/ea/health`
+- CFO Agent: `agentcorp-ghgvq.ondigitalocean.app/health`
+- EA Agent: `agentcorp-ghgvq.ondigitalocean.app/ea/health`
 - Frontend: `corp.blockdrive.co`

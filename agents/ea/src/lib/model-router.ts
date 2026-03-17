@@ -128,56 +128,41 @@ export async function chatCompletion(
   return content;
 }
 
-// ─── Embeddings ──────────────────────────────────────────────────────────────
+// ─── Embeddings (Cohere embed-v4.0, 1536-dim) ───────────────────────────────
 
 /**
- * Generate embeddings via Cloudflare Workers AI (primary) with OpenRouter fallback.
+ * Generate embeddings via Cohere embed-v4.0 (1536-dim).
+ * Matches the dimension used by idx:memories and idx:plugins indexes.
  */
 export async function embed(text: string): Promise<number[]> {
-  if (config.cfAccountId && config.cfApiToken) {
-    const resp = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${config.cfAccountId}/ai/run/@cf/baai/bge-base-en-v1.5`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.cfApiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: [text] }),
-      },
-    );
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      throw new Error(`Workers AI embedding error (${resp.status}): ${err}`);
-    }
-
-    const data = await resp.json();
-    const embedding = data.result?.data?.[0];
-    if (!Array.isArray(embedding) || embedding.length === 0) {
-      throw new Error(`Workers AI returned no embedding`);
-    }
-    return embedding;
+  if (!config.cohereApiKey) {
+    throw new Error("COHERE_API_KEY is required for embeddings");
   }
 
-  const resp = await fetch(`${getOpenRouterBaseURL()}/embeddings`, {
+  const resp = await fetch("https://api.cohere.com/v2/embed", {
     method: "POST",
-    headers: getOpenRouterHeaders(),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.cohereApiKey}`,
+    },
     body: JSON.stringify({
-      model: "google/text-embedding-004",
-      input: text,
+      model: "embed-v4.0",
+      texts: [text],
+      input_type: "search_query",
+      embedding_types: ["float"],
     }),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!resp.ok) {
     const err = await resp.text();
-    throw new Error(`OpenRouter embedding error (${resp.status}): ${err}`);
+    throw new Error(`Cohere embed API error (${resp.status}): ${err}`);
   }
 
-  const data = await resp.json();
-  const embedding = data.data?.[0]?.embedding;
+  const data = await resp.json() as { embeddings?: { float?: number[][] } };
+  const embedding = data.embeddings?.float?.[0];
   if (!Array.isArray(embedding) || embedding.length === 0) {
-    throw new Error(`OpenRouter returned no embedding`);
+    throw new Error("Cohere embed returned empty embedding");
   }
   return embedding;
 }

@@ -50,7 +50,7 @@ export interface GraphMemoryResponse {
 
 const INDEX_NAME = "idx:memories";
 const KEY_PREFIX = "memory:";
-const EMBEDDING_DIM = 768;
+const EMBEDDING_DIM = 1536;
 const EMBEDDING_MODEL = "embed-v4.0";
 
 // ─── Index Management ───────────────────────────────────────────────────────

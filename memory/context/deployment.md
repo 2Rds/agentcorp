@@ -7,11 +7,11 @@
 | Frontend | Vercel | corp.blockdrive.co | Live |
 | CFO Agent (Morgan) | DO App Platform | Port 3001 | Live |
 | EA Agent (Alex) | DO App Platform | Port 3002, ingress /ea | Live |
-| n8n | DO Droplet (167.172.24.255) | n8n.blockdrive.co | Live |
+| n8n | DO Droplet (134.209.67.70) | n8n.blockdrive.co | Live |
 
 ## DigitalOcean App Platform
-- **App ID:** 854138bf-004c-4992-a5f9-7af5a13bc3d9
-- **EA health:** https://cfo-agent-9glt5.ondigitalocean.app/ea/health
+- **App ID:** 2742c227-ee68-44a3-b157-0a991bd3a522
+- **EA health:** https://agentcorp-ghgvq.ondigitalocean.app/ea/health
 - **Auto-deploy:** Enabled from GitHub
 - **CLI:** doctl (installed and authenticated locally)
 
@@ -21,7 +21,7 @@
 - ANTHROPIC_API_KEY
 - SUPABASE_URL
 - SUPABASE_SERVICE_ROLE_KEY
-- MEM0_API_KEY
+- REDIS_URL, COHERE_API_KEY
 - OPENROUTER_API_KEY
 
 ### CFO-specific optional

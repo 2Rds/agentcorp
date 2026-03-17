@@ -29,7 +29,7 @@ Sean Weiss's company. Builds WaaS (cognitive agent platform) and Block Drive Vau
 |--------|-----|---------|
 | corp.blockdrive.co | Vercel | WaaS frontend |
 | n8n.blockdrive.co | DO droplet | Automation hub |
-| cfo-agent-9glt5.ondigitalocean.app | DO App Platform | Agent servers |
+| agentcorp-ghgvq.ondigitalocean.app | DO App Platform | Agent servers |
 
 ## Key Architecture Patterns
 

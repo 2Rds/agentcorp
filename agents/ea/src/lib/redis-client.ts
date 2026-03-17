@@ -112,7 +112,7 @@ export async function initializeRedisIndexes(): Promise<void> {
         "description", "TEXT",
         "keywords", "TEXT",
         "skill_id", "TAG",
-        "embedding", "VECTOR", "HNSW", "6", "DIM", "768", "DISTANCE_METRIC", "COSINE", "TYPE", "FLOAT32",
+        "embedding", "VECTOR", "HNSW", "6", "DIM", "1536", "DISTANCE_METRIC", "COSINE", "TYPE", "FLOAT32",
       ]);
       console.log("Redis index created: idx:plugins");
     } catch (err) {

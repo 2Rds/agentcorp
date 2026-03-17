@@ -158,55 +158,38 @@ export async function chatCompletion(
 // ─── Embeddings ──────────────────────────────────────────────────────────────
 
 /**
- * Generate embeddings via Cloudflare Workers AI (primary) with Cohere embed-v4.0 fallback (1536-dim).
+ * Generate embeddings via Cohere embed-v4.0 (1536-dim).
+ * All Redis vector indexes (idx:memories, idx:llm_cache, idx:plugins) use 1536-dim.
  */
 export async function embed(text: string): Promise<number[]> {
-  // If Cloudflare Workers AI is configured, use it (free tier, 768-dim)
-  if (config.cfAccountId && config.cfApiToken) {
-    const resp = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${config.cfAccountId}/ai/run/@cf/baai/bge-base-en-v1.5`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${config.cfApiToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: [text] }),
-      },
-    );
-
-    if (!resp.ok) {
-      const err = await resp.text();
-      throw new Error(`Workers AI embedding error (${resp.status}): ${err}`);
-    }
-
-    const data = await resp.json();
-    const embedding = data.result?.data?.[0];
-    if (!Array.isArray(embedding) || embedding.length === 0) {
-      throw new Error(`Workers AI returned no embedding (response: ${JSON.stringify(data).slice(0, 200)})`);
-    }
-    return embedding;
+  if (!config.cohereApiKey) {
+    throw new Error("COHERE_API_KEY is required for embeddings (all indexes use 1536-dim Cohere embed-v4.0)");
   }
 
-  // Fallback: OpenRouter embeddings
-  const resp = await fetch(`${getOpenRouterBaseURL()}/embeddings`, {
+  const resp = await fetch("https://api.cohere.com/v2/embed", {
     method: "POST",
-    headers: getOpenRouterHeaders(),
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${config.cohereApiKey}`,
+    },
     body: JSON.stringify({
-      model: "google/text-embedding-004",
-      input: text,
+      model: "embed-v4.0",
+      texts: [text],
+      input_type: "search_query",
+      embedding_types: ["float"],
     }),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!resp.ok) {
     const err = await resp.text();
-    throw new Error(`OpenRouter embedding error (${resp.status}): ${err}`);
+    throw new Error(`Cohere embed API error (${resp.status}): ${err}`);
   }
 
-  const data = await resp.json();
-  const embedding = data.data?.[0]?.embedding;
+  const data = await resp.json() as { embeddings?: { float?: number[][] } };
+  const embedding = data.embeddings?.float?.[0];
   if (!Array.isArray(embedding) || embedding.length === 0) {
-    throw new Error(`OpenRouter returned no embedding (response: ${JSON.stringify(data).slice(0, 200)})`);
+    throw new Error(`Cohere embed returned empty embedding (response: ${JSON.stringify(data).slice(0, 200)})`);
   }
   return embedding;
 }
