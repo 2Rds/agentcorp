@@ -13,8 +13,13 @@ import { SALES_CONFIG } from "@waas/shared";
 import { config } from "./config.js";
 import { SYSTEM_PROMPT } from "./agent/system-prompt.js";
 import { createMcpServer } from "./tools/index.js";
-import { setRuntime } from "./runtime-ref.js";
+import { setRuntime, getRuntime } from "./runtime-ref.js";
 import { SdrWorker } from "./sdr/worker.js";
+import { VOICE_SYSTEM_PROMPT } from "./voice/system-prompt.js";
+import { createVoiceTools } from "./voice/tools.js";
+
+const orgId = config.blockdriveOrgId || "";
+const voiceTools = config.voiceEnabled && orgId ? createVoiceTools(orgId) : undefined;
 
 const runtime = new AgentRuntime({
   config: SALES_CONFIG,
@@ -32,6 +37,12 @@ const runtime = new AgentRuntime({
     pluginsDir: new URL("../plugins", import.meta.url).pathname,
   },
   featureStore: { enabled: true },
+  semanticCache: {
+    // SDR researches the same companies/prospects repeatedly — Sonar results
+    // are semi-fresh and benefit from caching (1hr TTL). Override the default
+    // skip list to allow Sonar caching for the sales department.
+    skipModels: new Set<string>(),
+  },
   corsOrigins: config.corsOrigins,
   telegram: config.telegramEnabled ? {
     agents: {
@@ -41,13 +52,32 @@ const runtime = new AgentRuntime({
       },
     },
   } : undefined,
+  voice: config.voiceEnabled ? {
+    elevenlabsApiKey: config.elevenlabsApiKey,
+    elevenlabsVoiceId: config.elevenlabsVoiceId,
+    nextgenSwitchUrl: config.nextgenSwitchUrl || undefined,
+    nextgenSwitchApiKey: config.nextgenSwitchApiKey || undefined,
+    voiceSystemPrompt: VOICE_SYSTEM_PROMPT,
+    tools: voiceTools?.toolDefs,
+    toolHandlers: voiceTools?.handlers,
+    firstMessage: "Hi, this is a representative from BlockDrive. Am I catching you at a good time?",
+    maxCallDurationSecs: 600,
+    onCallComplete: (result: any) => {
+      const sdr = (getRuntime() as any)?.sdrWorker as SdrWorker | undefined;
+      if (!sdr) { console.warn("[Sales] Post-call processing skipped — SDR not available"); return; }
+      sdr.execute({
+        type: "process_post_call",
+        instruction: "Process completed voice call. Extract key points, update pipeline, compute new prospect features, draft follow-up.",
+        context: JSON.stringify(result),
+      }).catch((err: any) => console.error("[Sales] Post-call SDR failed:", err));
+    },
+  } : undefined,
 });
 
 setRuntime(runtime);
 
 // Initialize SDR worker before start() — constructor only needs orgId + API key.
 // Tools access runtime services lazily via getRuntime() at execution time.
-const orgId = config.blockdriveOrgId || "";
 if (orgId) {
   (runtime as any).sdrWorker = new SdrWorker(orgId);
   console.log("[Sales] SDR worker initialized for org:", orgId);

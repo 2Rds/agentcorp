@@ -39,6 +39,12 @@ export const config = {
 
   perplexityApiKey: optional("PERPLEXITY_API_KEY"),
 
+  elevenlabsApiKey: optional("ELEVENLABS_API_KEY"),
+  elevenlabsVoiceId: optional("ELEVENLABS_VOICE_ID"),
+  nextgenSwitchUrl: optional("NEXTGENSWITCH_URL"),
+  nextgenSwitchApiKey: optional("NEXTGENSWITCH_API_KEY"),
+  voiceEnabled: !!process.env.ELEVENLABS_API_KEY && !!process.env.ELEVENLABS_VOICE_ID && !!process.env.NEXTGENSWITCH_URL,
+
   blockdriveOrgId: optional("BLOCKDRIVE_ORG_ID"),
 } as const;
 

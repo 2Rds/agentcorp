@@ -2,6 +2,44 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.2.0] - 2026-03-17
+
+Voice pipeline wiring, SemanticCache upgrades (exact-match fast-path + adaptive TTL), and cache extension to EA/SDR/CFO agents. 5 concurrent voice sales agents now operational within Sam's unified server.
+
+### Added
+
+- **Voice pipeline wired into AgentRuntime** — `voice?` config block in `AgentRuntimeConfig`, dynamic ElevenLabs + VoiceTransport initialization in `start()`, `voiceTransport` public getter, graceful shutdown
+- **VoicePipeline agentic tool loop** — Max 2 tool turns per utterance during live calls. Claude processes caller speech, optionally calls read-only tools (Feature Store, memory, pipeline), then speaks response via TTS. Falls back to simple no-tool path when tools not configured.
+- **Per-call context injection** — `customParams` from NextGenSwitch start event (prospect name, company, call purpose) injected into per-call system prompt as `## Call Context` section
+- **Voice system prompt** (`agents/sales/src/voice/system-prompt.ts`) — BANT qualification flow, objection handling scripts, 2-3 sentence max responses, spoken cadence optimization
+- **3 read-only voice tools** (`agents/sales/src/voice/tools.ts`) — `get_prospect_intelligence` (Feature Store), `search_knowledge` (memory), `check_pipeline` (Supabase) — all org-scoped
+- **SemanticCache exact-match fast-path** — SHA-256 hash of `orgId + agentId + prompt + model` for O(1) Redis GET before vector search. Eliminates embedding cost on identical repeated prompts.
+- **SemanticCache adaptive TTL** — Cache hits extend TTL by 50% (capped at 2x original). Frequently-accessed entries live longer.
+- **EA agent semantic cache** (`agents/ea/src/lib/semantic-cache.ts`) — Standalone cache (no @waas/runtime import) wired into EA chat route. Skips multi-turn conversations. Uses shared `idx:llm_cache_v2` index.
+- **SDR Sonar research caching** — `sonarQuery()` checks SemanticCache before Sonar API call (0.95 threshold, 1hr TTL). Fire-and-forget writes.
+- **CFO structured generation caching** — `extractStructured()` wrapped with `withCache()` for repeated financial model/SQL patterns
+- **Voice fallback speech on error** — Caller hears "I apologize, having a technical issue" instead of dead air on any pipeline error
+- **Sentry on voice errors** — WebSocket errors, TTS failures, call state persistence, voice transport init all report to Sentry
+
+### Changed
+
+- **`make_call` tool** — Replaced unsafe `(runtime as unknown as { voiceTransport? })` cast with clean `runtime.voiceTransport` getter
+- **`callClaudeWithTools` max_tokens** — Increased from 300 to 1024 (tool_use blocks need more room than plain text)
+- **`voiceEnabled` guard** — Now checks `ELEVENLABS_VOICE_ID` in addition to API key and NextGenSwitch URL
+- **Voice cache scoping** — Cache only checked on simple (no-tools) path. Tool-dependent responses skip cache (depend on real-time data).
+- **All `.catch(() => {})` replaced** — Voice pipeline, SDR, EA cache writes now log warnings instead of silently swallowing errors
+- **CFO cache migrated to v2** — Index `idx:llm_cache` → `idx:llm_cache_v2`, prefix `cache:` → `llmcache:`, `ttl` field → `expires_at` for cross-agent compatibility
+
+### Fixed
+
+- **CFO cache score default** — Changed `parseFloat(fields.score ?? "0")` to `?? "1"` (was producing false cache hits with similarity 1.0)
+- **CFO cache RETURN clause** — Added `expires_at` to FT.SEARCH RETURN (was missing, making TTL check dead code)
+- **Voice tools org_id filter** — Added `.eq("org_id", orgId)` to `check_pipeline` query (was leaking cross-tenant data)
+- **Exact-match cache key scoping** — Added `orgId + agentId` to SHA-256 hash (was allowing cross-tenant cache poisoning)
+- **Voice agentic loop stop condition** — Changed `stop_reason === "end_turn"` to `stop_reason !== "tool_use"` (was dropping tool calls)
+- **Dead `sttModel` config field** — Removed from `AgentRuntimeConfig.voice` (accepted but never forwarded)
+- **`onCallComplete` typed as `any`** — Changed to `CallResult` import type
+
 ## [v3.1.2] - 2026-03-17
 
 Model stack collapse: 10 models → 4 LLMs + 2 utilities. Role-based routing replaces uniform orchestration. Pre-release model audit gate added to `/release` skill.

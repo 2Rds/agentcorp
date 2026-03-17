@@ -432,10 +432,7 @@ export function createMcpServer(orgId: string, _userId: string) {
       },
       async (args) => {
         try {
-          const { getRuntime } = await import("../runtime-ref.js");
-          const runtime = getRuntime();
-          if (!runtime) return err("Voice transport not available — runtime not initialized");
-          const voiceTransport = (runtime as unknown as { voiceTransport?: { initiateCall: (params: { phoneNumber: string; params?: Record<string, string> }) => Promise<{ callId: string }> } }).voiceTransport;
+          const voiceTransport = getRuntime()?.voiceTransport;
           if (!voiceTransport) return err("Voice transport not configured — requires NEXTGENSWITCH_URL and ELEVENLABS_API_KEY");
           const result = await voiceTransport.initiateCall({
             phoneNumber: args.phone_number,

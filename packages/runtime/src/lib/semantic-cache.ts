@@ -25,6 +25,7 @@
  *                prompt_hash TAG, prompt_embedding VECTOR(1536, HNSW, COSINE)
  */
 
+import { createHash } from "crypto";
 import type { RedisClientType } from "redis";
 import type { ModelRouter } from "@waas/shared";
 import { createIndex, escapeTag, nowSecs, type IndexFieldSchema } from "./redis-client.js";
@@ -95,6 +96,7 @@ export interface CacheWriteOptions {
 
 const INDEX_NAME = "idx:llm_cache_v2";
 const KEY_PREFIX = "llmcache:";
+const EXACT_KEY_PREFIX = "llmcache:exact:";
 const EMBEDDING_DIM = 1536;
 
 /** Default models whose responses should NOT be cached */
@@ -185,10 +187,69 @@ export class SemanticCache {
     return true;
   }
 
+  // ─── Exact-Match Fast Path ──────────────────────────────────────────
+
+  /**
+   * SHA-256 hash of prompt + model for exact-match cache key.
+   */
+  private exactKey(prompt: string, model: string): string {
+    const scope = `${this.orgId ?? ""}\x00${this.agentId}`;
+    const hash = createHash("sha256").update(`${scope}\x00${prompt}\x00${model}`).digest("hex");
+    return `${EXACT_KEY_PREFIX}${hash}`;
+  }
+
+  /**
+   * Exact-match cache lookup. O(1) Redis GET — no embedding, no vector search.
+   */
+  async getExact(prompt: string, model: string): Promise<string | null> {
+    try {
+      const key = this.exactKey(prompt, model);
+      const value = await this.redis.get(key);
+      if (value !== null) {
+        // Adaptive TTL extension on hit
+        this.extendTTL(key).catch(() => {});
+      }
+      return value;
+    } catch (err) {
+      console.error("[SemanticCache] Exact-match lookup failed:", err);
+      return null;
+    }
+  }
+
+  /**
+   * Store an exact-match cache entry. Simple Redis SET with TTL.
+   */
+  async setExact(prompt: string, model: string, response: string, ttlSecs?: number): Promise<void> {
+    try {
+      const key = this.exactKey(prompt, model);
+      const ttl = ttlSecs ?? this.defaultTtl;
+      await this.redis.set(key, response, { EX: ttl });
+    } catch (err) {
+      console.error("[SemanticCache] Exact-match write failed:", err);
+    }
+  }
+
+  /**
+   * Adaptive TTL extension — on any cache hit, extend the TTL.
+   * New TTL = min(currentTTL + defaultTTL/2, defaultTTL * 2)
+   */
+  private async extendTTL(key: string): Promise<void> {
+    try {
+      const currentTTL = await this.redis.ttl(key);
+      if (currentTTL > 0) {
+        const extended = Math.min(currentTTL + Math.floor(this.defaultTtl / 2), this.defaultTtl * 2);
+        await this.redis.expire(key, extended);
+      }
+    } catch {
+      // Non-fatal — TTL extension is best-effort
+    }
+  }
+
   // ─── Cache Lookup ─────────────────────────────────────────────────────
 
   /**
    * Search for a semantically similar cached response.
+   * Checks exact-match first (O(1)), then falls back to vector search.
    * Returns the cached response if similarity > threshold, null otherwise.
    */
   async get(
@@ -199,6 +260,20 @@ export class SemanticCache {
     if (this.skipModels.has(model)) return null;
 
     try {
+      // ── Step 8: Exact-match fast path (O(1) — no embedding needed) ──
+      const exactHit = await this.getExact(prompt, model);
+      if (exactHit !== null) {
+        this.stats.hits++;
+        this.updateHitRate();
+        return {
+          response: exactHit,
+          model,
+          agentId: this.agentId,
+          cachedAt: 0, // Exact-match entries don't store cachedAt
+          similarity: 1.0,
+        };
+      }
+
       if (!(await this.ensureIndex())) return null;
 
       // Generate embedding for the prompt
@@ -279,6 +354,14 @@ export class SemanticCache {
       this.stats.hits++;
       this.updateHitRate();
 
+      // Adaptive TTL extension on semantic hit (Step 9)
+      const hitKey = result[1] as string;
+      if (hitKey) {
+        this.extendTTL(hitKey).catch(() => {});
+        // Also extend the exact-match key if it exists
+        this.extendTTL(this.exactKey(prompt, model)).catch(() => {});
+      }
+
       return {
         response: fields.response ?? "",
         model: fields.model ?? model,
@@ -356,6 +439,9 @@ export class SemanticCache {
       if (ttl > 0) {
         await this.redis.expire(key, ttl);
       }
+
+      // Step 8: Also write exact-match key for O(1) lookup on identical prompts
+      this.setExact(prompt, model, response, ttl > 0 ? ttl : undefined).catch(() => {});
 
       this.stats.writes++;
       return true;

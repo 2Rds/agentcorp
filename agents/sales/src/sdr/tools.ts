@@ -41,8 +41,22 @@ async function withFeatureStore(fn: (fs: FeatureStore) => Promise<string>, conte
   }
 }
 
-/** Call Sonar Pro via OpenRouter for web search/research */
+/** Call Sonar Pro via OpenRouter for web search/research (cache-wrapped) */
 async function sonarQuery(prompt: string): Promise<string> {
+  // Check semantic cache first — same prospects/companies get researched repeatedly
+  const cache = getRuntime()?.semanticCache;
+  if (cache) {
+    try {
+      const cached = await cache.get(prompt, "perplexity/sonar-pro", { threshold: 0.95 });
+      if (cached) {
+        console.log(`[SDR] Sonar cache hit (similarity: ${cached.similarity.toFixed(3)})`);
+        return cached.response;
+      }
+    } catch (cacheErr) {
+      console.warn("[SDR] Sonar cache lookup failed (non-fatal):", cacheErr);
+    }
+  }
+
   const apiUrl = config.perplexityApiKey
     ? "https://api.perplexity.ai/chat/completions"
     : "https://openrouter.ai/api/v1/chat/completions";
@@ -67,7 +81,16 @@ async function sonarQuery(prompt: string): Promise<string> {
   }
 
   const data = await response.json() as { choices?: Array<{ message: { content: string } }> };
-  return data.choices?.[0]?.message?.content || "No results found.";
+  const result = data.choices?.[0]?.message?.content || "No results found.";
+
+  // Cache the result (fire-and-forget) — Sonar results are semi-fresh, 1hr TTL
+  if (cache) {
+    cache.set(prompt, result, "perplexity/sonar-pro").catch((err) => {
+      console.warn("[SDR] Sonar cache write failed:", err);
+    });
+  }
+
+  return result;
 }
 
 function createTools(orgId: string): ToolEntry[] {

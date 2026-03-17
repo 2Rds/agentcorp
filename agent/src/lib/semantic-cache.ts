@@ -1,8 +1,8 @@
 import { getRedis, isRedisAvailable } from "./redis-client.js";
 import { embed } from "./model-router.js";
 
-const CACHE_INDEX = "idx:llm_cache";
-const CACHE_PREFIX = "cache:";
+const CACHE_INDEX = "idx:llm_cache_v2";
+const CACHE_PREFIX = "llmcache:";
 
 // Models whose responses should be cached (structured/deterministic outputs)
 const CACHEABLE_MODELS = new Set([
@@ -48,6 +48,7 @@ export async function getCached(
     const result = await redis.sendCommand([
       "FT.SEARCH", CACHE_INDEX, query,
       "PARAMS", "2", "BLOB", blob as unknown as string,
+      "RETURN", "5", "response", "model", "cached_at", "score", "expires_at",
       "SORTBY", "score",
       "LIMIT", "0", "1",
       "DIALECT", "2",
@@ -63,7 +64,7 @@ export async function getCached(
       fields[fieldArray[i]] = fieldArray[i + 1];
     }
 
-    const score = parseFloat(fields.score ?? "0");
+    const score = parseFloat(fields.score ?? "1");
 
     // Cosine distance: 0 = identical, 1 = orthogonal
     // Convert to similarity: 1 - distance
@@ -72,8 +73,8 @@ export async function getCached(
     if (similarity < threshold) return null;
 
     // Check TTL — expired entries should not be returned
-    const ttl = parseInt(fields.ttl ?? "0", 10);
-    if (ttl > 0 && Date.now() / 1000 > ttl) {
+    const expiresAt = parseInt(fields.expires_at ?? "0", 10);
+    if (expiresAt > 0 && Date.now() / 1000 > expiresAt) {
       // Clean up expired entry
       const id = result[1] as string;
       await redis.del(id).catch((e) => console.warn(`Failed to clean up expired cache entry ${id}:`, e));
@@ -118,7 +119,7 @@ export async function setCached(
       "response", response,
       "model", model,
       "cached_at", String(now),
-      "ttl", String(ttlSeconds > 0 ? now + ttlSeconds : 0),
+      "expires_at", String(ttlSeconds > 0 ? now + ttlSeconds : 0),
       "prompt_embedding", blob as unknown as string,
     ]);
 

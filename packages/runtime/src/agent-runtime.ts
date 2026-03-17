@@ -47,6 +47,7 @@ import { setPluginsDir, loadPluginRegistry } from "./lib/plugin-loader.js";
 import { createAuthMiddleware } from "./middleware/auth.js";
 import { createHealthRouter } from "./routes/health.js";
 import { createChatRouter } from "./routes/chat.js";
+import type { VoiceTransport } from "./voice/index.js";
 import { TelegramTransport, type TelegramTransportConfig } from "./transport/telegram.js";
 import { createWebhookRouter, type WebhookHandler } from "./routes/webhook.js";
 import {
@@ -135,6 +136,25 @@ export interface AgentRuntimeConfig {
   featureStore?: {
     enabled?: boolean;
   };
+
+  /** Voice transport config (enables real-time voice pipeline via ElevenLabs + NextGenSwitch) */
+  voice?: {
+    elevenlabsApiKey: string;
+    elevenlabsVoiceId: string;
+    nextgenSwitchUrl?: string;
+    nextgenSwitchApiKey?: string;
+    voiceSystemPrompt: string;
+    wsPath?: string;
+    ttsModel?: string;
+    stability?: number;
+    similarityBoost?: number;
+    speed?: number;
+    firstMessage?: string;
+    maxCallDurationSecs?: number;
+    tools?: Array<{ name: string; description?: string; input_schema: Record<string, unknown> }>;
+    toolHandlers?: Map<string, (args: Record<string, unknown>) => Promise<string>>;
+    onCallComplete?: (result: import("./voice/voice-pipeline.js").CallResult) => void | Promise<void>;
+  };
 }
 
 // ─── Runtime ───────────────────────────────────────────────────────────────
@@ -150,6 +170,7 @@ export class AgentRuntime {
   readonly governance: GovernanceEngine;
   readonly telemetry: TelemetryClient;
 
+  private _voiceTransport?: VoiceTransport;
   private telegramTransport?: TelegramTransport;
   private messageBus?: MessageBus;
   private webhookHandlers = new Map<string, WebhookHandler>();
@@ -350,6 +371,43 @@ export class AgentRuntime {
       console.log(`[${agentId}] Health: http://localhost:${port}/health`);
     });
 
+    // Initialize voice transport (dynamic import — only loaded when voice is configured)
+    if (this.runtimeConfig.voice) {
+      try {
+        const { ElevenLabsClient } = await import("./lib/elevenlabs-client.js");
+        const { VoiceTransport } = await import("./voice/index.js");
+        const elevenlabs = new ElevenLabsClient({
+          apiKey: this.runtimeConfig.voice.elevenlabsApiKey,
+          voiceId: this.runtimeConfig.voice.elevenlabsVoiceId,
+          ttsModel: this.runtimeConfig.voice.ttsModel || "eleven_flash_v2_5",
+          stability: this.runtimeConfig.voice.stability,
+          similarityBoost: this.runtimeConfig.voice.similarityBoost,
+          speed: this.runtimeConfig.voice.speed,
+        });
+        this._voiceTransport = new VoiceTransport({
+          elevenlabs,
+          voiceId: this.runtimeConfig.voice.elevenlabsVoiceId,
+          anthropicApiKey: this.runtimeConfig.env.anthropicApiKey,
+          agentId: this.runtimeConfig.config.id,
+          systemPrompt: this.runtimeConfig.voice.voiceSystemPrompt,
+          nextgenSwitchUrl: this.runtimeConfig.voice.nextgenSwitchUrl,
+          nextgenSwitchApiKey: this.runtimeConfig.voice.nextgenSwitchApiKey,
+          wsPath: this.runtimeConfig.voice.wsPath || "/voice/ws",
+          firstMessage: this.runtimeConfig.voice.firstMessage,
+          maxCallDurationSecs: this.runtimeConfig.voice.maxCallDurationSecs || 600,
+          tools: this.runtimeConfig.voice.tools,
+          toolHandlers: this.runtimeConfig.voice.toolHandlers,
+          semanticCache: this._semanticCache,
+          onCallComplete: this.runtimeConfig.voice.onCallComplete,
+        });
+        this._voiceTransport.attachToServer(this.server!);
+        console.log(`[${agentId}] Voice WebSocket listening on ${this.runtimeConfig.voice.wsPath || "/voice/ws"}`);
+      } catch (err) {
+        Sentry.captureException(err);
+        console.error(`[${agentId}] Voice transport init failed:`, err);
+      }
+    }
+
     // Graceful shutdown (register only once — prevents handler leak on restart)
     if (!this.shutdownRegistered) {
       this.shutdownRegistered = true;
@@ -381,6 +439,9 @@ export class AgentRuntime {
    */
   async stop(): Promise<void> {
     const stops: Promise<void>[] = [disconnectRedis(), shutdownObservability()];
+    if (this._voiceTransport) {
+      stops.push(Promise.resolve(this._voiceTransport.close()));
+    }
     if (this.telegramTransport) {
       stops.push(this.telegramTransport.stop());
     }
@@ -445,6 +506,11 @@ export class AgentRuntime {
   /** Public accessor — returns feature store (available after start() if Redis connected + enabled) */
   get featureStore(): FeatureStore | undefined {
     return this._featureStore;
+  }
+
+  /** Public accessor — returns voice transport (available after start() if voice config provided) */
+  get voiceTransport(): VoiceTransport | undefined {
+    return this._voiceTransport;
   }
 
   private setupRoutes(rtConfig: AgentRuntimeConfig): void {

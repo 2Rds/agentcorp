@@ -1,4 +1,5 @@
 import { config } from "../config.js";
+import { withCache } from "./semantic-cache.js";
 
 // ─── Model aliases ───────────────────────────────────────────────────────────
 
@@ -187,16 +188,27 @@ export async function embed(text: string): Promise<number[]> {
 /**
  * Extract structured JSON from a conversation using Gemini 3 Flash.
  * Parses the response as JSON; throws if the response is not valid JSON.
+ * Wraps with semantic cache — identical structured prompts return cached results.
  */
 export async function extractStructured<T>(
   messages: ChatMessage[],
   opts: ChatCompletionOpts = {},
 ): Promise<T> {
-  const text = await chatCompletion("gemini", messages, {
-    ...opts,
-    responseFormat: { type: "json_object" },
-    temperature: opts.temperature ?? 0.2,
-  });
+  // Build cache key from system + user prompt combined
+  const cacheKey = messages.map(m => {
+    const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
+    return `[${m.role}] ${content}`;
+  }).join("\n");
+
+  const text = await withCache(
+    cacheKey,
+    "google/gemini-3-flash-preview",
+    () => chatCompletion("gemini", messages, {
+      ...opts,
+      responseFormat: { type: "json_object" },
+      temperature: opts.temperature ?? 0.2,
+    }),
+  );
 
   if (!text.trim()) {
     throw new Error("LLM returned empty response — model may need higher max_tokens");
