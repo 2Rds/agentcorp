@@ -37,3 +37,12 @@ CF_AIG_TOKEN
 # DO App Platform specs (contain API keys)
 app-spec.yaml
 app-spec-nyc.yaml
+
+# Agent outputs (generated PDFs)
+agent/output/
+
+# Service account credentials
+agent/service-account.json
+
+# Supabase temp files
+supabase/.temp/

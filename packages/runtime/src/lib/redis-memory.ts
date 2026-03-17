@@ -108,7 +108,7 @@ export interface RedisMemoryConfig {
 
 const INDEX_NAME = "idx:memories";
 const KEY_PREFIX = "memory:";
-const EMBEDDING_DIM = 768;
+const EMBEDDING_DIM = 1536;
 
 const INDEX_SCHEMA: Record<string, IndexFieldSchema> = {
   text: { type: "TEXT" },

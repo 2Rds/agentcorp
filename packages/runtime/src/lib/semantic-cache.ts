@@ -95,7 +95,7 @@ export interface CacheWriteOptions {
 
 const INDEX_NAME = "idx:llm_cache_v2";
 const KEY_PREFIX = "llmcache:";
-const EMBEDDING_DIM = 768;
+const EMBEDDING_DIM = 1536;
 
 /** Default models whose responses should NOT be cached */
 const DEFAULT_SKIP_MODELS = new Set([

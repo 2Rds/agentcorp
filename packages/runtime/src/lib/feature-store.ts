@@ -198,7 +198,7 @@ const INDEX_CONFIGS = {
       deal_size: { type: "NUMERIC" } as IndexFieldSchema,
       org_id: { type: "TAG" } as IndexFieldSchema,
       computed_at: { type: "NUMERIC" } as IndexFieldSchema,
-      embedding: { type: "VECTOR", algorithm: "HNSW", dim: 768, distanceMetric: "COSINE" } as IndexFieldSchema,
+      embedding: { type: "VECTOR", algorithm: "HNSW", dim: 1536, distanceMetric: "COSINE" } as IndexFieldSchema,
     },
   },
   industry: {

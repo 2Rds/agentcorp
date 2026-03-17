@@ -289,7 +289,7 @@ Deno runtime.
 | Compliance Agent | DO App Platform NYC1 (shared $12/mo) | Port 3005, ingress `/compliance` |
 | Legal Agent | DO App Platform NYC1 (shared $12/mo) | Port 3006, ingress `/legal` |
 | Sales Agent | DO App Platform NYC1 (dedicated $29/mo, auto-scales 1→3) | Port 3007, ingress `/sales` |
-| Redis | DO Droplet NYC1 (67.205.165.14) | Password-protected, VPC `10.116.0.2` |
+| Redis | DO Droplet NYC1 (159.223.179.119) | Redis 8.6.1 + RediSearch + RedisJSON, VPC `10.116.0.6` |
 | n8n | DO Droplet NYC1 (134.209.67.70) | `n8n.blockdrive.co`, Docker + Caddy |
 
 **DigitalOcean App Platform:**

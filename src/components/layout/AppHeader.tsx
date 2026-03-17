@@ -2,7 +2,6 @@ import { Search } from 'lucide-react';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from './Breadcrumbs';
-import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { UserMenu } from './UserMenu';
 
@@ -42,7 +41,6 @@ export function AppHeader({ onOpenCommandPalette }: AppHeaderProps) {
           <Search className="h-4 w-4" />
         </Button>
 
-        <ThemeToggle />
         <NotificationBell />
         <UserMenu />
       </div>

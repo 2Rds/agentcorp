@@ -158,7 +158,7 @@ export async function chatCompletion(
 // ─── Embeddings ──────────────────────────────────────────────────────────────
 
 /**
- * Generate embeddings via Cloudflare Workers AI (primary, 768-dim) with OpenRouter fallback.
+ * Generate embeddings via Cloudflare Workers AI (primary) with Cohere embed-v4.0 fallback (1536-dim).
  */
 export async function embed(text: string): Promise<number[]> {
   // If Cloudflare Workers AI is configured, use it (free tier, 768-dim)

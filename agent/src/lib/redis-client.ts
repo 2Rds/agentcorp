@@ -346,20 +346,20 @@ export async function initializeRedisIndexes(): Promise<void> {
       description: { type: "TEXT" },
       keywords: { type: "TEXT" },
       skill_id: { type: "TAG" },
-      embedding: { type: "VECTOR", algorithm: "HNSW", dim: 768, distanceMetric: "COSINE" },
+      embedding: { type: "VECTOR", algorithm: "HNSW", dim: 1536, distanceMetric: "COSINE" },
     }),
 
     createIndex("idx:documents", "doc:", {
       content: { type: "TEXT" },
       source: { type: "TEXT" },
       org_id: { type: "TAG" },
-      embedding: { type: "VECTOR", algorithm: "HNSW", dim: 768, distanceMetric: "COSINE" },
+      embedding: { type: "VECTOR", algorithm: "HNSW", dim: 1536, distanceMetric: "COSINE" },
     }),
 
     createIndex("idx:llm_cache", "cache:", {
       model: { type: "TAG" },
       ttl: { type: "NUMERIC" },
-      prompt_embedding: { type: "VECTOR", algorithm: "HNSW", dim: 768, distanceMetric: "COSINE" },
+      prompt_embedding: { type: "VECTOR", algorithm: "HNSW", dim: 1536, distanceMetric: "COSINE" },
     }),
   ]);
 
