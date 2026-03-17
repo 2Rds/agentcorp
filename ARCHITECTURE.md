@@ -69,24 +69,20 @@ All financial data stored in `financial_model` table as line items with category
 
 ## Agent Server (`agent/src/`)
 
-Express server using the Claude Agent SDK. Claude Opus 4.6 as the primary reasoning model with 8 additional models via OpenRouter.
+Express server using the Claude Agent SDK. Claude Opus 4.6 as the primary reasoning model with role-based model routing.
 
-### Multi-Model Strategy
+### Multi-Model Strategy (Collapsed Stack)
 
-| Model | Alias | Purpose |
-|-------|-------|---------|
-| Claude Opus 4.6 | (direct API) | Primary reasoning, tool orchestration, streaming chat |
-| Kimi K2.5 | `kimi` | Structured data generation (financial rows, cap table, SQL) |
-| Gemini 3 Flash | `gemini` | Document vision, embeddings, file processing |
-| Gemini 3 Pro | `gemini-pro` | Advanced document reasoning |
-| Gemini 2.5 Flash Lite | `gemini-lite` | Lightweight tasks at minimal cost |
-| DeepSeek V3.2 | `deepseek` | Structured data, cost-effective alternative |
-| DeepSeek V3.2 Speciale | `deepseek-speciale` | Extended capability variant |
-| Sonar Pro | `sonar` | Web research and intelligence |
-| Granite 4.0 Micro | `granite` | Lightweight/cheap tasks |
-| Sonnet 4.6 | `sonnet` | High-quality via OpenRouter |
+| Model | Alias | Role | Routing Rule |
+|-------|-------|------|-------------|
+| Claude Opus 4.6 | (direct API) | Reasoning, analysis, customer-facing output | Default for all agent chat + customer-facing tools |
+| Gemini 3 Flash | `gemini` | Vision/OCR, internal orchestration, structured data | Multimodal tasks, knowledge extraction, structured generation |
+| Grok 4.1 Fast | `grok-fast` | X/Twitter data, classification, routing | CMA X/Twitter search, internal classification |
+| Sonar Pro | `sonar` | Live web search | All web_search tools across agents |
+| Cohere embed-v4.0 | (utility) | Vector embeddings | Memory search, plugin matching, feature store |
+| Cohere rerank-v4.0 | (utility) | Search result reranking | Memory retrieval quality |
 
-All non-Claude models route through OpenRouter via `model-router.ts` using native `fetch`. Optional Cloudflare AI Gateway proxy when `CF_ACCOUNT_ID` + `CF_GATEWAY_ID` are set.
+Non-Claude models route through OpenRouter via `model-router.ts` using native `fetch`. Optional Cloudflare AI Gateway proxy when `CF_ACCOUNT_ID` + `CF_GATEWAY_ID` are set. Compliance `scan_compliance` and Legal `analyze_contract` call Opus via Anthropic direct API (customer-facing, high-stakes).
 
 ### Tools (31 total across 11 domains)
 

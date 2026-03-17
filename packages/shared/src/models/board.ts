@@ -9,7 +9,7 @@
  *          Opus participates here as a full board member (dual-role).
  * Stage 2: Peer Review (optional) — Each member reviews others' responses
  *          (anonymized as "Response A, B, C") and ranks them.
- * Stage 3: Governance Brief — Granite reviews member analyses for regulatory,
+ * Stage 3: Governance Brief — Gemini reviews member analyses for regulatory,
  *          compliance, and risk blind spots. Concise advisory brief feeds
  *          into the chairman's context.
  * Stage 4: Chairman Synthesis — Opus (now in chairman role) synthesizes all
@@ -20,15 +20,11 @@
  * synthesizes the final decision as chairman. The most capable model
  * must be part of the debate, not just an observer who speaks last.
  *
- * 5 models across 4 board seats + 1 governance advisor:
+ * 4 models across 4 board seats (Gemini dual-role as governance advisor):
  *   Opus        → Board member + Chairman (debates AND decides)
- *   Gemini      → Board member
- *   Grok 4.1    → Board member
+ *   Gemini      → Board member + Governance advisor (compliance brief)
+ *   Grok 4.1    → Board member (non-reasoning variant)
  *   Sonar       → Board member
- *   Granite     → Governance advisor (compliance brief for chairman)
- *
- * Cohere Command A excluded — 1000 calls/month free tier reserved for
- * RAG/rerank/embed ops across the C-Suite agents.
  *
  * No perspective prompts or role-playing — model diversity IS the
  * perspective diversity. Different training data, different RLHF,
@@ -38,7 +34,7 @@
 
 import type { BoardConfig, BoardMember, ChatMessage, CompletionResult } from "../types.js";
 import type { ModelRouter } from "./router.js";
-import { OPUS, GEMINI, SONAR, GRANITE, GROK_FAST_REASONING } from "./registry.js";
+import { OPUS, GEMINI, SONAR, GROK_FAST } from "./registry.js";
 
 // ─── Board Member Definitions ───────────────────────────────────────────────
 // Minimal framing — model diversity IS the perspective diversity. Different
@@ -58,7 +54,7 @@ const MEMBER_GEMINI: BoardMember = {
 
 const MEMBER_GROK: BoardMember = {
   role: "member-grok",
-  model: GROK_FAST_REASONING,
+  model: GROK_FAST,
   perspective: `You are a board member. Provide your independent analysis of this strategic question.`,
 };
 
@@ -76,7 +72,7 @@ export const DEFAULT_BOARD: BoardConfig = {
   enablePeerReview: false,   // Only for high-stakes decisions
   quorum: 3,                 // Proceed if at least 3 of 4 members respond
   timeoutMs: 60_000,         // 60s max wait for all members
-  governanceAdvisor: GRANITE,
+  governanceAdvisor: GEMINI,
 };
 
 /** High-stakes variant — enables anonymized peer review (Stage 2) */
@@ -96,7 +92,7 @@ export interface BoardDecision {
   memberResponses: { role: string; model: string; response: string }[];
   /** Peer review rankings, if Stage 2 was enabled */
   peerReviews?: { reviewer: string; rankings: string }[];
-  /** Governance advisory brief from Granite, if governance advisor was configured */
+  /** Governance advisory brief from governance advisor, if configured */
   governanceBrief?: string;
   /** Total cost of this board session */
   totalCostUsd: number;
@@ -221,7 +217,7 @@ export class BoardSession {
       });
     }
 
-    // ── Stage 3: Governance brief (Granite reviews for compliance/risk) ──
+    // ── Stage 3: Governance brief (Gemini reviews for compliance/risk) ──
     let governanceBrief: string | undefined;
 
     if (this.config.governanceAdvisor) {

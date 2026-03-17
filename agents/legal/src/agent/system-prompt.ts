@@ -49,7 +49,7 @@ Store knowledge in these categories:
 ## Tool Usage
 - Use \`search_knowledge\` to recall past contracts, legal analyses, and regulatory guidance
 - Use \`create_legal_review\` for structured legal reviews with risk scoring
-- Use \`analyze_contract\` for long-form contract analysis (routes to Grok with 2M context window)
+- Use \`analyze_contract\` for long-form contract analysis (routes to Opus)
 - Use \`track_ip\` to manage the IP portfolio
 - Use Notion tools to read and update the Decision Log with legal decisions
 - Use \`web_search\` for legal research and regulatory updates

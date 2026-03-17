@@ -25,9 +25,6 @@ export const config = {
   // Multi-model via OpenRouter (single key for all models)
   openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
 
-  // Moonshot direct API (optional — falls back to OpenRouter K2.5)
-  moonshotApiKey: optional("MOONSHOT_API_KEY"),
-
   // Cloudflare AI Gateway + Workers AI (optional — falls back to direct URLs)
   cfAccountId: optional("CF_ACCOUNT_ID"),
   cfGatewayId: optional("CF_GATEWAY_ID"),
@@ -66,9 +63,8 @@ export const config = {
   notionApiKey: optional("NOTION_API_KEY"),
   notionEnabled: !!process.env.NOTION_API_KEY,
 
-  // Gemini vision uses OpenRouter now; Kimi uses OpenRouter. Always available.
+  // Gemini vision uses OpenRouter. Always available.
   useGeminiVision: true,
-  useKimi: true,
 } as const;
 
 // ─── Startup validation ───────────────────────────────────────────────────────

@@ -20,7 +20,7 @@ export async function extractKnowledge(
   try {
     const conversationText = `User: ${userMsg}\n\nAssistant: ${assistantMsg.slice(0, 2000)}`;
 
-    const raw = await chatCompletion("kimi", [
+    const raw = await chatCompletion("gemini", [
       { role: "system", content: EXTRACT_PROMPT },
       { role: "user", content: conversationText },
     ], { temperature: 0.2, maxTokens: 1000 });

@@ -3,26 +3,14 @@ import { config } from "../config.js";
 // ─── Model aliases ───────────────────────────────────────────────────────────
 
 export type ModelAlias =
-  | "kimi"
-  | "gemini-pro"
   | "gemini"
-  | "gemini-lite"
   | "sonar"
-  | "deepseek"
-  | "deepseek-speciale"
-  | "granite"
-  | "sonnet";
+  | "grok-fast";
 
 const MODEL_IDS: Record<ModelAlias, string> = {
-  kimi: "moonshotai/kimi-k2.5",
-  "gemini-pro": "google/gemini-3-pro-preview",
   gemini: "google/gemini-3-flash-preview",
-  "gemini-lite": "google/gemini-2.5-flash-lite",
   sonar: "perplexity/sonar-pro",
-  deepseek: "deepseek/deepseek-v3.2",
-  "deepseek-speciale": "deepseek/deepseek-v3.2-speciale",
-  granite: "ibm-granite/granite-4.0-h-micro",
-  sonnet: "anthropic/claude-sonnet-4-6-20260217",
+  "grok-fast": "x-ai/grok-4-1-fast-non-reasoning",
 };
 
 // ─── AI Gateway helpers ──────────────────────────────────────────────────────
@@ -114,7 +102,7 @@ export interface ChatCompletionOpts {
 
 /**
  * Route a chat completion to any model via OpenRouter (native fetch).
- * Use aliases ("kimi", "gemini", "sonar") or full model IDs.
+ * Use aliases ("gemini", "sonar", "grok-fast") or full model IDs.
  */
 export async function chatCompletion(
   model: ModelAlias | string,
@@ -197,14 +185,14 @@ export async function embed(text: string): Promise<number[]> {
 // ─── Structured extraction ───────────────────────────────────────────────────
 
 /**
- * Extract structured JSON from a conversation using Kimi K2.5.
+ * Extract structured JSON from a conversation using Gemini 3 Flash.
  * Parses the response as JSON; throws if the response is not valid JSON.
  */
 export async function extractStructured<T>(
   messages: ChatMessage[],
   opts: ChatCompletionOpts = {},
 ): Promise<T> {
-  const text = await chatCompletion("kimi", messages, {
+  const text = await chatCompletion("gemini", messages, {
     ...opts,
     responseFormat: { type: "json_object" },
     temperature: opts.temperature ?? 0.2,
@@ -239,7 +227,7 @@ export async function batchProcess<T>(
   systemPrompt: string,
   opts: BatchProcessOpts = {},
 ): Promise<(T | null)[]> {
-  const { concurrency = 20, model = "kimi", temperature = 0.2, maxTokens = 4096 } = opts;
+  const { concurrency = 20, model = "gemini", temperature = 0.2, maxTokens = 4096 } = opts;
 
   // Process in batches of `concurrency`
   const results: (T | null)[] = [];

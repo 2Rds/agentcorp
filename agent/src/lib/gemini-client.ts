@@ -12,7 +12,7 @@ export async function parseDocumentWithVision(
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${mimeType};base64,${base64}`;
 
-  return chatCompletion("gemini-pro", [
+  return chatCompletion("gemini", [
     {
       role: "user",
       content: [

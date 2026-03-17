@@ -13,9 +13,9 @@ import type { PluginName } from "./plugins.js";
 /** Provider that hosts a model — determines routing and credential logic */
 export type ModelProvider =
   | "anthropic"     // Claude models via direct Anthropic API
-  | "openrouter"    // Aggregator (Gemini, Grok, Granite) via OpenRouter
+  | "openrouter"    // Aggregator (Gemini, Grok) via OpenRouter
   | "perplexity"    // Sonar models via direct Perplexity API
-  | "cohere";       // Command A + Rerank + Embed via direct Cohere API
+  | "cohere";       // Rerank + Embed via direct Cohere API
 
 /** What a model is good at — used for capability-based routing */
 export type ModelCapability =

@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { generateSQL } from "../lib/kimi-builder.js";
+import { generateSQL } from "../lib/structured-builder.js";
 import { validateSQL } from "../lib/sql-validator.js";
 import { suggestChart, type ChartConfig } from "../lib/chart-suggestor.js";
 
@@ -44,7 +44,7 @@ export function analyticsTools(orgId: string) {
     },
     async (args) => {
       try {
-        // Step 1: Generate SQL from natural language using Kimi K2
+        // Step 1: Generate SQL from natural language using Gemini 3 Flash
         const rawSQL = await generateSQL(args.question, DB_SCHEMA);
         console.log("Generated SQL:", rawSQL);
 

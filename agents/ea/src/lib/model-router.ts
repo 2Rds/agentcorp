@@ -4,13 +4,11 @@ import { config } from "../config.js";
 
 export type ModelAlias =
   | "gemini"
-  | "sonar"
-  | "granite";
+  | "sonar";
 
 const MODEL_IDS: Record<ModelAlias, string> = {
-  gemini: "google/gemini-3.1-pro",
+  gemini: "google/gemini-3-flash-preview",
   sonar: "perplexity/sonar-pro",
-  granite: "ibm-granite/granite-4.0-h-micro",
 };
 
 // ─── AI Gateway helpers ──────────────────────────────────────────────────────

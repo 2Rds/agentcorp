@@ -240,11 +240,12 @@ export class VoicePipeline {
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-opus-4-6-20250929",
+          model: "claude-opus-4-6",
           max_tokens: 300, // Keep voice responses concise
           system: systemPrompt,
           messages: call.conversationHistory,
         }),
+        signal: AbortSignal.timeout(30_000),
       });
 
       if (!response.ok) {

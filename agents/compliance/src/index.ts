@@ -2,7 +2,7 @@
  * Compliance Agent — CCA (Chief Compliance Agent)
  *
  * Governance engine for BlockDrive. Audit-read access to all namespaces.
- * Routes regulatory analysis to IBM Granite 4.0.
+ * Routes regulatory analysis to Claude Opus via Anthropic direct API.
  *
  * Port: 3005 | Namespace: compliance | Tier: department-head
  */

@@ -2,6 +2,40 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.1.2] - 2026-03-17
+
+Model stack collapse: 10 models → 4 LLMs + 2 utilities. Role-based routing replaces uniform orchestration. Pre-release model audit gate added to `/release` skill.
+
+### Changed
+
+- **Model stack collapsed** — Removed 6 LLMs (Gemini 3 Pro, Sonar Deep Research, Command A, Granite 4.0, Grok Fast Reasoning, Kimi K2.5, DeepSeek V3.2, Sonnet 4.6). Kept: Opus 4.6 (reasoning), Gemini 3 Flash (vision/orchestration), Grok 4.1 Fast (X-Twitter/classification), Sonar Pro (web search), Cohere Embed + Rerank (utilities).
+- **GEMINI registry updated** — `google/gemini-3.1-pro` → `google/gemini-3-flash-preview` across shared registry, CFO agent, and EA agent. All three locations now consistent.
+- **Opus registry updated** — Dated snapshot `claude-opus-4-6-20250929` → `claude-opus-4-6` (auto-updating alias).
+- **All 12 agent stacks simplified** — Each stack uses only kept models. COA, CFA, Compliance, Legal stacks reduced to Opus + Gemini.
+- **Board of Directors models** — Grok member changed from Reasoning to Fast; governance advisor changed from Granite to Gemini.
+- **Compliance `scan_compliance`** — Replaced Granite 4.0 8B (OpenRouter) with Opus (Anthropic direct). Customer-facing regulatory analysis now uses the best reasoning model.
+- **Legal `analyze_contract`** — Replaced Grok Reasoning (OpenRouter) with Opus (Anthropic direct). Customer-facing contract analysis now uses the best reasoning model.
+- **CFO `extractStructured()` and `batchProcess()`** — Default model changed from Kimi K2.5 to Gemini 3 Flash.
+- **CFO document vision** — `parseDocumentWithVision` changed from Gemini Pro to Gemini Flash (both have multimodal).
+- **CFO knowledge extraction** — Changed from Kimi K2.5 to Gemini 3 Flash.
+- **CFO semantic cache** — `CACHEABLE_MODELS` updated to only contain Gemini Flash and Grok Fast.
+- **Pre-release model audit** — Added Step 4 to `/release` skill: automated audit of all model calls against approved stack before every release.
+
+### Added
+
+- **`grok-fast` alias** in CFO model-router — Routes to `x-ai/grok-4-1-fast-non-reasoning`.
+- **`AbortSignal.timeout(30s)`** on voice pipeline Anthropic API call — Prevents indefinite hangs during live calls.
+
+### Removed
+
+- **`kimi-builder.ts`** → Renamed to `structured-builder.ts`. All Kimi K2.5 references replaced with Gemini 3 Flash.
+- **`moonshot-client.ts`** — Deleted. Dead Moonshot/Kimi direct API client.
+- **`dual-verify.ts`** — Deleted. Dead Opus + DeepSeek dual-verification module.
+- **7 dead model aliases** from CFO model-router: `kimi`, `gemini-pro`, `gemini-lite`, `deepseek`, `deepseek-speciale`, `granite`, `sonnet`.
+- **`granite` alias** from EA model-router.
+- **`MOONSHOT_API_KEY`** and `useKimi` config removed from CFO agent.
+- **4 model definitions** removed from `@waas/shared` registry: SONAR_DEEP, COMMAND_A, GRANITE, GROK_FAST_REASONING.
+
 ## [v3.1.1] - 2026-03-17
 
 Sales department restructuring: Sam repositioned from confused CSA/SDR/Head-of-Sales to Sales Manager. New internal SDR Worker (agentic loop) handles prospect research, Feature Store writes, CRM ops, and call briefs. Sean is Head of Sales.

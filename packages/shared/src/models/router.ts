@@ -2,7 +2,7 @@
  * Model Router — Multi-provider dispatch
  *
  * Routes model calls to the correct provider based on ModelConfig.provider.
- * Handles: Anthropic (direct), OpenRouter (aggregator for Gemini, Grok, Granite),
+ * Handles: Anthropic (direct), OpenRouter (aggregator for Gemini, Grok),
  * Perplexity (direct), Cohere (direct).
  *
  * Each provider client implements the same interface. The router dispatches

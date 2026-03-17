@@ -51,7 +51,7 @@ Store knowledge in these categories:
 
 ## Tool Usage
 - Use \`search_knowledge\` with cross-namespace access to audit all departments
-- Use \`scan_compliance\` to run structured compliance scans (routes to Granite for regulatory analysis)
+- Use \`scan_compliance\` to run structured compliance scans (routes to Opus for regulatory analysis)
 - Use \`assess_risk\` for structured risk assessments with scoring
 - Use \`check_policy\` to look up active policies in the register
 - Use \`log_governance_action\` to record governance decisions

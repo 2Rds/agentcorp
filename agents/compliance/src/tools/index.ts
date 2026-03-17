@@ -6,7 +6,7 @@
  * Handler returns: { content: [{ type: "text", text }] }
  *
  * Special: audit-read ALL namespaces via memory store (no agent_id filter)
- * Special: scan_compliance routes analysis to Granite 4.0 via OpenRouter
+ * Special: scan_compliance routes analysis to Claude Opus via Anthropic direct API
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -147,7 +147,7 @@ export function createMcpServer(orgId: string, _userId: string) {
     // ── Compliance-Specific Tools ──
     tool(
       "scan_compliance",
-      "Generate a structured compliance analysis using Granite 4.0. Produces a report template based on scope and framework — combine with search_knowledge audit-read to include actual department data.",
+      "Generate a structured compliance analysis using Claude Opus. Produces a report template based on scope and framework — combine with search_knowledge audit-read to include actual department data.",
       {
         scope: z.enum(["all", "financial", "marketing", "legal", "operations", "data"]).describe("Scan scope"),
         framework: z.string().max(100).optional().describe("Specific framework to check against (e.g., SOX, GDPR, ISO42001)"),
@@ -164,14 +164,27 @@ Analyze and report:
 5. **Timeline**: Recommended remediation timeline
 
 Format as a structured compliance report.`;
-        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          "https://openrouter.ai/api/v1/chat/completions",
-          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "ibm/granite-4.0-8b-instruct", messages: [{ role: "user", content: prompt }] }) },
-          "Compliance scan",
-        );
-        if (!result.ok) return err(result.error);
-        return text(result.data.choices?.[0]?.message?.content || "Compliance scan returned no results");
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": config.anthropicApiKey,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-opus-4-6",
+            max_tokens: 4096,
+            messages: [{ role: "user", content: prompt }],
+          }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          return err(`Compliance scan failed (${response.status}): ${errText}`);
+        }
+        const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
+        const resultText = data.content?.filter(c => c.type === "text" && c.text).map(c => c.text!).join("\n") || "Compliance scan returned no results";
+        return text(resultText);
       },
     ),
 

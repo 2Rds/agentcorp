@@ -20,7 +20,7 @@ const VISION_PROMPT = "Extract ALL text, numbers, data, and content from this im
 const PDF_VISION_PROMPT = "Extract ALL text, numbers, data, and content from this document. Preserve structure, headings, bullet points, and tables. Return only the extracted content.";
 
 /**
- * Call the Claude Sonnet API for vision-based content extraction.
+ * Call the Claude Opus API for vision-based content extraction.
  * Used as a fallback when Gemini vision is not configured.
  */
 async function callClaudeVision(

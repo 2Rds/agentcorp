@@ -2,7 +2,7 @@ import { z } from "zod";
 import { chatCompletion, extractStructured } from "./model-router.js";
 import { config } from "../config.js";
 
-// Zod schemas for validating K2 output
+// Zod schemas for validating Gemini output
 const FinancialModelRowSchema = z.object({
   category: z.enum(["revenue", "cogs", "opex", "headcount", "funding"]),
   subcategory: z.string(),
@@ -78,7 +78,7 @@ function buildUserPrompt(plan: string, context: string): string {
 }
 
 /**
- * Salvage individually valid items from a partially invalid K2 response.
+ * Salvage individually valid items from a partially invalid Gemini response.
  */
 function salvageValidItems<T extends z.ZodTypeAny>(items: unknown[], schema: T): z.output<T>[] {
   const valid: z.output<T>[] = [];
@@ -90,32 +90,27 @@ function salvageValidItems<T extends z.ZodTypeAny>(items: unknown[], schema: T):
 }
 
 /**
- * Classify a K2 API error and rethrow auth/rate-limit errors with clear messages.
+ * Classify an API error and rethrow auth/rate-limit errors with clear messages.
  * Returns without throwing for transient or unknown errors (caller returns empty fallback).
  */
 function rethrowKnownErrors(e: unknown): void {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes("401") || msg.includes("403")) {
-    throw new Error("Kimi K2 API authentication failed. Check MOONSHOT_API_KEY configuration.");
+    throw new Error("Gemini 3 Flash API authentication failed. Check OpenRouter API key configuration.");
   }
   if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
-    throw new Error("Kimi K2 rate limit exceeded. Please wait and try again.");
+    throw new Error("Gemini 3 Flash rate limit exceeded. Please wait and try again.");
   }
 }
 
 /**
- * Use Kimi K2 to generate financial model rows from a high-level plan.
- * Falls back to returning empty array if K2 unavailable.
+ * Use Gemini 3 Flash to generate financial model rows from a high-level plan.
+ * Falls back to returning empty array if Gemini unavailable.
  */
 export async function generateFinancialModelRows(
   plan: string,
   context: string = ""
 ): Promise<FinancialModelRow[]> {
-  if (!config.useKimi) {
-    console.warn("Kimi K2 not configured, skipping plan generation");
-    return [];
-  }
-
   try {
     const result = await extractStructured<{ rows: unknown[] }>(
       [
@@ -128,29 +123,24 @@ export async function generateFinancialModelRows(
     const parsed = FinancialModelResponseSchema.safeParse(result);
     if (parsed.success) return parsed.data.rows;
 
-    console.error("K2 financial model validation error:", parsed.error.message);
+    console.error("Gemini financial model validation error:", parsed.error.message);
     const salvaged = salvageValidItems(result.rows || [], FinancialModelRowSchema);
-    console.log(`Salvaged ${salvaged.length} valid rows from K2 response`);
+    console.log(`Salvaged ${salvaged.length} valid rows from Gemini response`);
     return salvaged;
   } catch (e: unknown) {
-    console.error("K2 financial model generation error:", e);
+    console.error("Gemini financial model generation error:", e);
     rethrowKnownErrors(e);
     return [];
   }
 }
 
 /**
- * Use Kimi K2 to generate cap table entries from a high-level plan.
+ * Use Gemini 3 Flash to generate cap table entries from a high-level plan.
  */
 export async function generateCapTableEntries(
   plan: string,
   context: string = ""
 ): Promise<CapTableEntry[]> {
-  if (!config.useKimi) {
-    console.warn("Kimi K2 not configured, skipping cap table generation");
-    return [];
-  }
-
   try {
     const result = await extractStructured<{ entries: unknown[] }>(
       [
@@ -163,28 +153,24 @@ export async function generateCapTableEntries(
     const parsed = CapTableResponseSchema.safeParse(result);
     if (parsed.success) return parsed.data.entries;
 
-    console.error("K2 cap table validation error:", parsed.error.message);
+    console.error("Gemini cap table validation error:", parsed.error.message);
     return salvageValidItems(result.entries || [], CapTableEntrySchema);
   } catch (e: unknown) {
-    console.error("K2 cap table generation error:", e);
+    console.error("Gemini cap table generation error:", e);
     rethrowKnownErrors(e);
     return [];
   }
 }
 
 /**
- * Use Kimi K2 to generate a PostgreSQL SELECT query from a natural language question.
+ * Use Gemini 3 Flash to generate a PostgreSQL SELECT query from a natural language question.
  * Used by the run_analytics_query analytics tool.
  */
 export async function generateSQL(
   question: string,
   schema: string
 ): Promise<string> {
-  if (!config.useKimi) {
-    throw new Error("Kimi K2 not configured");
-  }
-
-  const result = await chatCompletion("kimi", [
+  const result = await chatCompletion("gemini", [
     {
       role: "system",
       content: `You are a SQL generation engine. Given a database schema and a natural language question, generate a PostgreSQL SELECT query.

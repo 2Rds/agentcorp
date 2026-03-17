@@ -5,18 +5,14 @@
  * models matching its specialty. No uniform orchestration — each
  * agent is purpose-built.
  *
- * Grok 4.1 Fast Reasoning added for agents needing 2M context
- * or budget reasoning. COA gets it for cross-department synthesis.
- *
- * Sonar Deep Research (direct Perplexity) added for IR and
- * Research juniors — multi-step deep research with reasoning
- * for investor reports, market analysis, and competitor intel.
+ * Stack collapsed 2026-03-17: removed Sonar Deep, Command A,
+ * Granite, and Grok Fast Reasoning. Gemini updated to 3 Flash
+ * Preview. Grok Fast (non-reasoning) kept for CMA X/Twitter.
  */
 
 import type { ModelStack } from "../types.js";
 import {
-  OPUS, GEMINI, SONAR, SONAR_DEEP, COMMAND_A, GRANITE,
-  GROK_FAST_REASONING, GROK_FAST,
+  OPUS, GEMINI, SONAR, GROK_FAST,
   COHERE_EMBED, COHERE_RERANK,
 } from "./registry.js";
 
@@ -33,7 +29,7 @@ export const EA_STACK: ModelStack = {
 /** Chief Operating Agent — cross-department analysis, workforce management */
 export const COA_STACK: ModelStack = {
   primary: OPUS,
-  support: [GEMINI, GROK_FAST_REASONING],  // Multimodal reports + 2M context for cross-dept synthesis
+  support: [GEMINI],                       // Multimodal reports
   embedding: COHERE_EMBED,
   reranker: COHERE_RERANK,
 };
@@ -43,7 +39,7 @@ export const COA_STACK: ModelStack = {
 /** Chief Financial Agent — financial modeling, investor docs, cap table */
 export const CFA_STACK: ModelStack = {
   primary: OPUS,
-  support: [COMMAND_A, GROK_FAST],         // Financial RAG + 2M context for large models
+  support: [GEMINI],                       // Fast multimodal processing
   embedding: COHERE_EMBED,
   reranker: COHERE_RERANK,
 };
@@ -51,7 +47,7 @@ export const CFA_STACK: ModelStack = {
 /** Investor Relations — market research, data room management */
 export const IR_STACK: ModelStack = {
   primary: OPUS,
-  support: [SONAR, SONAR_DEEP, COMMAND_A], // Quick research + deep research + doc RAG
+  support: [SONAR],                        // Web research + citations
   embedding: COHERE_EMBED,
   reranker: COHERE_RERANK,
 };
@@ -66,7 +62,7 @@ export const CMA_STACK: ModelStack = {
 /** Chief Compliance Agent — regulatory analysis, governance, audit */
 export const COMPLIANCE_STACK: ModelStack = {
   primary: OPUS,
-  support: [GRANITE, COMMAND_A],           // ISO 42001 compliance + legal doc RAG
+  support: [GEMINI],                       // Fast processing for compliance analysis
   embedding: COHERE_EMBED,
   reranker: COHERE_RERANK,                 // Audit-read-all generates noisy cross-namespace results
 };
@@ -74,7 +70,7 @@ export const COMPLIANCE_STACK: ModelStack = {
 /** Chief Legal Agent — contract analysis, legal research */
 export const LEGAL_STACK: ModelStack = {
   primary: OPUS,
-  support: [COMMAND_A, GROK_FAST_REASONING],  // Legal RAG + 2M context for long contracts
+  support: [GEMINI],                       // Fast processing for legal analysis
   embedding: COHERE_EMBED,
   reranker: COHERE_RERANK,
 };
@@ -101,21 +97,21 @@ export const SDR_STACK: ModelStack = {
 /** Research junior — deep web research, citation gathering */
 export const RESEARCH_JUNIOR_STACK: ModelStack = {
   primary: OPUS,
-  support: [SONAR, SONAR_DEEP],           // Quick lookups + deep research
+  support: [SONAR],                        // Web research + citations
   embedding: COHERE_EMBED,
 };
 
 /** Data/Analyst junior — internal data analysis, report generation */
 export const DATA_JUNIOR_STACK: ModelStack = {
   primary: OPUS,
-  support: [COMMAND_A, GROK_FAST],         // RAG + 2M context for large datasets
+  support: [GEMINI],                       // Fast processing for data analysis
   embedding: COHERE_EMBED,
 };
 
 /** Compliance/Audit junior — policy checking, audit trail review */
 export const COMPLIANCE_JUNIOR_STACK: ModelStack = {
   primary: OPUS,
-  support: [GRANITE],
+  support: [GEMINI],                       // Fast processing for compliance checks
   embedding: COHERE_EMBED,
 };
 

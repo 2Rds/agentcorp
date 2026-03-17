@@ -6,12 +6,8 @@ const CACHE_PREFIX = "cache:";
 
 // Models whose responses should be cached (structured/deterministic outputs)
 const CACHEABLE_MODELS = new Set([
-  "moonshotai/kimi-k2.5",
   "google/gemini-3-flash-preview",
-  "google/gemini-3-pro-preview",
-  "google/gemini-2.5-flash-lite",
-  "deepseek/deepseek-v3.2",
-  "deepseek/deepseek-v3.2-speciale",
+  "x-ai/grok-4-1-fast-non-reasoning",
 ]);
 
 // Don't cache conversational/reasoning models — responses vary too much

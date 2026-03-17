@@ -1,7 +1,7 @@
 import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
-import { generateFinancialModelRows } from "../lib/kimi-builder.js";
+import { generateFinancialModelRows } from "../lib/structured-builder.js";
 import { addOrgMemory } from "../lib/memory-client.js";
 
 export function financialModelTools(orgId: string) {
@@ -34,7 +34,7 @@ export function financialModelTools(orgId: string) {
 
   const upsert_financial_model_rows = tool(
     "upsert_financial_model_rows",
-    "Batch create or update financial model rows. Provide explicit rows OR a plan string for AI-generated data. When a plan is provided, Kimi K2 generates the rows from your high-level description (e.g. 'Build a 24-month SaaS model with 3 revenue tiers'). You can combine a plan with explicit rows — explicit rows take precedence.",
+    "Batch create or update financial model rows. Provide explicit rows OR a plan string for AI-generated data. When a plan is provided, Gemini 3 Flash generates the rows from your high-level description (e.g. 'Build a 24-month SaaS model with 3 revenue tiers'). You can combine a plan with explicit rows — explicit rows take precedence.",
     {
       rows: z.array(z.object({
         id: z.string().optional().describe("Existing row ID to update. Omit for new rows."),
@@ -45,7 +45,7 @@ export function financialModelTools(orgId: string) {
         formula: z.string().optional().describe("Description of how this amount was calculated"),
         scenario: z.enum(["base", "best", "worst"]).default("base"),
       })).optional().describe("Array of financial model rows to upsert directly"),
-      plan: z.string().optional().describe("High-level plan for K2 to generate rows (e.g. 'Build a 24-month SaaS model starting Jan 2025 with Basic $10/mo, Pro $25/mo, Enterprise $50/mo tiers, base scenario'). K2 will generate the actual row data."),
+      plan: z.string().optional().describe("High-level plan for Gemini to generate rows (e.g. 'Build a 24-month SaaS model starting Jan 2025 with Basic $10/mo, Pro $25/mo, Enterprise $50/mo tiers, base scenario'). Gemini will generate the actual row data."),
     },
     async (args) => {
       const allRows: Array<{
@@ -59,9 +59,9 @@ export function financialModelTools(orgId: string) {
         organization_id: string;
       }> = [];
 
-      // If plan provided, use K2 to generate rows
+      // If plan provided, use Gemini to generate rows
       if (args.plan) {
-        // Fetch existing data as context for K2
+        // Fetch existing data as context for Gemini
         const { data: existing } = await supabaseAdmin
           .from("financial_model")
           .select("category, subcategory, month, amount, scenario")
@@ -76,13 +76,13 @@ export function financialModelTools(orgId: string) {
         const generated = await generateFinancialModelRows(args.plan, context);
         if (generated.length > 0) {
           allRows.push(...generated.map(r => ({ ...r, organization_id: orgId })));
-          console.log(`K2 generated ${generated.length} financial model rows`);
+          console.log(`Gemini generated ${generated.length} financial model rows`);
         } else {
-          return { content: [{ type: "text" as const, text: "K2 was unable to generate rows from the plan. Please provide explicit rows or try a more specific plan." }], isError: true };
+          return { content: [{ type: "text" as const, text: "Gemini was unable to generate rows from the plan. Please provide explicit rows or try a more specific plan." }], isError: true };
         }
       }
 
-      // Add explicit rows (these override K2-generated rows for same month/subcategory)
+      // Add explicit rows (these override Gemini-generated rows for same month/subcategory)
       if (args.rows && args.rows.length > 0) {
         allRows.push(...args.rows.map(r => ({ ...r, organization_id: orgId })));
       }
@@ -101,7 +101,7 @@ export function financialModelTools(orgId: string) {
       // Store memory of what was built (fire-and-forget)
       const categories = [...new Set(allRows.map(r => r.category))];
       const scenarios = [...new Set(allRows.map(r => r.scenario))];
-      const agentId = args.plan ? "k2-builder" : "opus-brain";
+      const agentId = args.plan ? "gemini-builder" : "opus-brain";
       addOrgMemory(
         `Financial model updated: ${data.length} rows across ${categories.join(", ")} (${scenarios.join(", ")} scenarios)${args.plan ? `. Plan: ${args.plan.slice(0, 200)}` : ""}`,
         orgId,

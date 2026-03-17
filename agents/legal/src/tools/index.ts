@@ -5,7 +5,7 @@
  *   tool(name, description, zodRawShape, handler)
  * Handler returns: { content: [{ type: "text", text }] }
  *
- * Special: analyze_contract routes to Grok 4.1 Fast Reasoning (2M context) for long-form contract review
+ * Special: analyze_contract routes to Claude Opus via Anthropic direct API for long-form contract review
  */
 
 import { tool, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
@@ -300,7 +300,7 @@ export function createMcpServer(orgId: string, _userId: string) {
 
     tool(
       "analyze_contract",
-      "Perform long-form contract analysis using Grok 4.1 Fast Reasoning with 2M context window. For detailed clause-by-clause review of lengthy agreements.",
+      "Perform long-form contract analysis using Claude Opus. For detailed clause-by-clause review of lengthy agreements.",
       {
         contract_text: z.string().max(500000).describe("Full contract text or key excerpts to analyze"),
         focus_areas: z.string().max(500).optional().describe("Specific areas to focus analysis on (e.g., indemnification, IP, termination)"),
@@ -319,14 +319,27 @@ export function createMcpServer(orgId: string, _userId: string) {
 
 Contract text:
 ${args.contract_text}`;
-        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          "https://openrouter.ai/api/v1/chat/completions",
-          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "x-ai/grok-4-1-fast-reasoning", messages: [{ role: "user", content: prompt }] }) },
-          "Contract analysis",
-        );
-        if (!result.ok) return err(result.error);
-        return text(result.data.choices?.[0]?.message?.content || "Contract analysis returned no results");
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": config.anthropicApiKey,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-opus-4-6",
+            max_tokens: 4096,
+            messages: [{ role: "user", content: prompt }],
+          }),
+          signal: AbortSignal.timeout(60_000),
+        });
+        if (!response.ok) {
+          const errText = await response.text();
+          return err(`Contract analysis failed (${response.status}): ${errText}`);
+        }
+        const data = await response.json() as { content?: Array<{ type: string; text?: string }> };
+        const resultText = data.content?.filter(c => c.type === "text" && c.text).map(c => c.text!).join("\n") || "Contract analysis returned no results";
+        return text(resultText);
       },
     ),
 

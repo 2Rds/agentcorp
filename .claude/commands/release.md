@@ -28,12 +28,55 @@ Usage: /release <patch|minor|major>
 - Group commits by their conventional commit prefix (feat:, fix:, refactor:, etc.)
 - This becomes the changelog for the release
 
-## 4. Update `package.json` version(s)
+## 4. Model Stack Audit (pre-release gate)
+
+Run a model usage audit before proceeding. This catches misassigned models before they ship.
+
+### Approved model stack
+
+| Model | Approved Use Cases |
+|-------|-------------------|
+| `claude-opus-4-6` (Anthropic direct) | All reasoning, analysis, writing, customer-facing output |
+| `google/gemini-3-flash-preview` (OpenRouter) | Multimodal vision/OCR, internal orchestration, knowledge extraction, structured data |
+| `x-ai/grok-4-1-fast` (OpenRouter) | X/Twitter data access, classification, routing, tagging |
+| `perplexity/sonar-pro` (OpenRouter/Perplexity) | Live web search |
+| `cohere/embed-v4.0` | Vector embeddings (utility) |
+| `cohere/rerank-v4.0` | Search result reranking (utility) |
+| `eleven_flash_v2_5` / `scribe_v2_realtime` | Voice TTS/STT (ElevenLabs) |
+
+### Audit steps
+
+1. **Search all agent tool files** for hardcoded model IDs and `chatCompletion(` calls:
+   - `agent/src/lib/` and `agent/src/tools/` (CFO)
+   - `agents/ea/src/lib/` and `agents/ea/src/tools/` (EA)
+   - `agents/*/src/tools/` (all department agents)
+   - `agents/sales/src/sdr/` (SDR worker)
+   - `packages/runtime/src/voice/` (voice pipeline)
+   - `packages/shared/src/models/` (registry, stacks, board)
+
+2. **Flag any model NOT in the approved stack** — report the file, line, model ID, and what task it performs.
+
+3. **Flag any customer-facing tool using a non-Opus model** unless it falls into an approved exception:
+   - Vision/OCR → Gemini 3 Flash (multimodal-optimized)
+   - Live web search → Sonar Pro (unique capability)
+   - X/Twitter data → Grok 4.1 Fast (unique capability)
+
+4. **Report findings** to the user:
+   - If violations found: list them, ask whether to proceed or fix first
+   - If clean: print `Model audit passed — all assignments match approved stack` and continue
+
+### Routing framework (for evaluating assignments)
+
+- **Does another model have a unique capability Opus lacks?** (vision, web, X/Twitter) → Use that model
+- **Is this reasoning/analysis/writing the customer sees?** → Opus
+- **Is this internal plumbing the customer never sees?** → Gemini Flash or Grok
+
+## 5. Update `package.json` version(s)
 
 - Update `version` in the root `package.json`
 - Update `version` in `agent/package.json` to match
 
-## 5. Update documentation files
+## 6. Update documentation files
 
 For each of these files, read the current content (if it exists), then rewrite/update it based on the **current state of the codebase** (read key files as needed to ensure accuracy). If a file doesn't exist yet, create it.
 
@@ -53,7 +96,7 @@ For each of these files, read the current content (if it exists), then rewrite/u
 ### `ARCHITECTURE.md`
 - High-level system architecture: React frontend, Express agent server, Supabase backend
 - Key components: auth flow, financial engine, agent orchestration, knowledge system
-- Multi-model strategy (Opus, Kimi K2.5, Gemini, DeepSeek, Sonar)
+- Multi-model strategy: Opus (reasoning), Gemini 3 Flash (vision/orchestration), Grok 4.1 Fast (classification/X-Twitter), Sonar Pro (web search)
 - Infrastructure: Redis (RediSearch vector search + Cohere embeddings), Cloudflare AI Gateway
 - Data flow for chat, financial model, and investor data room
 - Update based on actual current codebase structure
@@ -74,7 +117,7 @@ For each of these files, read the current content (if it exists), then rewrite/u
 - Future roadmap items
 - Update based on actual current state
 
-## 6. Update CLAUDE.md
+## 7. Update CLAUDE.md
 
 Run the `claude-md-improver` skill (via the Skill tool) to audit and update all CLAUDE.md files in the repo. This ensures project instructions stay accurate as the codebase evolves with each release.
 
@@ -82,14 +125,14 @@ Run the `claude-md-improver` skill (via the Skill tool) to audit and update all 
 - Review the changes it makes — only keep updates that reflect real codebase changes
 - Stage any modified CLAUDE.md files for the release commit
 
-## 7. Commit and tag
+## 8. Commit and tag
 
 - Stage all changed files: the doc files + package.json files + CLAUDE.md files
 - Create a single commit: `release: vX.Y.Z`
 - Create an annotated git tag: `git tag -a vX.Y.Z -m "Release vX.Y.Z"`
 - Do NOT push automatically — tell the user to review and push when ready
 
-## 8. Summary
+## 9. Summary
 
 Print a summary:
 ```

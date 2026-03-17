@@ -1,20 +1,21 @@
 /**
- * Model Registry — The 8-model stack
+ * Model Registry — The 6-model stack
  *
- * Final allocation decided 2026-03-04, updated 2026-03-04:
+ * Collapsed 2026-03-17 from 8 models to 6:
  * 1. Opus 4.6 — Brain (every agent) + Board Chairman
- * 2. Gemini 3.1 Pro — Multimodal + Google Search grounding
+ * 2. Gemini 3 Flash Preview — Fast multimodal + Google Search grounding
  * 3. Sonar Pro — Web research + citations (direct Perplexity)
- * 4. Sonar Deep Research — Multi-step deep research + reasoning (direct Perplexity)
- * 5. Cohere Command A — Enterprise RAG + Rerank
- * 6. IBM Granite 4.0 — Compliance engine via OpenRouter (not board member)
- * 7. Grok 4.1 Fast Reasoning — 2M context, budget reasoning, Board Member
- * 8. Grok 4.1 Fast Non-Reasoning — 2M context, ultra-fast processing
+ * 4. Grok 4.1 Fast Non-Reasoning — 2M context, ultra-fast processing
+ * 5. Cohere embed-v4.0 — Embedding (1536-dim vectors)
+ * 6. Cohere rerank-v4.0 — Reranking
+ *
+ * Removed: Sonar Deep Research (redundant with Sonar Pro), Command A
+ * (free tier exhaustion risk), Granite (compliance handled by Opus),
+ * Grok Fast Reasoning (non-reasoning variant sufficient).
  *
  * Board of Directors (LLM Council): Opus (dual-role: participant + chairman),
  * Gemini, Grok, Sonar (members). Cohere excluded from board — free tier
- * reserved for RAG/rerank ops. Granite embedded with chairman as governance
- * advisor. Every board decision gets a compliance pass before synthesis.
+ * reserved for RAG/rerank ops. Gemini serves as governance advisor.
  *
  * No Sonnet (token inefficiency negates cost savings with memory compounding).
  * No Chinese models (trust non-negotiable in blockchain/fintech).
@@ -25,7 +26,7 @@ import type { ModelConfig } from "../types.js";
 // ─── Primary Brain ──────────────────────────────────────────────────────────
 
 export const OPUS: ModelConfig = {
-  id: "claude-opus-4-6-20250929",
+  id: "claude-opus-4-6",
   provider: "anthropic",
   alias: "opus",
   capabilities: ["reasoning", "code", "multimodal"],
@@ -37,11 +38,11 @@ export const OPUS: ModelConfig = {
 // ─── Support Models ─────────────────────────────────────────────────────────
 
 export const GEMINI: ModelConfig = {
-  id: "google/gemini-3.1-pro",
+  id: "google/gemini-3-flash-preview",
   provider: "openrouter",
   alias: "gemini",
-  capabilities: ["multimodal", "search-grounding", "reasoning"],
-  pricing: { inputPerMillion: 2, outputPerMillion: 12 },
+  capabilities: ["multimodal", "search-grounding"],
+  pricing: { inputPerMillion: 0.15, outputPerMillion: 0.60 },
   contextWindow: 1_000_000,
 };
 
@@ -52,42 +53,6 @@ export const SONAR: ModelConfig = {
   capabilities: ["web-search", "reasoning"],
   pricing: { inputPerMillion: 3, outputPerMillion: 15 },
   contextWindow: 200_000,
-};
-
-export const SONAR_DEEP: ModelConfig = {
-  id: "sonar-deep-research",
-  provider: "perplexity",
-  alias: "sonar-deep",
-  capabilities: ["web-search", "reasoning"],
-  pricing: { inputPerMillion: 2, outputPerMillion: 8 },
-  contextWindow: 128_000,
-};
-
-export const COMMAND_A: ModelConfig = {
-  id: "command-a-08-2025",
-  provider: "cohere",
-  alias: "command-a",
-  capabilities: ["rag", "reasoning", "code"],
-  pricing: { inputPerMillion: 2.5, outputPerMillion: 10 },
-  contextWindow: 256_000,
-};
-
-export const GRANITE: ModelConfig = {
-  id: "ibm-granite/granite-4.0-h-micro",
-  provider: "openrouter",
-  alias: "granite",
-  capabilities: ["compliance", "reasoning"],
-  pricing: { inputPerMillion: 0.017, outputPerMillion: 0.11 },
-  contextWindow: 131_000,
-};
-
-export const GROK_FAST_REASONING: ModelConfig = {
-  id: "x-ai/grok-4-1-fast-reasoning",
-  provider: "openrouter",
-  alias: "grok-reason",
-  capabilities: ["reasoning", "code"],
-  pricing: { inputPerMillion: 0.20, outputPerMillion: 0.50 },
-  contextWindow: 2_000_000,
 };
 
 export const GROK_FAST: ModelConfig = {
@@ -124,10 +89,6 @@ export const MODEL_REGISTRY = {
   opus: OPUS,
   gemini: GEMINI,
   sonar: SONAR,
-  "sonar-deep": SONAR_DEEP,
-  "command-a": COMMAND_A,
-  granite: GRANITE,
-  "grok-reason": GROK_FAST_REASONING,
   "grok-fast": GROK_FAST,
   embed: COHERE_EMBED,
   rerank: COHERE_RERANK,

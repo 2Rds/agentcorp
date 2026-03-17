@@ -2,6 +2,22 @@
 
 ## Current Status
 
+### Completed — v3.1.2 (2026-03-17)
+
+**Model Stack Collapse (10 → 4 LLMs + 2 utilities)**
+- [x] Removed 6 LLMs: Gemini 3 Pro, Sonar Deep, Command A, Granite 4.0, Grok Reasoning, Kimi K2.5/DeepSeek/Sonnet
+- [x] GEMINI registry unified to `google/gemini-3-flash-preview` across all agents
+- [x] Opus registry updated to non-dated `claude-opus-4-6` alias
+- [x] All 12 agent stacks simplified to use only kept models
+- [x] Board of Directors models updated (Grok→Fast, Granite→Gemini)
+- [x] Compliance `scan_compliance`: Granite 8B → Opus (Anthropic direct)
+- [x] Legal `analyze_contract`: Grok Reasoning → Opus (Anthropic direct)
+- [x] CFO structured generation: Kimi K2.5 → Gemini Flash (`structured-builder.ts`)
+- [x] Deleted: `kimi-builder.ts`, `moonshot-client.ts`, `dual-verify.ts`
+- [x] Cleaned 7 dead aliases from CFO model-router, 1 from EA model-router
+- [x] Pre-release model audit gate added to `/release` skill
+- [x] Voice pipeline: added 30s timeout, fixed dated Opus ID
+
 ### Completed — v3.1.1 (2026-03-17)
 
 **Sales Department Restructuring (Sam → Sales Manager + SDR Worker)**
