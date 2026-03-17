@@ -2,6 +2,35 @@
 
 ## Current Status
 
+### Completed — v3.1.0 (2026-03-17)
+
+**Cohere embed-v4.0 1536-dim Migration**
+- [x] All RediSearch indexes migrated from 768-dim to 1536-dim (idx:memories, idx:plugins, idx:documents, idx:llm_cache_v2, idx:prospect_features)
+- [x] CFO agent `embed()` migrated from Cloudflare bge-base/Google to Cohere embed-v4.0 (1536-dim)
+- [x] EA agent `embed()` migrated from Cloudflare bge-base/Google to Cohere embed-v4.0 (1536-dim)
+- [x] CFO `memory-client.ts`, `redis-client.ts` EMBEDDING_DIM updated
+- [x] EA `memory-client.ts`, `redis-client.ts` EMBEDDING_DIM updated
+- [x] `@waas/runtime` modules (`redis-memory.ts`, `semantic-cache.ts`, `feature-store.ts`) updated
+
+**Dark-Only UI + Design Cleanup**
+- [x] Removed `next-themes` dependency, `ThemeProvider`, `ThemeToggle` component
+- [x] Removed light-mode CSS variables (dark-only)
+- [x] Removed unused CSS classes and Tailwind animations
+- [x] Cleaned `AgentInfo` type (removed `color`/`colorClass`)
+
+**Redis MCP Integration for Claude Code**
+- [x] Custom Redis Memory MCP server at `~/.claude/mcp-servers/redis-memory/`
+- [x] Claude Code auto-memory files (`memory/` directory) committed
+- [x] `.claude/settings.local.json` updated with redis-memory tool permissions
+
+**Critical Audit Fixes (3 issues from Opus 4.6 review)**
+- [x] CRITICAL: EA agent 768→1536 dimension mismatch (would corrupt shared index)
+- [x] CRITICAL: CFO embed() producing wrong dimension vectors for semantic cache + plugin loader
+- [x] CRITICAL: DataRoom route accidentally removed during frontend merge
+- [x] Parker/CCA name regression fixed
+- [x] Version regression (3.0.1→2.1.0) fixed
+- [x] Stale memory files updated (DO App ID, n8n IP, health check URLs)
+
 ### Completed — v3.0.1 (2026-03-16)
 
 **Finance Workspace Migration**
@@ -13,7 +42,7 @@
 ### Completed — v3.0.0 (2026-03-15)
 
 **Redis AI Infrastructure (3 new runtime modules)**
-- [x] `SemanticCache` — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW COSINE, `idx:llm_cache_v2` index). Cross-agent sharing, 95% similarity threshold, configurable TTL. Promise lock on `ensureIndex()`.
+- [x] `SemanticCache` — LLM response caching via Redis vector search (Cohere embed-v4.0, 1536-dim HNSW COSINE, `idx:llm_cache_v2` index). Cross-agent sharing, 95% similarity threshold, configurable TTL. Promise lock on `ensureIndex()`.
 - [x] `AgentMemoryServerClient` — HTTP client for Redis Agent Memory Server (two-tier: working memory + long-term semantic search). Implements `MemoryClient` interface. Health-check fallback to `RedisMemoryClient`.
 - [x] `FeatureStore` — Sub-millisecond Redis HASH feature retrieval for Sales agent. 4 feature types × 4 RediSearch indexes (`idx:prospect_features`, `idx:industry_features`, `idx:agent_performance`, `idx:call_brief`). Per-method `orgId` override.
 - [x] `AgentRuntime.start()` initializes all three modules during startup lifecycle
@@ -113,7 +142,7 @@
 - [x] 59 unit tests across 4 test files (all passing)
 
 **Infrastructure Consolidation (NYC3 → NYC1)**
-- [x] Redis droplet migrated to NYC1 (`waas-redis-nyc1`, 67.205.165.14)
+- [x] Redis droplet migrated to NYC1 (`waas-redis-nyc1`, 159.223.179.119, NVMe SSD)
 - [x] n8n droplet migrated to NYC1 (`n8n-nyc1`, 134.209.67.70, Docker + Caddy)
 - [x] Old NYC3 Redis and n8n droplets deleted
 - [x] DNS updated via Cloudflare API (`n8n.blockdrive.co` → NYC1 IP)

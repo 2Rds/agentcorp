@@ -107,7 +107,7 @@ waas/
 - **AgentCorp Workspace UI** — 7 department workspaces with agent chat, task management, and department-specific dashboards
 - **AI Agent Chat** — Streaming SSE chat with Markdown rendering, conversation persistence, per-agent URL routing
 - **Agent Health Monitoring** — Real-time agent status dashboard with online/offline/unknown tracking
-- **Semantic Cache** — LLM response caching via Redis vector search (Cohere embed-v4.0, 768-dim HNSW). Cross-agent sharing, 95% similarity threshold, configurable TTL
+- **Semantic Cache** — LLM response caching via Redis vector search (Cohere embed-v4.0, 1536-dim HNSW). Cross-agent sharing, 95% similarity threshold, configurable TTL
 - **Agent Memory Server** — Two-tier cognitive memory (working memory + long-term semantic search) via Redis AMS HTTP client
 - **Feature Store** — Sub-millisecond Redis HASH-based feature retrieval for Sales (prospect, industry, agent performance, call brief features with 4 RediSearch indexes)
 - **Voice Pipeline** — ElevenLabs TTS/STT + VoiceTransport WebSocket bridge for NextGenSwitch telephony integration (foundation)
@@ -140,7 +140,7 @@ waas/
 | Dept Agents | Express, Agent SDK + @waas/runtime, org-scoped MCP tools |
 | Platform | @waas/shared (types), @waas/runtime (execution engine + tool-helpers) |
 | Models | Claude Opus 4.6, Gemini 3.1 Pro, Sonar Pro, Grok 4.1 Fast, Granite 4.0, Command A |
-| Search | Redis 8.4 (RediSearch vector indexes, semantic cache, feature store) |
+| Search | Redis 8.6.1 (RediSearch vector indexes, semantic cache, feature store) |
 | Memory | Redis (persistent memory + Agent Memory Server, org-scoped) |
 | Voice | ElevenLabs (TTS/STT), VoicePipeline (WebSocket bridge), VoiceTransport |
 | Observability | Sentry (@sentry/react + @sentry/node), PostHog (posthog-js + posthog-node) |

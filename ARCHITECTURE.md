@@ -233,7 +233,7 @@ System prompt enriched via `Promise.allSettled` (parallel):
 
 ### Redis (vector search + caching + feature store)
 
-Redis 8.4 via Docker Compose. Seven RediSearch indexes:
+Redis 8.6.1 (self-hosted DO Droplet NYC1, 159.223.179.119). Seven RediSearch indexes:
 
 | Index | Prefix | Purpose |
 |-------|--------|---------|
@@ -246,7 +246,7 @@ Redis 8.4 via Docker Compose. Seven RediSearch indexes:
 | `idx:agent_performance` | `fs:{orgId}:agent_perf:` | Agent performance metrics |
 | `idx:call_brief` | `fs:{orgId}:call_brief:` | Sales call briefing features |
 
-All vectors are 768-dimensional (COSINE, HNSW, FLOAT32). Embeddings via Cohere embed-v4.0 (primary) with Cloudflare Workers AI (`bge-base-en-v1.5`, free tier) fallback.
+All vectors are 1536-dimensional (COSINE, HNSW, FLOAT32). Embeddings via Cohere embed-v4.0 (1536-dim) across all agents.
 
 Shared helpers exported from `redis-client.ts`: `createIndex()`, `vectorSearch()`, `escapeTag()`, `nowSecs()`.
 
@@ -264,7 +264,7 @@ Both implement the `MemoryClient` interface for transparent swap. Organization-s
 - Multi-model attribution via `agent_id`
 - Session memory via `run_id` per conversation thread
 - System prompt enriched with relevant org memories before each query
-- Cohere embeddings (768-dim) for semantic search
+- Cohere embeddings (1536-dim) for semantic search
 - ScopedMemoryClient per department with namespace enforcement
 
 ### Semantic Cache
@@ -408,5 +408,5 @@ Webhook handler uses timing-safe comparison for `WEBHOOK_SECRET` (or `SUPABASE_S
   - Sales Agent — dedicated `apps-d-1vcpu-0.5gb` ($29/mo), auto-scales 1→3 at 75% CPU, port 3007, `/sales` ingress
   - CFO Agent — shared `apps-s-1vcpu-1gb` ($12/mo), port 3001, `/` ingress
   - COA, CMA, Compliance, Legal — shared `apps-s-1vcpu-1gb` ($12/mo each), ports 3003-3006
-- **Redis:** DigitalOcean Droplet NYC1 (`waas-redis-nyc1`, 67.205.165.14), password-protected, VPC `10.116.0.2`
+- **Redis:** DigitalOcean Droplet NYC1 (`waas-redis-nyc1`, 159.223.179.119), Redis 8.6.1 + RediSearch + RedisJSON, NVMe SSD, VPC `10.116.0.6`
 - **n8n:** DigitalOcean Droplet NYC1 (`n8n-nyc1`, 134.209.67.70, `n8n.blockdrive.co`), Docker + Caddy reverse proxy with auto-TLS

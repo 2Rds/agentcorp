@@ -252,6 +252,7 @@ Express + Claude Agent SDK. Multi-model orchestration via OpenRouter + persisten
 | `/legal` | LegalWorkspace | Legal agent chat + reviews |
 | `/sales` | SalesWorkspace | Sales agent chat + pipeline |
 | `/settings` | Settings | User and org settings |
+| `/dataroom/:slug` | DataRoom | Public investor data room (no auth) |
 
 ### Edge Functions (supabase/functions/)
 
@@ -346,7 +347,7 @@ Deno runtime.
 - shadcn/ui (Radix primitives) in `src/components/ui/` — don't modify directly
 - `AgentChat` (`src/components/chat/AgentChat.tsx`) — streaming SSE chat with Markdown rendering, conversation persistence, per-agent URL routing via `VITE_*_AGENT_URL` env vars
 - `DepartmentWorkspace` (`src/components/workspace/DepartmentWorkspace.tsx`) — reusable layout for all 7 department workspace pages
-- Tailwind CSS with CSS variables for theming (light/dark)
+- Tailwind CSS with CSS variables (dark-only, no light theme)
 - `cn()` from `src/lib/utils.ts` for conditional class merging
 - TanStack Query for server state; React Context for auth only
 - Sentry `ErrorBoundary` wraps all routes (falls back to `FallbackErrorBoundary` class component)

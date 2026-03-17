@@ -2,6 +2,37 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.1.0] - 2026-03-17
+
+Cohere embed-v4.0 1536-dim migration across all agents and indexes, dark-only UI with design system cleanup, Redis MCP integration for Claude Code persistent memory, and critical audit fixes.
+
+### Changed
+
+- **Vector dimensions 768→1536** — All RediSearch indexes (`idx:memories`, `idx:plugins`, `idx:documents`, `idx:llm_cache_v2`, `idx:prospect_features`) migrated to 1536-dim for Cohere embed-v4.0. Affects CFO agent (`memory-client.ts`, `redis-client.ts`), EA agent (`memory-client.ts`, `redis-client.ts`), and `@waas/runtime` (`redis-memory.ts`, `semantic-cache.ts`, `feature-store.ts`)
+- **CFO `embed()` migrated to Cohere** — `model-router.ts` embed function replaced Cloudflare bge-base-en-v1.5 (768-dim) + Google text-embedding-004 fallback with Cohere embed-v4.0 (1536-dim) direct call. Affects semantic cache and plugin loader consumers
+- **EA `embed()` migrated to Cohere** — Same migration in EA's `model-router.ts`, replacing Cloudflare + Google with Cohere embed-v4.0
+- **Dark-only UI** — Removed `next-themes` dependency, `ThemeProvider`, `ThemeToggle` component, and light-mode CSS variables. Hardcoded `theme="dark"` on Sonner toaster. Kept only dark theme CSS custom properties
+- **Agent registry cleanup** — Removed `color`/`colorClass` fields from `AgentInfo` type (all consumers use `getDeptTheme()` instead). Updated agent titles: Legal → "Legal Counsel", Sales → "Head of Sales"
+- **Design system cleanup** — Removed unused CSS classes (`glass`, `glass-intense`, `hover-lift`, `glow-halo`, `text-gradient-subtle`) and unused Tailwind animations (`pulse-subtle`, `fade-in-up`, `slide-in-left`, `reveal`, `spin-slow`, `glow-pulse`, `float`)
+- **Redis IP updated** — CLAUDE.md deployment table updated to new NVMe droplet (159.223.179.119, Redis 8.6.1 + RediSearch + RedisJSON)
+
+### Fixed
+
+- **EA agent 768→1536 vector mismatch** (CRITICAL) — EA agent was missed in dimension migration; would have corrupted shared `idx:memories` index when writing 768-dim vectors into 1536-dim schema
+- **CFO embed() dimension mismatch** (CRITICAL) — `model-router.ts` embed function produced 768-dim vectors while all CFO indexes expected 1536-dim, breaking semantic cache and plugin loader
+- **DataRoom route removed** (CRITICAL) — `/dataroom/:slug` public route was accidentally dropped during frontend merge while `LinkCard` and `LinkDetailPanel` still generate URLs to it. Restored as public route
+- **Parker/CCA name regression** — Frontend `agents.ts` reverted compliance agent name from "Parker" to "CCO" (stale clone data). Fixed back to "Parker" / "Chief Compliance Agent"
+- **Version regression** — `package.json` version regressed from 3.0.1 to 2.1.0 during frontend merge. Fixed
+- **Stale memory files** — Updated old DO App ID, old n8n IP, and old health check URLs in `memory/` directory files
+- **Stale JSDoc comments** — `semantic-cache.ts` file-level comments still referenced 768-dim; updated to 1536-dim
+
+### Added
+
+- **Claude Code auto-memory files** — `memory/` directory with people profiles, project context, decisions log, glossary, and deployment context for persistent cross-session knowledge
+- **Redis MCP tool permissions** — `.claude/settings.local.json` updated with `redis-memory` MCP server tool allow entries
+- **.gitignore exclusions** — Added `agent/output/`, `agent/service-account.json`, `supabase/.temp/`
+- **Vercel build fix** — `.npmrc` with `legacy-peer-deps=true` for dependency resolution
+
 ## [v3.0.1] - 2026-03-16
 
 Finance workspace migration + UI overhaul. Replaced placeholder tabs with real implementations, added dedicated Cap Table tab with full CRUD, wired Realtime subscriptions for live data updates.
