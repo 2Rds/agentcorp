@@ -1,5 +1,5 @@
 /**
- * Sales Agent Tools — 12 MCP tools for pipeline & revenue
+ * Sales Agent Tools — 15 MCP tools for pipeline management & team orchestration
  *
  * Uses Agent SDK tool() with 4-arg signature:
  *   tool(name, description, zodRawShape, handler)
@@ -11,9 +11,10 @@ import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
 import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
-import { safeFetch, safeFetchText, safeJsonParse, stripHtml, type ProspectFeatures, type IndustryFeatures, type CallBriefFeatures, type FeatureStore } from "@waas/runtime";
+import { safeFetch, safeFetchText, safeJsonParse, stripHtml, type FeatureStore } from "@waas/runtime";
 import { config } from "../config.js";
 import { getRuntime } from "../runtime-ref.js";
+import type { SdrWorker } from "../sdr/worker.js";
 
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const err = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
@@ -59,7 +60,7 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Persist sales knowledge — deal updates, prospect insights, call learnings, objection handling, competitive intel.",
       {
         content: z.string().max(5000).describe("The knowledge to save"),
-        category: z.enum(["deal_pipeline", "prospect_research", "call_transcripts", "objections", "competitive_intel"]),
+        category: z.enum(["deal_pipeline", "team_performance", "competitive_intel", "strategic_decisions"]),
       },
       async (args) => {
         const memory = getRuntime()?.memory;
@@ -151,7 +152,7 @@ export function createMcpServer(orgId: string, _userId: string) {
       },
     ),
 
-    // ── Sales-Specific Tools ──
+    // ── Sales Pipeline Tools ──
     tool(
       "manage_pipeline",
       "Create, update, or list deals in the sales pipeline.",
@@ -231,34 +232,6 @@ export function createMcpServer(orgId: string, _userId: string) {
     ),
 
     tool(
-      "research_prospect",
-      "Conduct structured prospect research using web search. Returns company profile, key contacts, pain points, and approach recommendations.",
-      {
-        company: z.string().max(200).describe("Company name to research"),
-        contact: z.string().max(200).optional().describe("Specific contact to research"),
-        focus: z.string().max(500).optional().describe("Specific aspects to focus on (e.g., recent funding, tech stack, pain points)"),
-      },
-      async (args) => {
-        const prompt = args.contact
-          ? `Research ${args.contact} at ${args.company}. Provide: 1) Their role and responsibilities, 2) Professional background, 3) Recent activity (posts, talks, articles), 4) Connection points for outreach.${args.focus ? ` Focus on: ${args.focus}` : ""}`
-          : `Research ${args.company} for a B2B sales approach. Provide: 1) Company overview (size, industry, revenue), 2) Key decision makers, 3) Recent news and events, 4) Potential pain points, 5) Technology stack, 6) Recommended approach angle.${args.focus ? ` Focus on: ${args.focus}` : ""}`;
-        const apiUrl = config.perplexityApiKey
-          ? "https://api.perplexity.ai/chat/completions"
-          : "https://openrouter.ai/api/v1/chat/completions";
-        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          apiUrl,
-          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }) },
-          "Prospect research",
-        );
-        if (!result.ok) return err(result.error);
-        return text(result.data.choices?.[0]?.message?.content || "No research results available");
-      },
-    ),
-
-    tool(
       "prep_call",
       "Generate a structured call preparation brief for an upcoming sales call.",
       {
@@ -325,39 +298,6 @@ export function createMcpServer(orgId: string, _userId: string) {
     ),
 
     tool(
-      "draft_email",
-      "Draft a sales outreach or follow-up email. Saved to communications log for tracking.",
-      {
-        to: z.string().max(200).describe("Recipient name and/or email"),
-        subject: z.string().max(200).describe("Email subject line"),
-        body: z.string().max(10000).describe("Email body content"),
-        type: z.enum(["cold_outreach", "follow_up", "proposal", "thank_you", "re_engagement"]).default("cold_outreach"),
-        pipeline_id: z.string().max(100).optional().describe("Pipeline deal ID to associate this email with"),
-      },
-      async (args) => {
-        try {
-          const { data, error: dbError } = await supabase
-            .from("sales_call_logs")
-            .insert({
-              org_id: orgId,
-              pipeline_id: args.pipeline_id || null,
-              type: "email",
-              summary: JSON.stringify({ to: args.to, subject: args.subject, body: args.body, email_type: args.type }),
-              action_items: [{ action: "Review and send email", status: "pending" }],
-              sentiment: "neutral",
-              next_steps: "Review draft, personalize if needed, send",
-            })
-            .select("id")
-            .single();
-          if (dbError) return err(`Draft failed: ${dbError.message}`);
-          return text(JSON.stringify({ id: data?.id, subject: args.subject, type: args.type, status: "draft", message: "Email draft saved. Review and personalize before sending." }));
-        } catch (e) {
-          return err(`Draft failed: ${String(e)}`);
-        }
-      },
-    ),
-
-    tool(
       "log_call",
       "Record a call summary with action items and next steps. Always use after every sales interaction.",
       {
@@ -395,55 +335,7 @@ export function createMcpServer(orgId: string, _userId: string) {
       },
     ),
 
-    // ── Feature Store Tools ──
-    tool(
-      "compute_prospect_features",
-      "Store prospect intelligence in the Feature Store for sub-ms retrieval during voice calls. Call after researching a prospect or updating deal info. This is how you make voice agents smarter — they read what you write.",
-      {
-        prospect_id: z.string().max(100).describe("Prospect ID (email, phone, or CRM ID)"),
-        company: z.string().max(200).describe("Company name"),
-        industry: z.string().max(100).describe("Industry slug (e.g., 'fintech', 'healthcare', 'saas')"),
-        heat_score: z.number().min(0).max(100).describe("Heat score 0-100 (0=cold, 100=ready to buy)"),
-        stage: z.enum(["prospect", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"]),
-        deal_size: z.number().default(0).describe("Estimated deal size in USD"),
-        pain_points: z.array(z.string()).default([]).describe("Known pain points"),
-        objections: z.array(z.string()).default([]).describe("Known objections encountered"),
-        buying_signals: z.array(z.string()).default([]).describe("Buying signals observed"),
-        competitors: z.array(z.string()).default([]).describe("Competitors mentioned"),
-        decision_maker: z.string().max(200).default("").describe("Decision maker name"),
-        decision_maker_title: z.string().max(200).default("").describe("Decision maker title"),
-        comm_style: z.string().max(50).default("direct").describe("Communication style preference"),
-        next_action: z.string().max(500).default("").describe("Recommended next action"),
-      },
-      async (args) => withFeatureStore(async (fs) => {
-        const now = Math.floor(Date.now() / 1000);
-        const features: ProspectFeatures = {
-          prospectId: args.prospect_id,
-          company: args.company,
-          industry: args.industry,
-          heatScore: args.heat_score,
-          stage: args.stage,
-          dealSize: args.deal_size,
-          totalTouches: 0,
-          daysSinceLastTouch: 0,
-          painPoints: args.pain_points,
-          objections: args.objections,
-          buyingSignals: args.buying_signals,
-          competitors: args.competitors,
-          decisionMaker: args.decision_maker,
-          decisionMakerTitle: args.decision_maker_title,
-          bestCallHour: 10,
-          commStyle: args.comm_style,
-          lastCallSummary: "",
-          nextAction: args.next_action,
-          computedAt: now,
-          expiresAt: now + 86400,
-        };
-        await fs.setProspectFeatures(features, undefined, orgId);
-        return text(`Prospect features stored for ${args.company} (${args.prospect_id}), heat: ${args.heat_score}, stage: ${args.stage}`);
-      }),
-    ),
-
+    // ── Feature Store Tools (read-only — SDR writes) ──
     tool(
       "get_prospect_intelligence",
       "Get the full intelligence package for a prospect — features, industry data, and call brief combined. Sub-millisecond reads from the Feature Store. Use before or during a call.",
@@ -453,7 +345,7 @@ export function createMcpServer(orgId: string, _userId: string) {
       },
       async (args) => withFeatureStore(async (fs) => {
         const intel = await fs.getCallIntelligence(args.prospect_id, args.call_id, orgId);
-        if (!intel.prospect) return text(JSON.stringify({ found: false, message: `No features found for ${args.prospect_id}. Use compute_prospect_features first.` }));
+        if (!intel.prospect) return text(JSON.stringify({ found: false, message: `No features found for ${args.prospect_id}. Delegate to SDR to compute prospect features first.` }));
         return text(JSON.stringify({
           found: true,
           prospect: intel.prospect,
@@ -471,7 +363,7 @@ export function createMcpServer(orgId: string, _userId: string) {
       },
       async (args) => withFeatureStore(async (fs) => {
         const prospects = await fs.getHottestProspects(args.limit, orgId);
-        if (prospects.length === 0) return text("No prospects in Feature Store. Use compute_prospect_features to add them.");
+        if (prospects.length === 0) return text("No prospects in Feature Store. Delegate to SDR to compute prospect features.");
         return text(JSON.stringify(prospects.map(p => ({
           id: p.prospectId,
           company: p.company,
@@ -483,86 +375,48 @@ export function createMcpServer(orgId: string, _userId: string) {
       }),
     ),
 
+    // ── Delegation Tools ──
     tool(
-      "compute_industry_features",
-      "Store industry-level intelligence in the Feature Store. Objection maps, value props, competitors, win rates — shared across all prospects in this industry.",
+      "delegate_to_sdr",
+      "Delegate a task to the SDR worker — prospect research, call brief preparation, outreach drafting, post-call processing, or pipeline updates. The SDR executes autonomously and returns results.",
       {
-        industry_slug: z.string().max(100).describe("Industry slug (e.g., 'fintech', 'healthcare')"),
-        name: z.string().max(200).describe("Human-readable industry name"),
-        objection_map: z.array(z.object({
-          objection: z.string(),
-          response: z.string(),
-          win_rate: z.number().min(0).max(1),
-        })).default([]).describe("Objection → response mappings with win rates"),
-        value_props: z.array(z.string()).default([]).describe("Key value propositions for this industry"),
-        competitors: z.array(z.string()).default([]).describe("Common competitors in this industry"),
-        avg_deal_cycle_days: z.number().default(60).describe("Average deal cycle in days"),
-        avg_deal_size: z.number().default(0).describe("Average deal size in USD"),
-        win_rate: z.number().min(0).max(1).default(0).describe("Overall win rate (0-1)"),
-        talking_points: z.array(z.string()).default([]).describe("Effective talking points"),
-        opening_lines: z.array(z.object({
-          line: z.string(),
-          response_rate: z.number().min(0).max(1),
-        })).default([]).describe("Best opening lines with response rates"),
+        task_type: z.enum(["research_prospect", "prepare_brief", "draft_outreach", "process_post_call", "update_pipeline", "general"]).describe("Type of SDR task"),
+        instruction: z.string().max(2000).describe("Detailed instruction for the SDR"),
+        context: z.string().max(2000).optional().describe("Additional context (deal info, prospect details, call notes)"),
       },
-      async (args) => withFeatureStore(async (fs) => {
-        const now = Math.floor(Date.now() / 1000);
-        const features: IndustryFeatures = {
-          industrySlug: args.industry_slug,
-          name: args.name,
-          objectionMap: args.objection_map.map(o => ({ objection: o.objection, response: o.response, winRate: o.win_rate })),
-          valueProps: args.value_props,
-          competitors: args.competitors,
-          avgDealCycleDays: args.avg_deal_cycle_days,
-          avgDealSize: args.avg_deal_size,
-          winRate: args.win_rate,
-          talkingPoints: args.talking_points,
-          regulations: [],
-          openingLines: args.opening_lines.map(l => ({ line: l.line, responseRate: l.response_rate })),
-          computedAt: now,
-          expiresAt: now + 604800,
-        };
-        await fs.setIndustryFeatures(features, undefined, orgId);
-        return text(`Industry features stored for ${args.name} (${args.industry_slug}), win rate: ${(args.win_rate * 100).toFixed(0)}%`);
-      }),
+      async (args) => {
+        const sdrWorker = (getRuntime() as any)?.sdrWorker as SdrWorker | undefined;
+        if (!sdrWorker) return err("SDR worker not initialized");
+        try {
+          const result = await sdrWorker.execute({
+            type: args.task_type,
+            instruction: args.instruction,
+            context: args.context,
+          });
+          return text(`SDR ${result.success ? "completed" : "failed"} (tools used: ${result.toolsUsed.join(", ") || "none"}):\n\n${result.output}`);
+        } catch (e) {
+          return err(`SDR delegation failed: ${e}`);
+        }
+      },
     ),
 
     tool(
-      "prepare_call_brief",
-      "Write a pre-computed call brief to the Feature Store. Voice agents read this at call start for instant context. Prepare briefs before scheduled calls.",
+      "review_team_performance",
+      "Review sales team performance metrics — calls made, conversion rates, revenue generated, strongest/weakest areas.",
       {
-        call_id: z.string().max(100).describe("Unique call identifier"),
-        prospect_id: z.string().max(100).describe("Prospect ID this brief is for"),
-        company: z.string().max(200).describe("Company name"),
-        purpose: z.enum(["cold_call", "follow_up", "demo", "closing"]).describe("Call purpose"),
-        opening_script: z.string().max(2000).describe("The opening script to use"),
-        talking_points: z.array(z.string()).default([]).describe("Key talking points"),
-        predicted_objections: z.array(z.string()).default([]).describe("Objections likely to come up"),
-        objection_responses: z.record(z.string()).default({}).describe("Prepared responses to each objection"),
-        competitive_notes: z.string().max(2000).default("").describe("Competitive positioning notes"),
-        meeting_booking_info: z.string().max(500).default("").describe("How to book a meeting"),
-        sdr_notes: z.string().max(5000).default("").describe("SDR research and notes"),
+        agent_id: z.string().optional().describe("Specific agent ID to review, or omit for all"),
       },
-      async (args) => withFeatureStore(async (fs) => {
-        const now = Math.floor(Date.now() / 1000);
-        const brief: CallBriefFeatures = {
-          callId: args.call_id,
-          prospectId: args.prospect_id,
-          company: args.company,
-          purpose: args.purpose,
-          openingScript: args.opening_script,
-          talkingPoints: args.talking_points,
-          predictedObjections: args.predicted_objections,
-          objectionResponses: args.objection_responses,
-          competitiveNotes: args.competitive_notes,
-          meetingBookingInfo: args.meeting_booking_info,
-          sdrNotes: args.sdr_notes,
-          computedAt: now,
-          expiresAt: now + 14400,
-        };
-        await fs.setCallBrief(brief, undefined, orgId);
-        return text(`Call brief prepared for ${args.company} (${args.prospect_id}), purpose: ${args.purpose}, call: ${args.call_id}`);
-      }),
+      async (args) => {
+        return withFeatureStore(async (fs) => {
+          if (args.agent_id) {
+            const perf = await fs.getAgentPerformance(args.agent_id, orgId);
+            return perf ? text(JSON.stringify(perf, null, 2)) : text("No performance data found for this agent.");
+          }
+          // List all agent performance entries
+          const results = await fs.getAgentLeaderboard(20, orgId);
+          return text(JSON.stringify(results, null, 2));
+        }, "review_team_performance");
+      },
     ),
 
     // ── Voice Tools ──
@@ -703,7 +557,7 @@ export function createMcpServer(orgId: string, _userId: string) {
     // ── Inter-Agent Messaging ──
     tool(
       "message_agent",
-      "Send a message to another agent via the inter-agent MessageBus. Scope-enforced: can message EA, COA.",
+      "Send a message to another agent via the inter-agent MessageBus. Scope-enforced: can message EA, COA. Use delegate_to_sdr for SDR tasks.",
       {
         target_agent_id: z.string().max(50).describe("Agent ID to message"),
         subject: z.string().max(200).describe("Message subject"),

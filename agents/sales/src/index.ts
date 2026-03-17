@@ -1,8 +1,9 @@
 /**
- * Sales Agent — Sam (Chief Sales Agent)
+ * Sales Department Server — Sam (Sales Manager) + SDR Worker
  *
- * Pipeline management, prospect research, call prep, and outreach.
- * Energetic, relationship-focused, data-driven.
+ * Sam orchestrates the sales force: pipeline governance, strategic calls,
+ * team performance monitoring, and delegation to the internal SDR worker.
+ * SDR handles research, Feature Store writes, CRM ops, and call briefs.
  *
  * Port: 3007 | Namespace: sales | Tier: department-head
  */
@@ -13,6 +14,7 @@ import { config } from "./config.js";
 import { SYSTEM_PROMPT } from "./agent/system-prompt.js";
 import { createMcpServer } from "./tools/index.js";
 import { setRuntime } from "./runtime-ref.js";
+import { SdrWorker } from "./sdr/worker.js";
 
 const runtime = new AgentRuntime({
   config: SALES_CONFIG,
@@ -42,6 +44,16 @@ const runtime = new AgentRuntime({
 });
 
 setRuntime(runtime);
+
+// Initialize SDR worker before start() — constructor only needs orgId + API key.
+// Tools access runtime services lazily via getRuntime() at execution time.
+const orgId = config.blockdriveOrgId || "";
+if (orgId) {
+  (runtime as any).sdrWorker = new SdrWorker(orgId);
+  console.log("[Sales] SDR worker initialized for org:", orgId);
+} else {
+  console.warn("[Sales] BLOCKDRIVE_ORG_ID not set — SDR worker disabled");
+}
 
 runtime.start().catch((err) => {
   console.error("Sales Agent failed to start:", err);

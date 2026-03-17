@@ -38,6 +38,8 @@ export const config = {
   telegramEnabled: !!process.env.TELEGRAM_BOT_TOKEN && !!process.env.TELEGRAM_CHAT_ID,
 
   perplexityApiKey: optional("PERPLEXITY_API_KEY"),
+
+  blockdriveOrgId: optional("BLOCKDRIVE_ORG_ID"),
 } as const;
 
 if (providerKeysMode) {

@@ -2,6 +2,21 @@
 
 ## Current Status
 
+### Completed — v3.1.1 (2026-03-17)
+
+**Sales Department Restructuring (Sam → Sales Manager + SDR Worker)**
+- [x] Sam repositioned from CSA/SDR to Sales Manager — system prompt, tools, identity
+- [x] SDR Worker module (`agents/sales/src/sdr/`) — internal agentic loop (Anthropic Messages API, 14 tools, 10 turns max)
+- [x] `delegate_to_sdr` tool — Sam delegates structured tasks to SDR, gets results back
+- [x] `review_team_performance` tool — Sam reads FeatureStore agent leaderboard
+- [x] Tool redistribution: 5 Feature Store write + research tools moved from Sam to SDR
+- [x] `SDR_CONFIG` + `SDR_STACK` + `SDR_SCOPE` in @waas/shared (junior tier, sales namespace)
+- [x] Plugin split: manager gets strategic plugins, SDR gets prospecting plugins
+- [x] EA + COA system prompts updated (stale "Chief Sales Agent" → "Sales Manager")
+- [x] SdrWorker race condition fixed (init before runtime.start())
+- [x] SDR memory silo fixed (searches shared sales namespace)
+- [x] sonarQuery timeout added (30s AbortSignal)
+
 ### Completed — v3.1.0 (2026-03-17)
 
 **Cohere embed-v4.0 1536-dim Migration**

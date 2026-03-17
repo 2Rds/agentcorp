@@ -79,11 +79,21 @@ export const LEGAL_STACK: ModelStack = {
   reranker: COHERE_RERANK,
 };
 
-/** Chief Sales Agent — prospect research, proposals */
-export const SALES_STACK: ModelStack = {
+/** Sales Manager — pipeline oversight, strategic calls, team orchestration */
+export const SALES_MANAGER_STACK: ModelStack = {
   primary: OPUS,
   support: [SONAR, GEMINI],               // Prospect research + proposals
   embedding: COHERE_EMBED,
+};
+/** @deprecated Use SALES_MANAGER_STACK */
+export const SALES_STACK = SALES_MANAGER_STACK;
+
+/** Sales Development Rep (SDR) — prospect research, Feature Store writes, CRM ops */
+export const SDR_STACK: ModelStack = {
+  primary: OPUS,
+  support: [SONAR, GEMINI],               // Web research + fast processing
+  embedding: COHERE_EMBED,
+  reranker: COHERE_RERANK,                 // Rerank prospect search results
 };
 
 // ─── Junior Agent Templates ─────────────────────────────────────────────────
@@ -119,7 +129,8 @@ export const AGENT_STACKS: Record<string, ModelStack> = {
   "blockdrive-cma": CMA_STACK,
   "blockdrive-compliance": COMPLIANCE_STACK,
   "blockdrive-legal": LEGAL_STACK,
-  "blockdrive-sales": SALES_STACK,
+  "blockdrive-sales": SALES_MANAGER_STACK,
+  "blockdrive-sdr": SDR_STACK,
   "research-junior": RESEARCH_JUNIOR_STACK,
   "data-junior": DATA_JUNIOR_STACK,
   "compliance-junior": COMPLIANCE_JUNIOR_STACK,

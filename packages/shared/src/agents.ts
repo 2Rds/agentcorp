@@ -9,11 +9,11 @@
 import type { AgentConfig } from "./types.js";
 import {
   EA_STACK, COA_STACK, CFA_STACK, IR_STACK,
-  CMA_STACK, COMPLIANCE_STACK, LEGAL_STACK, SALES_STACK,
+  CMA_STACK, COMPLIANCE_STACK, LEGAL_STACK, SALES_MANAGER_STACK, SDR_STACK,
 } from "./models/stacks.js";
 import {
   EA_SCOPE, COA_SCOPE, CFA_SCOPE, IR_SCOPE,
-  CMA_SCOPE, COMPLIANCE_SCOPE, LEGAL_SCOPE, SALES_SCOPE,
+  CMA_SCOPE, COMPLIANCE_SCOPE, LEGAL_SCOPE, SALES_SCOPE, SDR_SCOPE,
 } from "./namespace/scopes.js";
 import { AGENT_PLUGINS } from "./plugins.js";
 
@@ -155,15 +155,15 @@ export const LEGAL_CONFIG: AgentConfig = {
   plugins: AGENT_PLUGINS["blockdrive-legal"]!,
 };
 
-/** Sales SDR / Sales Assistant — pipeline, prospecting, proposals, desk work for sales agents */
+/** Sales Manager — day-to-day orchestration, strategic calls, pipeline governance */
 export const SALES_CONFIG: AgentConfig = {
   id: "blockdrive-sales",
   name: "Sam",
-  title: "Sales Assistant / SDR",
+  title: "Sales Manager",
   tier: "department-head",
   reportsTo: "blockdrive-coa",
   namespace: "sales",
-  modelStack: SALES_STACK,
+  modelStack: SALES_MANAGER_STACK,
   scope: SALES_SCOPE,
   channels: [
     { type: "web", channelId: "sales-dashboard", canSend: true },
@@ -182,12 +182,27 @@ export const SALES_CONFIG: AgentConfig = {
   },
 };
 
+/** Sales Development Rep — internal worker under Sales Manager, research + Feature Store writes */
+export const SDR_CONFIG: AgentConfig = {
+  id: "blockdrive-sdr",
+  name: "SDR Agent",
+  title: "Sales Development Rep",
+  tier: "junior",
+  reportsTo: "blockdrive-sales",
+  namespace: "sales",
+  modelStack: SDR_STACK,
+  scope: SDR_SCOPE,
+  channels: [],  // Internal worker — no external channels
+  plugins: AGENT_PLUGINS["blockdrive-sdr"]!,
+};
+
 // ─── Agent Registry ─────────────────────────────────────────────────────────
 
 /** Known agent IDs */
 export type AgentId =
   | "blockdrive-ea" | "blockdrive-coa" | "blockdrive-cfa" | "blockdrive-ir"
-  | "blockdrive-cma" | "blockdrive-compliance" | "blockdrive-legal" | "blockdrive-sales";
+  | "blockdrive-cma" | "blockdrive-compliance" | "blockdrive-legal" | "blockdrive-sales"
+  | "blockdrive-sdr";
 
 /** All configured agents, indexed by ID (#13: typed on AgentId for compile-time key safety) */
 export const AGENT_REGISTRY = {
@@ -199,6 +214,7 @@ export const AGENT_REGISTRY = {
   "blockdrive-compliance": COMPLIANCE_CONFIG,
   "blockdrive-legal": LEGAL_CONFIG,
   "blockdrive-sales": SALES_CONFIG,
+  "blockdrive-sdr": SDR_CONFIG,
 } satisfies Record<AgentId, AgentConfig>;
 
 /** Get an agent's configuration or throw */

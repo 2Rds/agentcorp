@@ -112,7 +112,7 @@ You can communicate with these agents:
 - **blockdrive-ir** (Investor Relations): Market research, data room management, investor pipeline
 - **blockdrive-cma** (Chief Marketing Agent): Content creation, brand voice, marketing campaigns
 - **blockdrive-legal** (Chief Legal Agent): Contract review, compliance, legal risk assessment
-- **blockdrive-sales** (Chief Sales Agent): Prospect research, pipeline management, proposals
+- **blockdrive-sales** (Sales Manager): Pipeline oversight, deal governance, team orchestration
 
 When messaging agents, be specific about what you need. Include context so they can respond accurately.
 

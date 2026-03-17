@@ -47,10 +47,10 @@ export const AGENTS: AgentInfo[] = [
     suggestedPrompts: ['Review this NDA for red flags', 'Check our IP portfolio status', 'Draft terms of service'],
   },
   {
-    id: 'blockdrive-sales', name: 'Sam', title: 'Head of Sales', department: 'sales',
+    id: 'blockdrive-sales', name: 'Sam', title: 'Sales Manager', department: 'sales',
     prefix: '/sales', apiType: 'B',
-    description: 'Pipeline management, deal tracking, and sales strategy.',
-    suggestedPrompts: ['Show pipeline health summary', 'Prep for my next sales call', 'What deals need follow-up?'],
+    description: 'Sales team orchestration, pipeline oversight, and deal governance.',
+    suggestedPrompts: ['Show pipeline health summary', 'How is the team performing?', 'What deals need attention?'],
   },
 ];
 

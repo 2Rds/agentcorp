@@ -2,6 +2,40 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.1.1] - 2026-03-17
+
+Sales department restructuring: Sam repositioned from confused CSA/SDR/Head-of-Sales to Sales Manager. New internal SDR Worker (agentic loop) handles prospect research, Feature Store writes, CRM ops, and call briefs. Sean is Head of Sales.
+
+### Added
+
+- **SDR Worker module** (`agents/sales/src/sdr/`) — Internal agentic loop using Anthropic Messages API (EA bridge pattern). 14 tools: 3 Feature Store writes, 2 reads, 3 research (Sonar Pro), 3 CRM, 2 knowledge, 1 messaging. Max 10 tool turns per task. Invoked by Sam via `delegate_to_sdr` tool.
+- **SDR system prompt** (`agents/sales/src/sdr/system-prompt.ts`) — Methodical, research-obsessed SDR persona reporting to Sam. Enforces closed_won/closed_lost escalation to Sam.
+- **`delegate_to_sdr` tool** — Sam delegates structured tasks (research_prospect, prepare_brief, draft_outreach, process_post_call, update_pipeline, general) to internal SDR worker, gets results back as tool response.
+- **`review_team_performance` tool** — Sam reads AgentPerformanceFeatures from Feature Store leaderboard.
+- **`SDR_CONFIG`** in `@waas/shared` — Agent ID `blockdrive-sdr`, junior tier, reports to `blockdrive-sales`, sales namespace.
+- **`SDR_STACK`** — Opus + Sonar Pro + Gemini 3 Flash Preview + Cohere (embed + rerank).
+- **`SDR_SCOPE`** — readwrite `blockdrive:sales:sdr:*`, read parent `blockdrive:sales:*` + global, canMessage Sam only.
+- **`BLOCKDRIVE_ORG_ID`** env var for sales agent config.
+
+### Changed
+
+- **Sam → Sales Manager** — Title, system prompt, and tool set restructured. Sam now focuses on pipeline oversight, deal governance, team orchestration, strategic calls, and SDR delegation.
+- **Tool redistribution** — 5 tools moved from Sam to SDR (compute_prospect_features, compute_industry_features, prepare_call_brief, research_prospect, draft_email). Sam keeps 16 tools + 2 conditional Notion.
+- **`SALES_STACK` → `SALES_MANAGER_STACK`** — Renamed with backwards-compatible alias.
+- **Plugin split** — Sam gets strategic plugins (sales, enterprise-search, product-management). SDR gets prospecting plugins (apollo, common-room, marketing).
+- **`SALES_SCOPE.canMessage`** — Added `blockdrive-sdr` for scope validation.
+- **EA/COA system prompts** — Updated Sam's title from "Chief Sales Agent" to "Sales Manager".
+- **EA tools map** — Updated `blockdrive-sales` label from "Chief Sales Agent" to "Sales Manager".
+- **Frontend** — Sam's title updated to "Sales Manager" with manager-oriented description and suggested prompts.
+
+### Fixed
+
+- **SdrWorker race condition** — Worker initialized before `runtime.start()` (constructor only needs orgId + API key; tools access runtime lazily).
+- **Missing barrel exports** — SDR_CONFIG, SALES_MANAGER_STACK, SDR_STACK, SDR_SCOPE added to shared package index files.
+- **SDR memory silo** — SDR search_knowledge queries shared `blockdrive-sales` namespace (not isolated `blockdrive-sdr`).
+- **sonarQuery timeout** — Added `AbortSignal.timeout(30_000)` to prevent indefinite hangs.
+- **message_agent SDR reference** — Updated description to direct SDR tasks to `delegate_to_sdr` tool.
+
 ## [v3.1.0] - 2026-03-17
 
 Cohere embed-v4.0 1536-dim migration across all agents and indexes, dark-only UI with design system cleanup, Redis MCP integration for Claude Code persistent memory, and critical audit fixes.

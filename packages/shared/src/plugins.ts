@@ -134,14 +134,23 @@ export const AGENT_PLUGINS: Record<string, PluginName[]> = {
 
   "blockdrive-sales": [
     "productivity",           // Memory, task management
-    "sales",                  // Full sales suite: account research, call prep, outreach, pipeline, forecast
+    "sales",                  // Pipeline oversight, forecasting, team performance
+    "enterprise-search",      // Cross-source knowledge synthesis
+    "customer-support",       // Customer research for upsell strategy
+    "product-management",     // Product knowledge for pitches, roadmap awareness
+    "data",                   // Pipeline analytics, data-driven forecasting
+    "slack-by-salesforce",
+  ],
+
+  "blockdrive-sdr": [
+    "productivity",           // Memory, task management
+    "sales",                  // Account research, call prep, outreach drafting
     "apollo",                 // Lead enrichment, ICP prospecting, sequence enrollment
     "common-room",            // Account/contact research, weekly prep briefs
-    "marketing",              // Competitive analysis, content assets for sales enablement
+    "marketing",              // Competitive analysis, sales enablement content
     "enterprise-search",      // Prospect research synthesis
-    "customer-support",       // Customer research (understanding existing customers for upsell)
-    "product-management",     // Product knowledge for pitches, feature awareness
-    "data",                   // Pipeline analytics, data-driven forecasting
+    "customer-support",       // Customer research (existing customers for expansion)
+    "data",                   // Prospect data profiling, pipeline analytics
     "slack-by-salesforce",
   ],
 

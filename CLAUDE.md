@@ -339,7 +339,8 @@ Deno runtime.
 | `blockdrive-cma` | Chief Marketing Agent (Taylor) | 3004 | 11 | **Built** |
 | `blockdrive-compliance` | Chief Compliance Agent Parker (CCA) | 3005 | 10 | **Built** |
 | `blockdrive-legal` | Legal Counsel (Casey) | 3006 | 11 | **Built** |
-| `blockdrive-sales` | Head of Sales (Sam) | 3007 | 17 | **Built** |
+| `blockdrive-sales` | Sales Manager (Sam) | 3007 | 16-18 | **Built** |
+| `blockdrive-sdr` | SDR Worker (internal) | (3007) | 14 | **Built** |
 | `blockdrive-ir` | Investor Relations (Riley) | — | — | Planned |
 
 ## UI Patterns

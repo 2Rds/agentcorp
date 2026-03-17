@@ -174,6 +174,8 @@ export const LEGAL_SCOPE: ToolScope = {
 
 export const SALES_SCOPE: ToolScope = {
   tables: [
+    { name: "sales_pipeline", access: "readwrite" },
+    { name: "sales_call_logs", access: "readwrite" },
     { name: "organizations", access: "read" },
   ],
   notionDatabases: [
@@ -187,7 +189,30 @@ export const SALES_SCOPE: ToolScope = {
     { agentId: "blockdrive-sales", access: "readwrite" },
   ],
   externalApis: ["notion", "slack"],
-  canMessage: ["blockdrive-ea", "blockdrive-coa"],
+  canMessage: ["blockdrive-ea", "blockdrive-coa", "blockdrive-sdr"],
+};
+
+/** SDR — junior under Sales Manager, research + Feature Store writes */
+export const SDR_SCOPE: ToolScope = {
+  tables: [
+    { name: "sales_pipeline", access: "readwrite" },
+    { name: "sales_call_logs", access: "readwrite" },
+    { name: "organizations", access: "read" },
+  ],
+  notionDatabases: [
+    { id: NOTION_INVESTOR_PIPELINE, access: "read" },
+  ],
+  redisNamespaces: [
+    { prefix: "blockdrive:sales:sdr:", access: "readwrite" },
+    { prefix: "blockdrive:sales:", access: "read" },
+    { prefix: "blockdrive:global:", access: "read" },
+  ],
+  memoryNamespaces: [
+    { agentId: "blockdrive-sdr", access: "readwrite" },
+    { agentId: "blockdrive-sales", access: "read" },
+  ],
+  externalApis: ["notion", "slack"],
+  canMessage: ["blockdrive-sales"],
 };
 
 // ─── Scope Registry ─────────────────────────────────────────────────────────
@@ -201,4 +226,5 @@ export const AGENT_SCOPES: Record<string, ToolScope> = {
   "blockdrive-compliance": COMPLIANCE_SCOPE,
   "blockdrive-legal": LEGAL_SCOPE,
   "blockdrive-sales": SALES_SCOPE,
+  "blockdrive-sdr": SDR_SCOPE,
 };

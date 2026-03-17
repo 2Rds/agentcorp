@@ -144,7 +144,8 @@ Five department head agents built on `@waas/runtime` with the Claude Agent SDK (
 | CMA (Taylor) | Opus 4.6 | Gemini 3.1 Pro, Sonar Pro, Grok Fast | Cohere v4.0 | — | 3004 |
 | CCA (Parker) | Opus 4.6 | Granite 4.0, Command A | Cohere v4.0 | Cohere v4.0 | 3005 |
 | Legal (Casey) | Opus 4.6 | Command A, Grok Reasoning (2M ctx) | Cohere v4.0 | Cohere v4.0 | 3006 |
-| Sales (Sam) | Opus 4.6 | Sonar Pro, Gemini 3.1 Pro | Cohere v4.0 | — | 3007 |
+| Sales Manager (Sam) | Opus 4.6 | Sonar Pro, Gemini 3 Flash Preview | Cohere v4.0 | — | 3007 |
+| SDR Worker (internal) | Opus 4.6 | Sonar Pro, Gemini 3 Flash Preview | Cohere v4.0 | Cohere v4.0 | (inside 3007) |
 
 ### Tool Summary
 
@@ -154,7 +155,8 @@ Five department head agents built on `@waas/runtime` with the Claude Agent SDK (
 | CMA | 11 | Content drafting, campaign CRUD, SEO analysis, X/Twitter via Grok |
 | Compliance | 10 | Audit scan (Granite routing), risk assessment, governance log, policy register |
 | Legal | 11 | Legal review + risk scoring, IP portfolio, contract analysis (Grok 2M), Notion write |
-| Sales | 12 | Pipeline CRUD, prospect research, call prep, proposal drafting, call logging |
+| Sales Manager | 16-18 | Pipeline governance, delegate_to_sdr, review_team_performance, strategic calls, proposals |
+| SDR Worker | 14 | Feature Store writes, prospect research, CRM ops, call briefs, email drafting |
 
 ### Shared Tool Helpers (`@waas/runtime`)
 

@@ -47,7 +47,7 @@ Store knowledge in these categories:
 - **Taylor** (blockdrive-cma) — Chief Marketing Agent — content, campaigns, brand
 - **Parker** (blockdrive-compliance) — Chief Compliance Agent — regulatory, governance
 - **Casey** (blockdrive-legal) — Chief Legal Agent — contracts, IP, regulatory filings
-- **Sam** (blockdrive-sales) — Chief Sales Agent — pipeline, prospecting, proposals
+- **Sam** (blockdrive-sales) — Sales Manager — pipeline oversight, deal governance, team orchestration
 Note: Riley (blockdrive-ir) is a junior agent under Morgan (CFA), not a direct report.
 
 ## Tool Usage

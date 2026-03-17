@@ -100,7 +100,7 @@ waas/
 | **Taylor** (CMA) | Marketing — content, campaigns, SEO, X/Twitter | Agent SDK + @waas/runtime | 11 | **Built** |
 | **Parker** (CCA) | Governance — regulatory audit, risk, policy (Granite 4.0) | Agent SDK + @waas/runtime | 10 | **Built** |
 | **Casey** (Legal) | Contracts, IP portfolio, legal review (Grok 2M context) | Agent SDK + @waas/runtime | 11 | **Built** |
-| **Sam** (Sales) | Pipeline, prospecting, proposals, call prep, feature store | Agent SDK + @waas/runtime | 17 | **Built** |
+| **Sam** (Sales Manager) | Pipeline oversight, deal governance, team orchestration + internal SDR worker | Agent SDK + @waas/runtime | 16-18 + SDR(14) | **Built** |
 
 ## Features
 

@@ -407,7 +407,7 @@ export function interAgentTools(orgId: string) {
           "blockdrive-ir": "Investor Relations",
           "blockdrive-cma": "Chief Marketing Agent",
           "blockdrive-legal": "Chief Legal Agent",
-          "blockdrive-sales": "Chief Sales Agent",
+          "blockdrive-sales": "Sales Manager",
         };
 
         console.log(`[Inter-Agent] EA -> ${args.agent_id}: ${args.message.slice(0, 100)}`);
