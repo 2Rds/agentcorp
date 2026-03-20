@@ -29,7 +29,8 @@ export const config = {
   googleAiApiKey: optional("GOOGLE_AI_API_KEY"),
 
   // xAI (direct API access for Grok — X-Twitter data, classification)
-  xaiApiKey: providerKey("XAI_API_KEY"),
+  // Optional: falls back to OpenRouter when not set
+  xaiApiKey: optional("XAI_API_KEY"),
 
   // Cloudflare AI Gateway + Workers AI (optional — falls back to direct URLs)
   cfAccountId: optional("CF_ACCOUNT_ID"),

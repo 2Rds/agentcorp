@@ -9,10 +9,11 @@ export type ModelAlias =
   | "grok-fast";
 
 /** Native provider model IDs (not OpenRouter format). */
-const MODEL_IDS: Record<ModelAlias, string> = {
+export const MODEL_IDS: Record<ModelAlias, string> = {
   gemini: "gemini-3-flash-preview",
   "grok-fast": "grok-4-1-fast-non-reasoning",
 };
+
 
 /** Which provider each alias routes to. */
 type Provider = "google" | "xai" | "openrouter";
@@ -130,7 +131,7 @@ function getCfAigHeaders(model: ModelAlias | string, agentId: string): Record<st
   if (!useGateway()) return {};
 
   const headers: Record<string, string> = {
-    "cf-aig-metadata": JSON.stringify({ agentId, orgId: config.cfAccountId }),
+    "cf-aig-metadata": JSON.stringify({ agentId, cfAccountId: config.cfAccountId }),
     "cf-aig-max-attempts": "3",
     "cf-aig-backoff": "exponential",
     "cf-aig-retry-delay": "1000",
@@ -287,20 +288,25 @@ async function chatCompletionGemini(
     geminiConfig.responseMimeType = "application/json";
   }
 
-  const response = await ai.models.generateContent({
-    model: modelId,
-    contents,
-    config: {
-      ...geminiConfig,
-      ...(systemInstruction ? { systemInstruction } : {}),
-    },
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: modelId,
+      contents,
+      config: {
+        ...geminiConfig,
+        ...(systemInstruction ? { systemInstruction } : {}),
+      },
+    });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error(`${modelId} returned no content`);
+    const text = response.text;
+    if (!text) {
+      throw new Error(`${modelId} returned no content`);
+    }
+    return text;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Gemini ${modelId} error: ${msg}`);
   }
-  return text;
 }
 
 /**
@@ -334,6 +340,7 @@ async function chatCompletionGrok(
     method: "POST",
     headers,
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   logCfAigCorrelation(response, "grok");
@@ -482,7 +489,7 @@ export async function embed(text: string): Promise<number[]> {
     throw new Error("GOOGLE_AI_API_KEY is required for embeddings (all indexes use 1536-dim Gemini Embedding 2)");
   }
 
-  const result = await ai.models.embedContent({
+  const embedPromise = ai.models.embedContent({
     model: "gemini-embedding-001",
     contents: text,
     config: {
@@ -490,6 +497,14 @@ export async function embed(text: string): Promise<number[]> {
       outputDimensionality: 1536,
     },
   });
+
+  // Timeout guard — prevent hung embedding requests
+  const result = await Promise.race([
+    embedPromise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini embed timed out after 30s")), 30_000),
+    ),
+  ]);
 
   const embedding = result.embeddings?.[0]?.values;
   if (!Array.isArray(embedding) || embedding.length === 0) {
