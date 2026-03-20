@@ -107,7 +107,7 @@ export async function indexDocument(documentId: string, orgId: string): Promise<
       for (let i = 0; i < chunks.length; i++) {
         try {
           const chunkWithContext = `${doc.name}: ${chunks[i]}`;
-          const embedding = await generateEmbedding(chunkWithContext);
+          const embedding = await generateEmbedding(chunkWithContext, "RETRIEVAL_DOCUMENT");
 
           if (embedding.length > 0) {
             const chunkKey = `doc:${documentId}:${i}`;
@@ -136,7 +136,7 @@ export async function indexDocument(documentId: string, orgId: string): Promise<
     let embedding: number[] | null = null;
     try {
       const embeddingText = `${doc.name}: ${textContent.slice(0, 2000)}`;
-      embedding = await generateEmbedding(embeddingText);
+      embedding = await generateEmbedding(embeddingText, "RETRIEVAL_DOCUMENT");
     } catch (e) {
       console.error("Embedding generation failed:", e);
     }

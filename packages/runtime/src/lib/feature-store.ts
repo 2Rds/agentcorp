@@ -359,7 +359,7 @@ export class FeatureStore {
     // Generate embedding for prospect description (enables similarity-based lookup)
     try {
       const description = `${features.company} ${features.industry} ${features.painPoints.join(" ")} ${features.stage}`;
-      const embResult = await this.router.embed(description);
+      const embResult = await this.router.embed(description, "RETRIEVAL_DOCUMENT");
       const blob = Buffer.from(new Float32Array(embResult.embedding).buffer);
       await this.redis.sendCommand([
         "HSET", key,

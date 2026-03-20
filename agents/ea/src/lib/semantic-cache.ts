@@ -206,7 +206,7 @@ export async function setCached(
     const redis = await getRedis();
     if (!redis) return false;
 
-    const promptEmbedding = await embed(prompt);
+    const promptEmbedding = await embed(prompt, "RETRIEVAL_DOCUMENT");
     if (promptEmbedding.length === 0) return false;
 
     const blob = Buffer.from(new Float32Array(promptEmbedding).buffer);

@@ -144,7 +144,7 @@ if (process.argv.includes("--seed-redis")) {
   for (const entry of entries) {
     try {
       const embeddingText = `${entry.name}: ${entry.description}`;
-      const embedding = await embed(embeddingText);
+      const embedding = await embed(embeddingText, "RETRIEVAL_DOCUMENT");
 
       if (embedding.length > 0) {
         const blob = Buffer.from(new Float32Array(embedding).buffer);
