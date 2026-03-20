@@ -25,6 +25,12 @@ export const config = {
   // Multi-model via OpenRouter (single key for all models)
   openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
 
+  // Google AI Studio (direct SDK access for Gemini — vision, Files API, embeddings)
+  googleAiApiKey: optional("GOOGLE_AI_API_KEY"),
+
+  // xAI (direct API access for Grok — X-Twitter data, classification)
+  xaiApiKey: providerKey("XAI_API_KEY"),
+
   // Cloudflare AI Gateway + Workers AI (optional — falls back to direct URLs)
   cfAccountId: optional("CF_ACCOUNT_ID"),
   cfGatewayId: optional("CF_GATEWAY_ID"),

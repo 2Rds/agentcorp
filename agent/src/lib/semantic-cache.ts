@@ -4,10 +4,11 @@ import { embed } from "./model-router.js";
 const CACHE_INDEX = "idx:llm_cache_v2";
 const CACHE_PREFIX = "llmcache:";
 
-// Models whose responses should be cached (structured/deterministic outputs)
+// Models whose responses should be cached (structured/deterministic outputs).
+// Uses native provider model IDs (not OpenRouter format).
 const CACHEABLE_MODELS = new Set([
-  "google/gemini-3-flash-preview",
-  "x-ai/grok-4-1-fast-non-reasoning",
+  "gemini-3-flash-preview",
+  "grok-4-1-fast-non-reasoning",
 ]);
 
 // Don't cache conversational/reasoning models — responses vary too much
