@@ -324,13 +324,13 @@ export function createMcpServer(orgId: string, _userId: string) {
         const grokBase = useGateway
           ? `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/grok`
           : "https://api.x.ai";
-        if (!useGateway && !config.cfAigToken) {
-          return err("X/Twitter search requires CF AI Gateway configuration (CF_ACCOUNT_ID + CF_GATEWAY_ID + CF_AIG_TOKEN)");
+        if (!useGateway || !config.cfAigToken) {
+          return err("X/Twitter search requires CF AI Gateway with Provider Keys (CF_ACCOUNT_ID + CF_GATEWAY_ID + CF_AIG_TOKEN)");
         }
-        const grokHeaders: Record<string, string> = { "Content-Type": "application/json" };
-        if (config.cfAigToken) {
-          grokHeaders["cf-aig-authorization"] = `Bearer ${config.cfAigToken}`;
-        }
+        const grokHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+          "cf-aig-authorization": `Bearer ${config.cfAigToken}`,
+        };
         const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
           `${grokBase}/v1/chat/completions`,
           { method: "POST", headers: grokHeaders,
