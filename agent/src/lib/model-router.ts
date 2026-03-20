@@ -14,7 +14,6 @@ export const MODEL_IDS: Record<ModelAlias, string> = {
   "grok-fast": "grok-4-1-fast-non-reasoning",
 };
 
-
 /** Which provider each alias routes to. */
 type Provider = "google" | "xai" | "openrouter";
 
