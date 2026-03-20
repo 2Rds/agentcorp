@@ -5,7 +5,7 @@ WORKDIR /app
 
 # Copy package files first for layer caching
 COPY package.json package-lock.json* ./
-RUN npm ci --production=false
+RUN npm ci --production=false --legacy-peer-deps
 
 # Copy source and build
 COPY tsconfig.json ./
@@ -25,7 +25,7 @@ WORKDIR /app
 
 # Copy package files and install production deps only
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm ci --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # Copy compiled output and plugins registry
 COPY --from=builder /app/dist/ dist/
