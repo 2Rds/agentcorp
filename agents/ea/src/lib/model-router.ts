@@ -1,9 +1,31 @@
 import { GoogleGenAI } from "@google/genai";
 import { config } from "../config.js";
 
-const googleAi = config.googleAiApiKey
-  ? new GoogleGenAI({ apiKey: config.googleAiApiKey })
-  : null;
+// ─── Gemini SDK (lazy init, routes through CF AI Gateway when configured) ────
+
+let _geminiAI: GoogleGenAI | null | undefined;
+
+export function getGeminiAI(): GoogleGenAI | null {
+  if (_geminiAI !== undefined) return _geminiAI;
+
+  const apiKey = config.googleAiApiKey || (config.cfAigToken ? "provider-keys" : "");
+  if (!apiKey) {
+    _geminiAI = null;
+    return null;
+  }
+
+  const opts: ConstructorParameters<typeof GoogleGenAI>[0] = { apiKey };
+
+  // Route through CF AI Gateway when configured
+  if (config.cfAccountId && config.cfGatewayId) {
+    opts.httpOptions = {
+      baseUrl: `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/google-ai-studio`,
+    };
+  }
+
+  _geminiAI = new GoogleGenAI(opts);
+  return _geminiAI;
+}
 
 // ─── Model aliases ───────────────────────────────────────────────────────────
 
@@ -108,13 +130,71 @@ export interface ChatCompletionOpts {
 }
 
 /**
- * Route a chat completion to any model via OpenRouter.
+ * Route a chat completion to its native provider.
+ * - "gemini" → Google AI Studio via @google/genai SDK (through CF AIG when configured)
+ * - Unknown models → OpenRouter fallback
  */
 export async function chatCompletion(
   model: ModelAlias | string,
   messages: ChatMessage[],
   opts: ChatCompletionOpts = {},
 ): Promise<string> {
+  // Route Gemini through @google/genai SDK
+  if (model === "gemini") {
+    const ai = getGeminiAI();
+    if (ai) {
+      const modelId = MODEL_IDS.gemini;
+      const systemInstruction = messages
+        .filter(m => m.role === "system")
+        .map(m => typeof m.content === "string" ? m.content : JSON.stringify(m.content))
+        .join("\n");
+
+      const contents = messages
+        .filter(m => m.role !== "system")
+        .map(m => ({
+          role: m.role === "assistant" ? "model" as const : "user" as const,
+          parts: typeof m.content === "string"
+            ? [{ text: m.content }]
+            : m.content.map(part => {
+                if (part.type === "text") return { text: part.text };
+                if (part.type === "image_url") {
+                  const match = part.image_url.url.match(/^data:(.+);base64,(.+)$/);
+                  if (match) return { inlineData: { mimeType: match[1], data: match[2] } };
+                  return { text: `[image: ${part.image_url.url}]` };
+                }
+                return { text: JSON.stringify(part) };
+              }),
+        }));
+
+      const geminiConfig: Record<string, unknown> = {
+        maxOutputTokens: opts.maxTokens ?? 8192,
+        temperature: opts.temperature ?? 0.3,
+      };
+      if (opts.responseFormat?.type === "json_object") {
+        geminiConfig.responseMimeType = "application/json";
+      }
+
+      try {
+        const response = await ai.models.generateContent({
+          model: modelId,
+          contents,
+          config: {
+            ...geminiConfig,
+            ...(systemInstruction ? { systemInstruction } : {}),
+          },
+        });
+        const text = response.text;
+        if (!text) throw new Error(`${modelId} returned no content`);
+        return text;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`Gemini ${modelId} error: ${msg}`);
+      }
+    }
+    // No Gemini SDK available — fall through to OpenRouter
+  }
+
+  // OpenRouter fallback for non-Gemini models or when Gemini SDK unavailable
   const modelId = MODEL_IDS[model as ModelAlias] ?? model;
 
   const body: Record<string, unknown> = {
@@ -164,11 +244,12 @@ export async function webSearch(
   query: string,
   opts: { maxTokens?: number; agentId?: string } = {},
 ): Promise<WebSearchResult> {
-  if (!googleAi) {
+  const ai = getGeminiAI();
+  if (!ai) {
     throw new Error("GOOGLE_AI_API_KEY is required for web search (Gemini Search Grounding)");
   }
 
-  const response = await googleAi.models.generateContent({
+  const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: query,
     config: {
@@ -206,11 +287,12 @@ export async function webSearch(
  * Task type: RETRIEVAL_QUERY (optimized for search queries).
  */
 export async function embed(text: string): Promise<number[]> {
-  if (!googleAi) {
+  const ai = getGeminiAI();
+  if (!ai) {
     throw new Error("GOOGLE_AI_API_KEY is required for embeddings");
   }
 
-  const result = await googleAi.models.embedContent({
+  const result = await ai.models.embedContent({
     model: "gemini-embedding-001",
     contents: text,
     config: {

@@ -7,7 +7,9 @@ import { config } from "../config.js";
 import { getAnthropicBaseURL, getAnthropicSdkHeaders } from "../lib/model-router.js";
 
 const anthropic = new Anthropic({
-  apiKey: config.anthropicApiKey,
+  // In Provider Keys mode, anthropicApiKey may be empty — use placeholder
+  // so the SDK doesn't throw; the CF AIG gateway injects the real key via cf-aig-authorization
+  apiKey: config.anthropicApiKey || "provider-keys",
   baseURL: getAnthropicBaseURL(),
   defaultHeaders: getAnthropicSdkHeaders(),
 });

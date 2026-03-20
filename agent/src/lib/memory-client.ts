@@ -8,6 +8,7 @@
 
 import { randomUUID } from "crypto";
 import { getRedis, type RedisClientType } from "./redis-client.js";
+import { embed } from "./model-router.js";
 import { config } from "../config.js";
 
 // ─── Types (compatible with @waas/runtime MemoryClient) ─────────────────────
@@ -51,7 +52,6 @@ export interface GraphMemoryResponse {
 const INDEX_NAME = "idx:memories";
 const KEY_PREFIX = "memory:";
 const EMBEDDING_DIM = 1536;
-const EMBEDDING_MODEL = "embed-v4.0";
 
 // ─── Index Management ───────────────────────────────────────────────────────
 
@@ -95,38 +95,14 @@ async function ensureIndex(redis: RedisClientType): Promise<void> {
   }
 }
 
-// ─── Embedding Generation (Cohere direct) ───────────────────────────────────
+// ─── Embedding Generation (Gemini Embedding 2 via model-router) ─────────────
 
 async function generateEmbedding(text: string): Promise<number[] | null> {
-  if (!config.cohereApiKey) return null;
-
-  const res = await fetch("https://api.cohere.com/v2/embed", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.cohereApiKey}`,
-    },
-    body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      texts: [text],
-      input_type: "search_query",
-      embedding_types: ["float"],
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Cohere embed API error (${res.status}): ${err}`);
+  try {
+    return await embed(text);
+  } catch {
+    return null;
   }
-
-  const data = await res.json() as { embeddings?: { float?: number[][] } };
-  const embedding = data.embeddings?.float?.[0];
-  if (!embedding || embedding.length === 0) {
-    throw new Error("Cohere embed returned empty embedding");
-  }
-
-  return embedding;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────

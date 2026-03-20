@@ -7,13 +7,9 @@
  */
 
 import { randomUUID } from "crypto";
-import { GoogleGenAI } from "@google/genai";
 import { getRedis, type RedisClientType } from "./redis-client.js";
+import { getGeminiAI } from "./model-router.js";
 import { config } from "../config.js";
-
-const googleAi = config.googleAiApiKey
-  ? new GoogleGenAI({ apiKey: config.googleAiApiKey })
-  : null;
 
 // ─── Types (compatible with @waas/runtime MemoryClient) ─────────────────────
 
@@ -103,23 +99,28 @@ async function ensureIndex(redis: RedisClientType): Promise<void> {
 // ─── Embedding Generation (Gemini Embedding 2) ──────────────────────────────
 
 async function generateEmbedding(text: string): Promise<number[] | null> {
-  if (!googleAi) return null;
+  const ai = getGeminiAI();
+  if (!ai) return null;
 
-  const result = await googleAi.models.embedContent({
-    model: EMBEDDING_MODEL,
-    contents: text,
-    config: {
-      taskType: "RETRIEVAL_QUERY",
-      outputDimensionality: EMBEDDING_DIM,
-    },
-  });
+  try {
+    const result = await ai.models.embedContent({
+      model: EMBEDDING_MODEL,
+      contents: text,
+      config: {
+        taskType: "RETRIEVAL_QUERY",
+        outputDimensionality: EMBEDDING_DIM,
+      },
+    });
 
-  const embedding = result.embeddings?.[0]?.values;
-  if (!embedding || embedding.length === 0) {
-    throw new Error("Gemini embed returned empty embedding");
+    const embedding = result.embeddings?.[0]?.values;
+    if (!embedding || embedding.length === 0) {
+      throw new Error("Gemini embed returned empty embedding");
+    }
+
+    return embedding;
+  } catch {
+    return null;
   }
-
-  return embedding;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
