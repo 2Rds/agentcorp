@@ -20,8 +20,7 @@ Sean Weiss's company. Builds WaaS (cognitive agent platform) and Block Drive Vau
 | Telegram | Agent messaging + EA bot | grammy framework |
 | ElevenLabs | Voice AI (planned) | TTS/STT, Conversational AI |
 | Twilio | Phone numbers (planned) | For voice agents |
-| Cloudflare | AI Gateway, Workers, Queues | CF, provider keys mode |
-| Cloudflare AI Gateway | API routing to providers (Anthropic, Google, xAI) | CF AIG, BYOK mode |
+| Cloudflare | AI Gateway (BYOK routing to Anthropic, Google, xAI), Workers, Queues | CF, CF AIG, provider keys mode |
 
 ## Domains
 

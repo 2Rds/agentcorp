@@ -200,7 +200,7 @@ Express + Claude Agent SDK. Multi-model orchestration via CF AI Gateway + persis
 
 **Environment:**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `REDIS_URL`, `COHERE_API_KEY`
-- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (local dev), `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (cloud — raw JSON content), `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
+- Optional: `PORT` (default 3001), `CORS_ORIGINS`, `GOOGLE_AI_API_KEY` (Gemini via CF AIG), `XAI_API_KEY` (Grok via CF AIG), `CF_ACCOUNT_ID`, `CF_GATEWAY_ID`, `CF_API_TOKEN`, `CF_AIG_TOKEN`, `GOOGLE_SERVICE_ACCOUNT_KEY_FILE` (local dev), `GOOGLE_SERVICE_ACCOUNT_KEY_JSON` (cloud — raw JSON content), `NOTION_API_KEY` (enables Notion tools), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
 
 ### EA Agent (`agents/ea/src/`)
 
@@ -249,7 +249,7 @@ Express + Claude Agent SDK. Multi-model orchestration via CF AI Gateway + persis
 
 **Environment (see `agents/ea/.env.example`):**
 - Required: `ANTHROPIC_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-- Optional: `PORT` (3002), `CORS_ORIGINS`, `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID` (enables Slack transport + tools), `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools), `BLOCKDRIVE_ORG_ID` (real org UUID for Slack/Telegram transports), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
+- Optional: `PORT` (3002), `CORS_ORIGINS`, `GOOGLE_AI_API_KEY` (Gemini via CF AIG), `CF_*` (AI Gateway), `REDIS_URL`, `COHERE_API_KEY`, `SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN`/`SLACK_SIGNING_SECRET`/`SLACK_APP_ID` (enables Slack transport + tools), `TELEGRAM_BOT_TOKEN`/`TELEGRAM_WEBHOOK_SECRET`, `AGENT_MESSAGE_SECRET`, `NOTION_API_KEY` (enables Notion tools), `BLOCKDRIVE_ORG_ID` (real org UUID for Slack/Telegram transports), `SENTRY_DSN`, `POSTHOG_API_KEY`, `POSTHOG_HOST`
 
 ### WaaS Platform Packages
 

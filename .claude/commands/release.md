@@ -38,7 +38,7 @@ Run a model usage audit before proceeding. This catches misassigned models befor
 |-------|-------------------|
 | `claude-opus-4-6` (Anthropic direct via CF AI Gateway) | All reasoning, analysis, writing, customer-facing output |
 | `gemini-3-flash-preview` (Google AI Studio via CF AI Gateway) | Multimodal vision/OCR, internal orchestration, knowledge extraction, structured data |
-| `grok-4-1-fast` (xAI direct via CF AI Gateway) | X/Twitter data access, classification, routing, tagging |
+| `grok-4-1-fast-non-reasoning` (xAI direct via CF AI Gateway) | X/Twitter data access, classification, routing, tagging |
 | `cohere/embed-v4.0` | Vector embeddings (utility) |
 | `cohere/rerank-v4.0` | Search result reranking (utility) |
 | `eleven_flash_v2_5` / `scribe_v2_realtime` | Voice TTS/STT (ElevenLabs) |

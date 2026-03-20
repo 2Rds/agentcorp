@@ -73,8 +73,8 @@ Express server using the Claude Agent SDK. Claude Opus 4.6 as the primary reason
 
 ### Multi-Model Strategy (Collapsed Stack)
 
-| Model | Alias | Role | Routing Rule |
-|-------|-------|------|-------------|
+| Model | Provider | Role | Routing Rule |
+|-------|----------|------|-------------|
 | Claude Opus 4.6 | Anthropic direct via CF AIG | Reasoning, analysis, customer-facing output | Default for all agent chat + customer-facing tools |
 | Gemini 3 Flash | Google AI Studio via CF AIG | Vision/OCR, internal orchestration, structured data, web search (Search Grounding) | Multimodal tasks, knowledge extraction, structured generation |
 | Grok 4.1 Fast | xAI direct via CF AIG | X/Twitter data, classification, routing | CMA X/Twitter search, internal classification |
