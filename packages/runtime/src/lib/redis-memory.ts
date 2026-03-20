@@ -181,7 +181,7 @@ export class RedisMemoryClient implements MemoryClient {
     // Generate embedding
     let embeddingBuf: Buffer | null = null;
     try {
-      const result = await this.router.embed(text);
+      const result = await this.router.embed(text, "RETRIEVAL_DOCUMENT");
       embeddingBuf = Buffer.from(new Float32Array(result.embedding).buffer);
     } catch (err) {
       console.error("[RedisMemoryClient] Failed to generate embedding for memory — stored without embedding (not vector-searchable):", err);
@@ -293,7 +293,7 @@ export class RedisMemoryClient implements MemoryClient {
       updated_at: String(now),
     };
     try {
-      const result = await this.router.embed(text);
+      const result = await this.router.embed(text, "RETRIEVAL_DOCUMENT");
       updateFields.embedding = Buffer.from(new Float32Array(result.embedding).buffer);
     } catch (err) {
       console.error("[RedisMemoryClient] Failed to re-embed memory on update — keeping existing embedding:", err);

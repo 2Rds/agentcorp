@@ -395,7 +395,7 @@ export class SemanticCache {
       if (!(await this.ensureIndex())) return false;
 
       // Generate embedding
-      const embResult = await this.router.embed(prompt);
+      const embResult = await this.router.embed(prompt, "RETRIEVAL_DOCUMENT");
       if (!embResult.embedding || embResult.embedding.length === 0) {
         console.warn("[SemanticCache] Embedding returned empty for cache write — skipping");
         return false;

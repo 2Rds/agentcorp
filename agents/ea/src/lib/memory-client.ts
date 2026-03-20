@@ -98,7 +98,7 @@ async function ensureIndex(redis: RedisClientType): Promise<void> {
 
 // ─── Embedding Generation (Gemini Embedding 2) ──────────────────────────────
 
-async function generateEmbedding(text: string): Promise<number[] | null> {
+async function generateEmbedding(text: string, taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" = "RETRIEVAL_QUERY"): Promise<number[] | null> {
   const ai = getGeminiAI();
   if (!ai) return null;
 
@@ -107,7 +107,7 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
       model: EMBEDDING_MODEL,
       contents: text,
       config: {
-        taskType: "RETRIEVAL_QUERY",
+        taskType,
         outputDimensionality: EMBEDDING_DIM,
       },
     });
@@ -219,7 +219,7 @@ export async function addOrgMemory(
 
   let embeddingBuf: Buffer | null = null;
   try {
-    const embedding = await generateEmbedding(text);
+    const embedding = await generateEmbedding(text, "RETRIEVAL_DOCUMENT");
     if (embedding) embeddingBuf = Buffer.from(new Float32Array(embedding).buffer);
   } catch (err) {
     console.error("[EA Memory] Embedding failed (stored without vector):", err);
@@ -382,7 +382,7 @@ export async function updateMemory(
   };
 
   try {
-    const embedding = await generateEmbedding(text);
+    const embedding = await generateEmbedding(text, "RETRIEVAL_DOCUMENT");
     if (embedding) updateFields.embedding = Buffer.from(new Float32Array(embedding).buffer);
   } catch (err) {
     console.error("[EA Memory] Re-embed failed on update:", err);

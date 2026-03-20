@@ -97,9 +97,9 @@ async function ensureIndex(redis: RedisClientType): Promise<void> {
 
 // ─── Embedding Generation (Gemini Embedding 2 via model-router) ─────────────
 
-async function generateEmbedding(text: string): Promise<number[] | null> {
+async function generateEmbedding(text: string, taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" = "RETRIEVAL_QUERY"): Promise<number[] | null> {
   try {
-    return await embed(text);
+    return await embed(text, taskType);
   } catch (err) {
     console.warn("[CFA Memory] Embedding generation failed (returning null):", err);
     return null;
@@ -201,7 +201,7 @@ export async function addOrgMemory(
 
   let embeddingBuf: Buffer | null = null;
   try {
-    const embedding = await generateEmbedding(text);
+    const embedding = await generateEmbedding(text, "RETRIEVAL_DOCUMENT");
     if (embedding) embeddingBuf = Buffer.from(new Float32Array(embedding).buffer);
   } catch (err) {
     console.error("[CFA Memory] Embedding failed (stored without vector):", err);
@@ -364,7 +364,7 @@ export async function updateMemory(
   };
 
   try {
-    const embedding = await generateEmbedding(text);
+    const embedding = await generateEmbedding(text, "RETRIEVAL_DOCUMENT");
     if (embedding) updateFields.embedding = Buffer.from(new Float32Array(embedding).buffer);
   } catch (err) {
     console.error("[CFA Memory] Re-embed failed on update:", err);
