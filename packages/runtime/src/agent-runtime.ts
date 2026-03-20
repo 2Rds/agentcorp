@@ -82,7 +82,6 @@ export interface AgentRuntimeConfig {
     /** Provider API keys for the model router */
     anthropicApiKey: string;
     openRouterApiKey?: string;
-    perplexityApiKey?: string;
     cohereApiKey?: string;
     googleAiApiKey?: string;
     cfGatewayAccountId?: string;
@@ -199,7 +198,6 @@ export class AgentRuntime {
     const creds = {
       anthropicApiKey: rtConfig.env.anthropicApiKey,
       openRouterApiKey: rtConfig.env.openRouterApiKey ?? "",
-      perplexityApiKey: rtConfig.env.perplexityApiKey ?? "",
       cohereApiKey: rtConfig.env.cohereApiKey ?? "",
       googleAiApiKey: rtConfig.env.googleAiApiKey,
       cfGateway: rtConfig.env.cfGatewayAccountId && rtConfig.env.cfGatewayId

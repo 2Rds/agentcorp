@@ -47,8 +47,6 @@ export const config = {
   telegramChatId: optional("TELEGRAM_CHAT_ID"),
   telegramEnabled: !!process.env.TELEGRAM_BOT_TOKEN && !!process.env.TELEGRAM_CHAT_ID,
 
-  // Perplexity (optional)
-  perplexityApiKey: optional("PERPLEXITY_API_KEY"),
 
   // Agent network (health checks)
   agentBaseUrl: optional("AGENT_BASE_URL", "https://agentcorp-ghgvq.ondigitalocean.app"),

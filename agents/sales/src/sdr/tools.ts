@@ -41,52 +41,48 @@ async function withFeatureStore(fn: (fs: FeatureStore) => Promise<string>, conte
   }
 }
 
-/** Call Sonar Pro via OpenRouter for web search/research (cache-wrapped) */
-async function sonarQuery(prompt: string): Promise<string> {
+/** Call Gemini via OpenRouter for web search/research (cache-wrapped) */
+async function webSearchQuery(prompt: string): Promise<string> {
+  const cacheModel = "google/gemini-3-flash-preview";
+
   // Check semantic cache first — same prospects/companies get researched repeatedly
   const cache = getRuntime()?.semanticCache;
   if (cache) {
     try {
-      const cached = await cache.get(prompt, "perplexity/sonar-pro", { threshold: 0.95 });
+      const cached = await cache.get(prompt, cacheModel, { threshold: 0.95 });
       if (cached) {
-        console.log(`[SDR] Sonar cache hit (similarity: ${cached.similarity.toFixed(3)})`);
+        console.log(`[SDR] Web search cache hit (similarity: ${cached.similarity.toFixed(3)})`);
         return cached.response;
       }
     } catch (cacheErr) {
-      console.warn("[SDR] Sonar cache lookup failed (non-fatal):", cacheErr);
+      console.warn("[SDR] Web search cache lookup failed (non-fatal):", cacheErr);
     }
   }
 
-  const apiUrl = config.perplexityApiKey
-    ? "https://api.perplexity.ai/chat/completions"
-    : "https://openrouter.ai/api/v1/chat/completions";
-  const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-  const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
-
-  const response = await fetch(apiUrl, {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      "Authorization": `Bearer ${config.openRouterApiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model,
+      model: cacheModel,
       messages: [{ role: "user", content: prompt }],
     }),
     signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
-    throw new Error(`Sonar request failed: ${response.status} ${response.statusText}`);
+    throw new Error(`Web search request failed: ${response.status} ${response.statusText}`);
   }
 
   const data = await response.json() as { choices?: Array<{ message: { content: string } }> };
   const result = data.choices?.[0]?.message?.content || "No results found.";
 
-  // Cache the result (fire-and-forget) — Sonar results are semi-fresh, 1hr TTL
+  // Cache the result (fire-and-forget) — 1hr TTL
   if (cache) {
-    cache.set(prompt, result, "perplexity/sonar-pro").catch((err) => {
-      console.warn("[SDR] Sonar cache write failed:", err);
+    cache.set(prompt, result, cacheModel).catch((err) => {
+      console.warn("[SDR] Web search cache write failed:", err);
     });
   }
 
@@ -315,7 +311,7 @@ function createTools(orgId: string): ToolEntry[] {
           const prompt = args.contact_name
             ? `Research ${args.contact_name} at ${args.company} for a B2B sales approach. Provide: 1) Their role and responsibilities, 2) Professional background and career history, 3) Recent activity (LinkedIn posts, conference talks, publications), 4) Connection points for outreach, 5) Communication style preferences if discernible.`
             : `Research ${args.company} for a B2B sales approach. Provide: 1) Company overview (size, industry, revenue, funding), 2) Key decision makers and their roles, 3) Recent news and events, 4) Potential pain points and challenges, 5) Technology stack, 6) Competitors they may be evaluating, 7) Recommended approach angle and value proposition.`;
-          const result = await sonarQuery(prompt);
+          const result = await webSearchQuery(prompt);
           return result;
         } catch (e: any) {
           return `Research error: ${e.message}`;
@@ -337,7 +333,7 @@ function createTools(orgId: string): ToolEntry[] {
       },
       handler: async (args) => {
         try {
-          return await sonarQuery(args.query);
+          return await webSearchQuery(args.query);
         } catch (e: any) {
           return `Search error: ${e.message}`;
         }

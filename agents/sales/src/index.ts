@@ -34,7 +34,6 @@ const runtime = new AgentRuntime({
     redisUrl: config.redisUrl || undefined,
     cohereApiKey: config.cohereApiKey || undefined,
     googleAiApiKey: config.googleAiApiKey || undefined,
-    perplexityApiKey: config.perplexityApiKey || undefined,
     cfGatewayAccountId: config.cfAccountId || undefined,
     cfGatewayId: config.cfGatewayId || undefined,
     cfAigToken: config.cfAigToken || undefined,

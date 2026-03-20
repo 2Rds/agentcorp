@@ -37,8 +37,6 @@ export const config = {
   telegramBotToken: optional("TELEGRAM_BOT_TOKEN"),
   telegramChatId: optional("TELEGRAM_CHAT_ID"),
   telegramEnabled: !!process.env.TELEGRAM_BOT_TOKEN && !!process.env.TELEGRAM_CHAT_ID,
-
-  perplexityApiKey: optional("PERPLEXITY_API_KEY"),
 } as const;
 
 if (providerKeysMode) {

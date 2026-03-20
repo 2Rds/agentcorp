@@ -14,8 +14,7 @@ import type { PluginName } from "./plugins.js";
 export type ModelProvider =
   | "anthropic"     // Claude models via direct Anthropic API
   | "openrouter"    // Aggregator (Gemini, Grok) via OpenRouter
-  | "perplexity"    // Sonar models via direct Perplexity API
-  | "google"        // Gemini Embedding via direct Google AI API
+  | "google"        // Gemini (chat, embedding, search grounding) via Google AI API
   | "cohere";       // Rerank via direct Cohere API
 
 /** What a model is good at — used for capability-based routing */
@@ -357,9 +356,8 @@ export interface NextGenSwitchConfig {
 export interface ProviderCredentials {
   anthropicApiKey: string;
   openRouterApiKey: string;
-  perplexityApiKey: string;
   cohereApiKey: string;
-  /** Google AI API key for Gemini Embedding */
+  /** Google AI API key for Gemini (chat, embedding, search grounding) */
   googleAiApiKey?: string;
   /** ElevenLabs API key for voice transport (TTS, STT, Conversational AI) */
   elevenlabsApiKey?: string;

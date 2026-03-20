@@ -8,12 +8,10 @@ const googleAi = config.googleAiApiKey
 // ─── Model aliases ───────────────────────────────────────────────────────────
 
 export type ModelAlias =
-  | "gemini"
-  | "sonar";
+  | "gemini";
 
 const MODEL_IDS: Record<ModelAlias, string> = {
-  gemini: "google/gemini-3-flash-preview",
-  sonar: "perplexity/sonar-pro",
+  gemini: "gemini-3-flash-preview",
 };
 
 // ─── AI Gateway helpers ──────────────────────────────────────────────────────
@@ -149,6 +147,55 @@ export async function chatCompletion(
     );
   }
   return content;
+}
+
+// ─── Web Search (Gemini Search Grounding) ───────────────────────────────────
+
+export interface WebSearchResult {
+  content: string;
+  citations: { title: string; url: string }[];
+}
+
+/**
+ * Search the web using Gemini Search Grounding (replaces Perplexity Sonar).
+ * Uses google_search tool with @google/genai SDK.
+ */
+export async function webSearch(
+  query: string,
+  opts: { maxTokens?: number; agentId?: string } = {},
+): Promise<WebSearchResult> {
+  if (!googleAi) {
+    throw new Error("GOOGLE_AI_API_KEY is required for web search (Gemini Search Grounding)");
+  }
+
+  const response = await googleAi.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: query,
+    config: {
+      maxOutputTokens: opts.maxTokens ?? 2000,
+      temperature: 0.1,
+      tools: [{ googleSearch: {} }],
+    },
+  });
+
+  const text = response.text ?? "";
+
+  const citations: { title: string; url: string }[] = [];
+  const metadata = response.candidates?.[0]?.groundingMetadata;
+  if (metadata?.groundingChunks) {
+    for (const chunk of metadata.groundingChunks) {
+      if (chunk.web?.title && chunk.web?.uri) {
+        citations.push({ title: chunk.web.title, url: chunk.web.uri });
+      }
+    }
+  }
+
+  let content = text;
+  if (citations.length > 0) {
+    content += "\n\n---\nSources:\n" + citations.map((c, i) => `[${i + 1}] ${c.title}: ${c.url}`).join("\n");
+  }
+
+  return { content, citations };
 }
 
 // ─── Embeddings (Gemini Embedding 2, 1536-dim) ──────────────────────────────

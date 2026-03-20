@@ -3,7 +3,7 @@
  *
  * Routes model calls to the correct provider based on ModelConfig.provider.
  * Handles: Anthropic (direct), OpenRouter (aggregator for Gemini, Grok),
- * Perplexity (direct), Google (Gemini Embedding), Cohere (rerank).
+ * Google (Gemini chat, embedding, search grounding), Cohere (rerank).
  *
  * Each provider client implements the same interface. The router dispatches
  * based on the model's provider field and tracks usage for cost analysis.
@@ -235,82 +235,6 @@ export class OpenRouterClient implements ProviderClient {
   }
 }
 
-// ─── Perplexity Provider ────────────────────────────────────────────────────
-
-export class PerplexityClient implements ProviderClient {
-  readonly provider = "perplexity" as const;
-  private apiKey: string;
-
-  constructor(apiKey: string) {
-    this.apiKey = apiKey;
-  }
-
-  async chatCompletion(
-    modelId: string,
-    messages: ChatMessage[],
-    opts?: CompletionOptions,
-  ): Promise<CompletionResult> {
-    const start = Date.now();
-    const { signal, cleanup } = createTimeoutSignal(DEFAULT_PROVIDER_TIMEOUT_MS);
-
-    try {
-      const body: Record<string, unknown> = {
-        model: modelId,
-        messages: messages.map(m => ({ role: m.role, content: m.content })),
-      };
-      if (opts?.maxTokens) body.max_tokens = opts.maxTokens;
-      if (opts?.temperature !== undefined) body.temperature = opts.temperature;
-
-      const res = await fetch("https://api.perplexity.ai/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify(body),
-        signal,
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Perplexity API error (${res.status}): ${err}`);
-      }
-
-      const data = await res.json() as {
-        choices?: { message: { content: string } }[];
-        model: string;
-        usage?: { prompt_tokens: number; completion_tokens: number };
-        citations?: string[];
-      };
-
-      const rawContent = data.choices?.[0]?.message?.content;
-      if (rawContent === undefined || rawContent === null) {
-        throw new Error(`Perplexity returned no content for model ${modelId}`);
-      }
-
-      // Append citations to content if present
-      let content = rawContent;
-      if (data.citations && data.citations.length > 0) {
-        content += "\n\n---\nSources:\n" + data.citations.map((c, i) => `[${i + 1}] ${c}`).join("\n");
-      }
-
-      return {
-        content,
-        model: data.model,
-        provider: "perplexity",
-        usage: {
-          inputTokens: data.usage?.prompt_tokens ?? 0,
-          outputTokens: data.usage?.completion_tokens ?? 0,
-        },
-        latencyMs: Date.now() - start,
-        cached: false,
-      };
-    } finally {
-      cleanup();
-    }
-  }
-}
-
 // ─── Cohere Provider ────────────────────────────────────────────────────────
 
 export class CohereDirectClient implements ProviderClient {
@@ -431,9 +355,6 @@ export class ModelRouter {
         "openrouter",
         new OpenRouterClient(creds.openRouterApiKey, creds.cfGateway),
       );
-    }
-    if (creds.perplexityApiKey) {
-      this.providers.set("perplexity", new PerplexityClient(creds.perplexityApiKey));
     }
     if (creds.cohereApiKey) {
       this.providers.set("cohere", new CohereDirectClient(creds.cohereApiKey));

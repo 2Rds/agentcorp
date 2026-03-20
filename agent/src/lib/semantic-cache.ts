@@ -14,7 +14,6 @@ const CACHEABLE_MODELS = new Set([
 // Don't cache conversational/reasoning models — responses vary too much
 const SKIP_CACHE_MODELS = new Set([
   "claude-opus-4-6",
-  "perplexity/sonar-pro", // Web research results change frequently
 ]);
 
 export interface CacheEntry {

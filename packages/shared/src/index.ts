@@ -36,7 +36,7 @@ export {
   MODEL_REGISTRY, OPUS, GEMINI, SONAR, GROK_FAST,
   COHERE_EMBED, COHERE_RERANK,
   AGENT_STACKS,
-  ModelRouter, AnthropicClient, OpenRouterClient, PerplexityClient, CohereDirectClient,
+  ModelRouter, AnthropicClient, OpenRouterClient, CohereDirectClient,
   DEFAULT_BOARD, HIGH_STAKES_BOARD, BoardSession,
 } from "./models/index.js";
 export type { ModelAlias, ProviderClient, EmbeddingResult, RerankResult, BoardDecision } from "./models/index.js";

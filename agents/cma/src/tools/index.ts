@@ -107,15 +107,10 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Search the web for marketing trends, competitor analysis, industry benchmarks, and content ideas.",
       { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        const apiUrl = config.perplexityApiKey
-          ? "https://api.perplexity.ai/chat/completions"
-          : "https://openrouter.ai/api/v1/chat/completions";
-        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
         const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          apiUrl,
-          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }) },
+          "https://openrouter.ai/api/v1/chat/completions",
+          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "user", content: args.query }] }) },
           "Web search",
         );
         if (!result.ok) return err(result.error);
@@ -263,18 +258,13 @@ export function createMcpServer(orgId: string, _userId: string) {
         url: z.string().url().max(2000).optional().describe("Optional URL to analyze for on-page SEO"),
       },
       async (args) => {
-        const apiUrl = config.perplexityApiKey
-          ? "https://api.perplexity.ai/chat/completions"
-          : "https://openrouter.ai/api/v1/chat/completions";
-        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
         const prompt = args.url
           ? `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Content gaps in top-ranking pages, 3) Recommended content structure. Also analyze this URL for on-page SEO: ${args.url}`
           : `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Top-ranking content analysis, 3) Content gaps and opportunities, 4) Recommended content structure and word count.`;
         const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          apiUrl,
-          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }] }) },
+          "https://openrouter.ai/api/v1/chat/completions",
+          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "user", content: prompt }] }) },
           "SEO analysis",
         );
         if (!result.ok) return err(result.error);

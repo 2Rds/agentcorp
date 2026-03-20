@@ -38,8 +38,6 @@ export const config = {
   telegramChatId: optional("TELEGRAM_CHAT_ID"),
   telegramEnabled: !!process.env.TELEGRAM_BOT_TOKEN && !!process.env.TELEGRAM_CHAT_ID,
 
-  perplexityApiKey: optional("PERPLEXITY_API_KEY"),
-
   elevenlabsApiKey: optional("ELEVENLABS_API_KEY"),
   elevenlabsVoiceId: optional("ELEVENLABS_VOICE_ID"),
   nextgenSwitchUrl: optional("NEXTGENSWITCH_URL"),

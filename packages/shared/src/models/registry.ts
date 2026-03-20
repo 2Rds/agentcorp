@@ -1,22 +1,19 @@
 /**
- * Model Registry — The 6-model stack
+ * Model Registry — The 5-model stack
  *
- * Collapsed 2026-03-17 from 8 models to 6:
+ * Collapsed from 6 to 5 models (2026-03-20):
  * 1. Opus 4.6 — Brain (every agent) + Board Chairman
- * 2. Gemini 3 Flash Preview — Fast multimodal + Google Search grounding
- * 3. Sonar Pro — Web research + citations (direct Perplexity)
- * 4. Grok 4.1 Fast Non-Reasoning — 2M context, ultra-fast processing
- * 5. Gemini Embedding 2 — Embedding (1536-dim vectors, MTEB 68.17)
- * 6. Cohere rerank-v4.0 — Reranking
+ * 2. Gemini 3 Flash Preview — Fast multimodal + Google Search grounding + embeddings
+ * 3. Grok 4.1 Fast Non-Reasoning — 2M context, ultra-fast processing
+ * 4. Gemini Embedding 2 — Embedding (1536-dim vectors, MTEB 68.17)
+ * 5. Cohere rerank-v4.0 — Reranking
  *
- * Removed: Sonar Deep Research (redundant with Sonar Pro), Command A
- * (free tier exhaustion risk), Granite (compliance handled by Opus),
- * Grok Fast Reasoning (non-reasoning variant sufficient).
+ * Removed: Sonar Pro replaced by Gemini Search Grounding (2026-03-20).
  * Cohere embed-v4.0 replaced by Gemini Embedding 2 (2026-03-20).
  *
  * Board of Directors (LLM Council): Opus (dual-role: participant + chairman),
- * Gemini, Grok, Sonar (members). Cohere excluded from board — free tier
- * reserved for rerank ops. Gemini serves as governance advisor.
+ * Gemini (dual-role: member + governance advisor), Grok (member).
+ * Cohere excluded from board — reserved for rerank ops.
  *
  * No Sonnet (token inefficiency negates cost savings with memory compounding).
  * No Chinese models (trust non-negotiable in blockchain/fintech).
@@ -47,14 +44,8 @@ export const GEMINI: ModelConfig = {
   contextWindow: 1_000_000,
 };
 
-export const SONAR: ModelConfig = {
-  id: "sonar-pro",
-  provider: "perplexity",
-  alias: "sonar",
-  capabilities: ["web-search", "reasoning"],
-  pricing: { inputPerMillion: 3, outputPerMillion: 15 },
-  contextWindow: 200_000,
-};
+/** @deprecated Use GEMINI with google_search tool — Sonar Pro replaced by Gemini Search Grounding (2026-03-20) */
+export const SONAR = GEMINI;
 
 export const GROK_FAST: ModelConfig = {
   id: "x-ai/grok-4-1-fast-non-reasoning",
@@ -92,7 +83,6 @@ export const COHERE_RERANK: ModelConfig = {
 export const MODEL_REGISTRY = {
   opus: OPUS,
   gemini: GEMINI,
-  sonar: SONAR,
   "grok-fast": GROK_FAST,
   embed: GEMINI_EMBED,
   rerank: COHERE_RERANK,

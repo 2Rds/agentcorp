@@ -5,14 +5,14 @@
  * models matching its specialty. No uniform orchestration — each
  * agent is purpose-built.
  *
- * Stack collapsed 2026-03-17: removed Sonar Deep, Command A,
- * Granite, and Grok Fast Reasoning. Gemini updated to 3 Flash
- * Preview. Grok Fast (non-reasoning) kept for CMA X/Twitter.
+ * Stack collapsed 2026-03-20: Sonar Pro replaced by Gemini Search
+ * Grounding. Gemini now handles both multimodal + web search via
+ * google_search tool. Grok Fast (non-reasoning) kept for CMA X/Twitter.
  */
 
 import type { ModelStack } from "../types.js";
 import {
-  OPUS, GEMINI, SONAR, GROK_FAST,
+  OPUS, GEMINI, GROK_FAST,
   GEMINI_EMBED, COHERE_RERANK,
 } from "./registry.js";
 
@@ -21,7 +21,7 @@ import {
 /** Executive Assistant — calendar, email, scheduling, daily briefings */
 export const EA_STACK: ModelStack = {
   primary: OPUS,
-  support: [GEMINI, SONAR],       // Google Search for scheduling + web research for briefings
+  support: [GEMINI],               // Google Search grounding for scheduling + web research
   embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,
 };
@@ -47,7 +47,7 @@ export const CFA_STACK: ModelStack = {
 /** Investor Relations — market research, data room management */
 export const IR_STACK: ModelStack = {
   primary: OPUS,
-  support: [SONAR],                        // Web research + citations
+  support: [GEMINI],                       // Search grounding for web research + citations
   embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,
 };
@@ -55,7 +55,7 @@ export const IR_STACK: ModelStack = {
 /** Chief Marketing Agent — content creation, trend research, X/Twitter */
 export const CMA_STACK: ModelStack = {
   primary: OPUS,
-  support: [GEMINI, SONAR, GROK_FAST],    // Content + trend research + X/Twitter via Grok
+  support: [GEMINI, GROK_FAST],           // Content + search grounding + X/Twitter via Grok
   embedding: GEMINI_EMBED,
 };
 
@@ -78,7 +78,7 @@ export const LEGAL_STACK: ModelStack = {
 /** Sales Manager — pipeline oversight, strategic calls, team orchestration */
 export const SALES_MANAGER_STACK: ModelStack = {
   primary: OPUS,
-  support: [SONAR, GEMINI],               // Prospect research + proposals
+  support: [GEMINI],                       // Search grounding for prospect research + proposals
   embedding: GEMINI_EMBED,
 };
 /** @deprecated Use SALES_MANAGER_STACK */
@@ -87,7 +87,7 @@ export const SALES_STACK = SALES_MANAGER_STACK;
 /** Sales Development Rep (SDR) — prospect research, Feature Store writes, CRM ops */
 export const SDR_STACK: ModelStack = {
   primary: OPUS,
-  support: [SONAR, GEMINI],               // Web research + fast processing
+  support: [GEMINI],                       // Search grounding for web research + fast processing
   embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,                 // Rerank prospect search results
 };
@@ -97,7 +97,7 @@ export const SDR_STACK: ModelStack = {
 /** Research junior — deep web research, citation gathering */
 export const RESEARCH_JUNIOR_STACK: ModelStack = {
   primary: OPUS,
-  support: [SONAR],                        // Web research + citations
+  support: [GEMINI],                       // Search grounding for web research + citations
   embedding: GEMINI_EMBED,
 };
 

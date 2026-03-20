@@ -20,11 +20,10 @@
  * synthesizes the final decision as chairman. The most capable model
  * must be part of the debate, not just an observer who speaks last.
  *
- * 4 models across 4 board seats (Gemini dual-role as governance advisor):
+ * 3 models across 3 board seats (Gemini dual-role as governance advisor):
  *   Opus        → Board member + Chairman (debates AND decides)
  *   Gemini      → Board member + Governance advisor (compliance brief)
  *   Grok 4.1    → Board member (non-reasoning variant)
- *   Sonar       → Board member
  *
  * No perspective prompts or role-playing — model diversity IS the
  * perspective diversity. Different training data, different RLHF,
@@ -34,7 +33,7 @@
 
 import type { BoardConfig, BoardMember, ChatMessage, CompletionResult } from "../types.js";
 import type { ModelRouter } from "./router.js";
-import { OPUS, GEMINI, SONAR, GROK_FAST } from "./registry.js";
+import { OPUS, GEMINI, GROK_FAST } from "./registry.js";
 
 // ─── Board Member Definitions ───────────────────────────────────────────────
 // Minimal framing — model diversity IS the perspective diversity. Different
@@ -58,19 +57,13 @@ const MEMBER_GROK: BoardMember = {
   perspective: `You are a board member. Provide your independent analysis of this strategic question.`,
 };
 
-const MEMBER_SONAR: BoardMember = {
-  role: "member-sonar",
-  model: SONAR,
-  perspective: `You are a board member. Provide your independent analysis of this strategic question.`,
-};
-
 // ─── Default Board Configuration ────────────────────────────────────────────
 
 export const DEFAULT_BOARD: BoardConfig = {
   chairman: OPUS,
-  members: [CHAIRMAN_MEMBER, MEMBER_GEMINI, MEMBER_GROK, MEMBER_SONAR],
+  members: [CHAIRMAN_MEMBER, MEMBER_GEMINI, MEMBER_GROK],
   enablePeerReview: false,   // Only for high-stakes decisions
-  quorum: 3,                 // Proceed if at least 3 of 4 members respond
+  quorum: 2,                 // Proceed if at least 2 of 3 members respond
   timeoutMs: 60_000,         // 60s max wait for all members
   governanceAdvisor: GEMINI,
 };

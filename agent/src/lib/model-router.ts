@@ -6,13 +6,11 @@ import { withCache } from "./semantic-cache.js";
 
 export type ModelAlias =
   | "gemini"
-  | "sonar"
   | "grok-fast";
 
 /** Native provider model IDs (not OpenRouter format). */
 const MODEL_IDS: Record<ModelAlias, string> = {
   gemini: "gemini-3-flash-preview",
-  sonar: "perplexity/sonar-pro",
   "grok-fast": "grok-4-1-fast-non-reasoning",
 };
 
@@ -22,7 +20,6 @@ type Provider = "google" | "xai" | "openrouter";
 const MODEL_PROVIDER: Record<ModelAlias, Provider> = {
   gemini: "google",
   "grok-fast": "xai",
-  sonar: "openrouter",
 };
 
 // ─── AI Gateway helpers ──────────────────────────────────────────────────────
@@ -404,6 +401,72 @@ async function chatCompletionOpenRouter(
     );
   }
   return content;
+}
+
+// ─── Web Search (Gemini Search Grounding) ───────────────────────────────────
+
+export interface WebSearchCitation {
+  title: string;
+  url: string;
+}
+
+export interface WebSearchResult {
+  content: string;
+  citations: WebSearchCitation[];
+}
+
+/**
+ * Search the web using Gemini Search Grounding (replaces Perplexity Sonar).
+ * Uses google_search tool with @google/genai SDK.
+ * Returns content with structured citations from groundingMetadata.
+ */
+export async function webSearch(
+  query: string,
+  opts: { maxTokens?: number; agentId?: string } = {},
+): Promise<WebSearchResult> {
+  const ai = getGeminiAI();
+  if (!ai) {
+    throw new Error("GOOGLE_AI_API_KEY is required for web search (Gemini Search Grounding)");
+  }
+
+  const agentId = opts.agentId ?? "blockdrive-cfa";
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: query,
+    config: {
+      maxOutputTokens: opts.maxTokens ?? 2000,
+      temperature: 0.1,
+      tools: [{ googleSearch: {} }],
+      httpOptions: {
+        headers: {
+          ...getCfAigHeaders("gemini", agentId),
+          "cf-aig-skip-cache": "true", // Web search results must be fresh
+        },
+      },
+    },
+  });
+
+  const text = response.text ?? "";
+
+  // Parse grounding metadata for structured citations
+  const citations: WebSearchCitation[] = [];
+  const metadata = response.candidates?.[0]?.groundingMetadata;
+  if (metadata?.groundingChunks) {
+    for (const chunk of metadata.groundingChunks) {
+      if (chunk.web?.title && chunk.web?.uri) {
+        citations.push({ title: chunk.web.title, url: chunk.web.uri });
+      }
+    }
+  }
+
+  // Format content with inline citations if available
+  let content = text;
+  if (citations.length > 0) {
+    content += "\n\n---\nSources:\n" + citations.map((c, i) => `[${i + 1}] ${c.title}: ${c.url}`).join("\n");
+  }
+
+  return { content, citations };
 }
 
 // ─── Embeddings ──────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { supabaseAdmin } from "../lib/supabase.js";
 import { searchOrgMemories, addOrgMemory, searchCrossNamespaceMemories } from "../lib/memory-client.js";
-import { chatCompletion } from "../lib/model-router.js";
+import { webSearch } from "../lib/model-router.js";
 import { config } from "../config.js";
 import * as notion from "../lib/notion-client.js";
 import { sendSlackMessage, readSlackChannel, listChannels, resolveUserName } from "../transport/slack.js";
@@ -199,7 +199,7 @@ function createTools(orgId: string, _userId: string): ToolEntry[] {
     {
       def: {
         name: "web_search",
-        description: "Search the web for real-time information using Perplexity Sonar.",
+        description: "Search the web for real-time information using Gemini Search Grounding. Returns results with source citations.",
         input_schema: {
           type: "object" as const,
           properties: {
@@ -210,8 +210,8 @@ function createTools(orgId: string, _userId: string): ToolEntry[] {
       },
       handler: async (args) => {
         try {
-          const result = await chatCompletion("sonar", [{ role: "user", content: args.query }], { maxTokens: 1000 });
-          return result || "No results found.";
+          const result = await webSearch(args.query, { maxTokens: 1000, agentId: "blockdrive-ea" });
+          return result.content || "No results found.";
         } catch (e: any) { return `Search error: ${e.message}`; }
       },
     },

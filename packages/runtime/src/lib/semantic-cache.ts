@@ -100,8 +100,8 @@ const EXACT_KEY_PREFIX = "llmcache:exact:";
 const EMBEDDING_DIM = 1536;
 
 /** Default models whose responses should NOT be cached */
-const DEFAULT_SKIP_MODELS = new Set([
-  "perplexity/sonar-pro", // Web search results change constantly
+const DEFAULT_SKIP_MODELS = new Set<string>([
+  // Web search via Gemini Search Grounding is not cacheable (results change)
 ]);
 
 const INDEX_SCHEMA: Record<string, IndexFieldSchema> = {

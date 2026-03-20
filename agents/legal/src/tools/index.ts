@@ -128,15 +128,10 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Search the web for legal research — case law, regulations, precedents, and legal analysis.",
       { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        const apiUrl = config.perplexityApiKey
-          ? "https://api.perplexity.ai/chat/completions"
-          : "https://openrouter.ai/api/v1/chat/completions";
-        const apiKey = config.perplexityApiKey || config.openRouterApiKey;
-        const model = config.perplexityApiKey ? "sonar-pro" : "perplexity/sonar-pro";
         const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          apiUrl,
-          { method: "POST", headers: { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model, messages: [{ role: "user", content: args.query }] }) },
+          "https://openrouter.ai/api/v1/chat/completions",
+          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "user", content: args.query }] }) },
           "Web search",
         );
         if (!result.ok) return err(result.error);

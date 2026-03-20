@@ -2,7 +2,7 @@ import { tool } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { supabaseAdmin } from "../lib/supabase.js";
 import { addOrgMemory } from "../lib/memory-client.js";
-import { chatCompletion } from "../lib/model-router.js";
+import { chatCompletion, webSearch } from "../lib/model-router.js";
 
 // ─── Task Management ─────────────────────────────────────────────────────────
 
@@ -497,18 +497,14 @@ export function webTools(orgId: string) {
 
   const web_search = tool(
     "web_search",
-    "Search the web for real-time information using Sonar Pro (Perplexity). Use for investor backgrounds, company research, news, competitive intel, or any current information.",
+    "Search the web for real-time information using Gemini Search Grounding. Returns results with source citations. Use for investor backgrounds, company research, news, competitive intel, or any current information.",
     {
       query: z.string().describe("Search query"),
     },
     async (args) => {
       try {
-        const result = await chatCompletion("sonar", [
-          { role: "system", content: "You are a web research assistant. Provide concise, factual answers with sources." },
-          { role: "user", content: args.query },
-        ], { temperature: 0.1, maxTokens: 2000 });
-
-        return { content: [{ type: "text" as const, text: result }] };
+        const result = await webSearch(args.query, { maxTokens: 2000, agentId: "blockdrive-ea" });
+        return { content: [{ type: "text" as const, text: result.content }] };
       } catch (e: any) {
         return { content: [{ type: "text" as const, text: `Web search error: ${e.message}` }], isError: true };
       }
