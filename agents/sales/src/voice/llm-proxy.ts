@@ -11,8 +11,12 @@
  */
 
 import { Router, type Request, type Response } from "express";
+import { randomUUID } from "node:crypto";
 import Anthropic from "@anthropic-ai/sdk";
 import { config } from "../config.js";
+
+/** Max output tokens for voice responses (prevents cost amplification) */
+const MAX_VOICE_TOKENS = 4096;
 
 // ─── Anthropic client (reuses EA pattern for CF AI Gateway routing) ─────────
 
@@ -138,11 +142,9 @@ function translateTools(openaiTools?: OpenAITool[]): Anthropic.Tool[] | undefine
 
 // ─── SSE helpers ─────────────────────────────────────────────────────────────
 
-const RESPONSE_ID = "chatcmpl-voice-proxy";
-
-function sseChunk(res: Response, delta: Record<string, unknown>, finishReason?: string | null): void {
+function sseChunk(res: Response, responseId: string, delta: Record<string, unknown>, finishReason?: string | null): void {
   const chunk = {
-    id: RESPONSE_ID,
+    id: responseId,
     object: "chat.completion.chunk",
     created: Math.floor(Date.now() / 1000),
     model: "claude-opus-4-6",
@@ -198,6 +200,13 @@ export function createLlmProxyRouter(): Router {
   const router = Router();
 
   router.post("/chat/completions", async (req: Request, res: Response) => {
+    // ── Auth: shared secret guard ──
+    const secret = config.llmProxySecret;
+    if (secret && req.headers.authorization !== `Bearer ${secret}`) {
+      res.status(401).json({ error: { message: "Unauthorized", type: "auth_error" } });
+      return;
+    }
+
     const { messages, stream: shouldStream, tools, max_tokens, temperature } = req.body as {
       messages?: OpenAIMessage[];
       stream?: boolean;
@@ -212,15 +221,18 @@ export function createLlmProxyRouter(): Router {
       return;
     }
 
-    const { system, messages: anthropicMessages } = translateMessages(messages);
-    const anthropicTools = translateTools(tools);
+    const responseId = `chatcmpl-${randomUUID()}`;
+    const clampedMaxTokens = Math.min(max_tokens ?? 4096, MAX_VOICE_TOKENS);
 
     try {
+      const { system, messages: anthropicMessages } = translateMessages(messages);
+      const anthropicTools = translateTools(tools);
+
       if (shouldStream === false) {
         // Non-streaming fallback (unlikely for ElevenLabs, but support it)
         const response = await anthropic.messages.create({
           model: "claude-opus-4-6-20250627",
-          max_tokens: max_tokens ?? 4096,
+          max_tokens: clampedMaxTokens,
           temperature: temperature ?? 0.7,
           system: system || undefined,
           messages: anthropicMessages,
@@ -241,7 +253,7 @@ export function createLlmProxyRouter(): Router {
           }));
 
         res.json({
-          id: RESPONSE_ID,
+          id: responseId,
           object: "chat.completion",
           created: Math.floor(Date.now() / 1000),
           model: "claude-opus-4-6",
@@ -274,11 +286,11 @@ export function createLlmProxyRouter(): Router {
       });
 
       // Send initial role chunk
-      sseChunk(res, { role: "assistant" });
+      sseChunk(res, responseId, { role: "assistant" });
 
       const messageStream = anthropic.messages.stream({
         model: "claude-opus-4-6-20250627",
-        max_tokens: max_tokens ?? 4096,
+        max_tokens: clampedMaxTokens,
         temperature: temperature ?? 0.7,
         system: system || undefined,
         messages: anthropicMessages,
@@ -291,7 +303,7 @@ export function createLlmProxyRouter(): Router {
       messageStream.on("text", (text: string) => {
         const flushed = wordBuffer.add(text);
         if (flushed) {
-          sseChunk(res, { content: flushed });
+          sseChunk(res, responseId, { content: flushed });
         }
       });
 
@@ -300,13 +312,13 @@ export function createLlmProxyRouter(): Router {
           // Flush any buffered text before tool call
           const remaining = wordBuffer.flush();
           if (remaining) {
-            sseChunk(res, { content: remaining });
+            sseChunk(res, responseId, { content: remaining });
           }
 
           hasToolUse = true;
 
           // Emit tool call as OpenAI function_call format
-          sseChunk(res, {
+          sseChunk(res, responseId, {
             tool_calls: [
               {
                 index: 0,
@@ -326,11 +338,11 @@ export function createLlmProxyRouter(): Router {
         // Flush any remaining buffered text
         const remaining = wordBuffer.flush();
         if (remaining) {
-          sseChunk(res, { content: remaining });
+          sseChunk(res, responseId, { content: remaining });
         }
 
         const finishReason = hasToolUse ? "tool_calls" : "stop";
-        sseChunk(res, {}, finishReason);
+        sseChunk(res, responseId, {}, finishReason);
 
         res.write("data: [DONE]\n\n");
         res.end();
@@ -339,9 +351,9 @@ export function createLlmProxyRouter(): Router {
       messageStream.on("error", (error: Error) => {
         console.error("[LLM Proxy] Stream error:", error.message);
         const errorChunk = {
-          id: RESPONSE_ID,
+          id: responseId,
           object: "chat.completion.chunk",
-          error: { message: error.message, type: "server_error" },
+          error: { message: "An internal error occurred", type: "server_error" },
         };
         res.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
         res.write("data: [DONE]\n\n");
@@ -353,10 +365,10 @@ export function createLlmProxyRouter(): Router {
         messageStream.abort();
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Internal server error";
-      console.error("[LLM Proxy] Request error:", message);
+      const detail = error instanceof Error ? error.message : "Internal server error";
+      console.error("[LLM Proxy] Request error:", detail);
       if (!res.headersSent) {
-        res.status(500).json({ error: { message, type: "server_error" } });
+        res.status(500).json({ error: { message: "An internal error occurred", type: "server_error" } });
       } else {
         res.end();
       }

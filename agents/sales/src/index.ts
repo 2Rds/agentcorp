@@ -46,9 +46,9 @@ const runtime = new AgentRuntime({
     // Override the default skip list to allow caching for the sales department.
     skipModels: new Set<string>(),
   },
-  publicRoutes: [
-    { path: "/voice/llm", router: createLlmProxyRouter() },
-  ],
+  publicRoutes: config.voiceEnabled
+    ? [{ path: "/voice/llm", router: createLlmProxyRouter() }]
+    : undefined,
   corsOrigins: config.corsOrigins,
   telegram: config.telegramEnabled ? {
     agents: {

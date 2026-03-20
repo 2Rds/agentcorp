@@ -43,6 +43,8 @@ export const config = {
   voiceEnabled: !!process.env.ELEVENLABS_API_KEY && !!process.env.ELEVENLABS_VOICE_ID && !!process.env.NEXTGENSWITCH_URL,
 
   blockdriveOrgId: optional("BLOCKDRIVE_ORG_ID"),
+
+  llmProxySecret: optional("LLM_PROXY_SECRET"),
 } as const;
 
 if (providerKeysMode) {
