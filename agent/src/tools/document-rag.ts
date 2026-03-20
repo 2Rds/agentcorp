@@ -116,8 +116,8 @@ export function documentRagTools(orgId: string) {
           };
         }
 
-        // Strategy 3: Supabase pgvector (legacy fallback)
-        if (config.openRouterApiKey) {
+        // Strategy 3: Supabase pgvector (legacy fallback — requires embeddings)
+        if (config.googleAiApiKey || config.cfAigToken) {
           try {
             const queryEmbedding = await generateEmbedding(args.query);
             if (queryEmbedding.length > 0) {

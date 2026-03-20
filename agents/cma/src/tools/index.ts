@@ -320,9 +320,13 @@ export function createMcpServer(orgId: string, _userId: string) {
           ? `Analyze trending hashtags on X/Twitter related to: ${args.query}. Include usage volume and related conversations.`
           : `Analyze competitor activity on X/Twitter for: ${args.query}. Include their recent posts, engagement rates, and content strategy patterns.`;
         // Route through CF AI Gateway grok endpoint (direct xAI provider)
-        const grokBase = config.cfAccountId && config.cfGatewayId
+        const useGateway = !!(config.cfAccountId && config.cfGatewayId);
+        const grokBase = useGateway
           ? `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/grok`
           : "https://api.x.ai";
+        if (!useGateway && !config.cfAigToken) {
+          return err("X/Twitter search requires CF AI Gateway configuration (CF_ACCOUNT_ID + CF_GATEWAY_ID + CF_AIG_TOKEN)");
+        }
         const grokHeaders: Record<string, string> = { "Content-Type": "application/json" };
         if (config.cfAigToken) {
           grokHeaders["cf-aig-authorization"] = `Bearer ${config.cfAigToken}`;

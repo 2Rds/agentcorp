@@ -5,7 +5,7 @@ const CACHE_INDEX = "idx:llm_cache_v2";
 const CACHE_PREFIX = "llmcache:";
 
 // Models whose responses should be cached (structured/deterministic outputs).
-// Uses native provider model IDs (not OpenRouter format).
+// Uses native provider model IDs.
 const CACHEABLE_MODELS = new Set([
   "gemini-3-flash-preview",
   "grok-4-1-fast-non-reasoning",

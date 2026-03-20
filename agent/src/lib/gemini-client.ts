@@ -1,4 +1,4 @@
-import { chatCompletion, embed, getGeminiAI, MODEL_IDS } from "./model-router.js";
+import { embed, getGeminiAI, MODEL_IDS } from "./model-router.js";
 import type { Part } from "@google/genai";
 import { writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,8 +9,7 @@ import { randomUUID } from "node:crypto";
 
 /**
  * Parse a document (image or PDF) using Gemini vision.
- * Uses @google/genai SDK directly when GOOGLE_AI_API_KEY is set,
- * falls back to model-router chatCompletion otherwise.
+ * Requires GOOGLE_AI_API_KEY (or CF_AIG_TOKEN for Provider Keys mode).
  */
 export async function parseDocumentWithVision(
   buffer: Buffer,
@@ -20,18 +19,9 @@ export async function parseDocumentWithVision(
   const ai = getGeminiAI();
 
   if (!ai) {
-    // Fallback: route through model-router (requires GOOGLE_AI_API_KEY or Provider Keys)
-    const base64 = buffer.toString("base64");
-    const dataUrl = `data:${mimeType};base64,${base64}`;
-    return chatCompletion("gemini", [
-      {
-        role: "user",
-        content: [
-          { type: "image_url", image_url: { url: dataUrl } },
-          { type: "text", text: prompt },
-        ],
-      },
-    ], { maxTokens: 8192, temperature: 0.1 });
+    throw new Error(
+      "GOOGLE_AI_API_KEY (or CF_AIG_TOKEN for Provider Keys mode) is required for Gemini vision.",
+    );
   }
 
   try {
@@ -120,8 +110,7 @@ export async function uploadToGeminiFiles(
 
 /**
  * Query documents using Gemini with uploaded file URIs for grounded generation.
- * Uses @google/genai SDK directly when GOOGLE_AI_API_KEY is set,
- * falls back to a simple query via model-router otherwise.
+ * Requires GOOGLE_AI_API_KEY (or CF_AIG_TOKEN for Provider Keys mode).
  */
 export async function queryDocumentsWithGemini(
   fileUris: Array<{ uri: string; mimeType: string }>,
@@ -130,13 +119,9 @@ export async function queryDocumentsWithGemini(
   const ai = getGeminiAI();
 
   if (!ai) {
-    // Fallback: simple query without file context
-    return chatCompletion("gemini", [
-      {
-        role: "user",
-        content: `Answer the following question based on your knowledge. If you don't have enough context, say so.\n\nQuestion: ${question}`,
-      },
-    ], { maxTokens: 4096, temperature: 0.2 });
+    throw new Error(
+      "GOOGLE_AI_API_KEY (or CF_AIG_TOKEN for Provider Keys mode) is required for document queries.",
+    );
   }
 
   if (fileUris.length === 0) {
