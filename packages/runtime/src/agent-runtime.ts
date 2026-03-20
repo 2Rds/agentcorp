@@ -93,8 +93,11 @@ export interface AgentRuntimeConfig {
   /** Telegram bot config for inter-agent messaging */
   telegram?: TelegramTransportConfig;
 
-  /** Optional custom routes to mount on the Express app */
+  /** Optional custom routes to mount on the Express app (behind auth middleware) */
   customRoutes?: Array<{ path: string; router: Router }>;
+
+  /** Optional public routes mounted without auth middleware (e.g., ElevenLabs custom_llm proxy) */
+  publicRoutes?: Array<{ path: string; router: Router }>;
 
   /** Optional post-response hook (knowledge extraction, etc.) */
   onResponse?: (agentId: string, orgId: string, userMessage: string, assistantText: string, conversationId: string) => void | Promise<void>;
@@ -530,6 +533,13 @@ export class AgentRuntime {
       get hasMemory() { return !!runtime._memory; },
       hasTelegram: !!rtConfig.telegram,
     }));
+
+    // Public custom routes (no auth — e.g., ElevenLabs custom_llm proxy)
+    if (rtConfig.publicRoutes) {
+      for (const { path, router } of rtConfig.publicRoutes) {
+        this.app.use(path, router);
+      }
+    }
 
     // Protected routes (memory + cache use getters so they pick up instances after start())
     this.app.use(authMiddleware, createChatRouter({

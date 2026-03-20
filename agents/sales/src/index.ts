@@ -17,6 +17,7 @@ import { setRuntime, getRuntime } from "./runtime-ref.js";
 import { SdrWorker } from "./sdr/worker.js";
 import { VOICE_SYSTEM_PROMPT } from "./voice/system-prompt.js";
 import { createVoiceTools } from "./voice/tools.js";
+import { createLlmProxyRouter } from "./voice/llm-proxy.js";
 
 const orgId = config.blockdriveOrgId || "";
 const voiceTools = config.voiceEnabled && orgId ? createVoiceTools(orgId) : undefined;
@@ -45,6 +46,9 @@ const runtime = new AgentRuntime({
     // Override the default skip list to allow caching for the sales department.
     skipModels: new Set<string>(),
   },
+  publicRoutes: [
+    { path: "/voice/llm", router: createLlmProxyRouter() },
+  ],
   corsOrigins: config.corsOrigins,
   telegram: config.telegramEnabled ? {
     agents: {
