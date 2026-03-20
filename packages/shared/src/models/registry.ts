@@ -36,7 +36,7 @@ export const OPUS: ModelConfig = {
 // ─── Support Models ─────────────────────────────────────────────────────────
 
 export const GEMINI: ModelConfig = {
-  id: "google/gemini-3-flash-preview",
+  id: "gemini-3-flash-preview",
   provider: "openrouter",
   alias: "gemini",
   capabilities: ["multimodal", "search-grounding"],
@@ -48,7 +48,7 @@ export const GEMINI: ModelConfig = {
 export const SONAR = GEMINI;
 
 export const GROK_FAST: ModelConfig = {
-  id: "x-ai/grok-4-1-fast-non-reasoning",
+  id: "grok-4-1-fast-non-reasoning",
   provider: "openrouter",
   alias: "grok-fast",
   capabilities: ["code", "reasoning"],

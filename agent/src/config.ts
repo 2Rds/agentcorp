@@ -22,14 +22,13 @@ export const config = {
   port: parseInt(process.env.PORT || "3001", 10),
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:8080").split(",").map(s => s.trim()),
 
-  // Multi-model via OpenRouter (single key for all models)
-  openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
+  // @deprecated OpenRouter replaced by CF AI Gateway BYOK (v4.0). Kept for backward compat during migration.
+  openRouterApiKey: optional("OPENROUTER_API_KEY"),
 
   // Google AI Studio (direct SDK access for Gemini — vision, Files API, embeddings)
   googleAiApiKey: optional("GOOGLE_AI_API_KEY"),
 
   // xAI (direct API access for Grok — X-Twitter data, classification)
-  // Optional: falls back to OpenRouter when not set
   xaiApiKey: optional("XAI_API_KEY"),
 
   // Cloudflare AI Gateway + Workers AI (optional — falls back to direct URLs)
@@ -70,7 +69,7 @@ export const config = {
   notionApiKey: optional("NOTION_API_KEY"),
   notionEnabled: !!process.env.NOTION_API_KEY,
 
-  // Gemini vision uses OpenRouter. Always available.
+  // Gemini vision via Google AI Studio / CF AI Gateway. Always available.
   useGeminiVision: true,
 } as const;
 

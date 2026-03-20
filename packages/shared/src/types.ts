@@ -13,7 +13,7 @@ import type { PluginName } from "./plugins.js";
 /** Provider that hosts a model — determines routing and credential logic */
 export type ModelProvider =
   | "anthropic"     // Claude models via direct Anthropic API
-  | "openrouter"    // Aggregator (Gemini, Grok) via OpenRouter
+  | "openrouter"    // @deprecated — replaced by CF AI Gateway BYOK (v4.0)
   | "google"        // Gemini (chat, embedding, search grounding) via Google AI API
   | "cohere";       // Rerank via direct Cohere API
 
@@ -355,7 +355,8 @@ export interface NextGenSwitchConfig {
 /** All provider API credentials */
 export interface ProviderCredentials {
   anthropicApiKey: string;
-  openRouterApiKey: string;
+  /** @deprecated OpenRouter replaced by CF AI Gateway BYOK (v4.0). Optional during migration. */
+  openRouterApiKey?: string;
   cohereApiKey: string;
   /** Google AI API key for Gemini (chat, embedding, search grounding) */
   googleAiApiKey?: string;

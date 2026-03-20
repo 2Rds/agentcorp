@@ -319,10 +319,18 @@ export function createMcpServer(orgId: string, _userId: string) {
           : args.type === "hashtags"
           ? `Analyze trending hashtags on X/Twitter related to: ${args.query}. Include usage volume and related conversations.`
           : `Analyze competitor activity on X/Twitter for: ${args.query}. Include their recent posts, engagement rates, and content strategy patterns.`;
+        // Route through CF AI Gateway grok endpoint (direct xAI provider)
+        const grokBase = config.cfAccountId && config.cfGatewayId
+          ? `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/grok`
+          : "https://api.x.ai";
+        const grokHeaders: Record<string, string> = { "Content-Type": "application/json" };
+        if (config.cfAigToken) {
+          grokHeaders["cf-aig-authorization"] = `Bearer ${config.cfAigToken}`;
+        }
         const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          "https://openrouter.ai/api/v1/chat/completions",
-          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "x-ai/grok-4-1-fast", messages: [{ role: "user", content: prompt }] }) },
+          `${grokBase}/v1/chat/completions`,
+          { method: "POST", headers: grokHeaders,
+            body: JSON.stringify({ model: "grok-4-1-fast-non-reasoning", messages: [{ role: "user", content: prompt }] }) },
           "X/Twitter search",
         );
         if (!result.ok) return err(result.error);

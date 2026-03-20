@@ -10,7 +10,7 @@ import { randomUUID } from "node:crypto";
 /**
  * Parse a document (image or PDF) using Gemini vision.
  * Uses @google/genai SDK directly when GOOGLE_AI_API_KEY is set,
- * falls back to OpenRouter via model-router otherwise.
+ * falls back to model-router chatCompletion otherwise.
  */
 export async function parseDocumentWithVision(
   buffer: Buffer,
@@ -20,7 +20,7 @@ export async function parseDocumentWithVision(
   const ai = getGeminiAI();
 
   if (!ai) {
-    // Fallback: route through OpenRouter via model-router
+    // Fallback: route through model-router (requires GOOGLE_AI_API_KEY or Provider Keys)
     const base64 = buffer.toString("base64");
     const dataUrl = `data:${mimeType};base64,${base64}`;
     return chatCompletion("gemini", [
@@ -62,7 +62,7 @@ export async function parseDocumentWithVision(
 
 /**
  * Upload a file to Gemini Files API for later use in grounded generation.
- * Requires GOOGLE_AI_API_KEY (not available through OpenRouter).
+ * Requires GOOGLE_AI_API_KEY (or CF_AIG_TOKEN for Provider Keys mode).
  * Returns null if the API key is not configured.
  */
 export async function uploadToGeminiFiles(
@@ -121,7 +121,7 @@ export async function uploadToGeminiFiles(
 /**
  * Query documents using Gemini with uploaded file URIs for grounded generation.
  * Uses @google/genai SDK directly when GOOGLE_AI_API_KEY is set,
- * falls back to a simple query via OpenRouter otherwise.
+ * falls back to a simple query via model-router otherwise.
  */
 export async function queryDocumentsWithGemini(
   fileUris: Array<{ uri: string; mimeType: string }>,

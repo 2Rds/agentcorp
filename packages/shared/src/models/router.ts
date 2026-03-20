@@ -2,8 +2,8 @@
  * Model Router — Multi-provider dispatch
  *
  * Routes model calls to the correct provider based on ModelConfig.provider.
- * Handles: Anthropic (direct), OpenRouter (aggregator for Gemini, Grok),
- * Google (Gemini chat, embedding, search grounding), Cohere (rerank).
+ * Handles: Anthropic (direct), Google (Gemini chat, embedding, search grounding),
+ * Cohere (rerank). OpenRouter is deprecated — kept for backward compat.
  *
  * Each provider client implements the same interface. The router dispatches
  * based on the model's provider field and tracks usage for cost analysis.
@@ -161,6 +161,7 @@ export class AnthropicClient implements ProviderClient {
 
 // ─── OpenRouter Provider ────────────────────────────────────────────────────
 
+/** @deprecated OpenRouter replaced by CF AI Gateway BYOK (v4.0). Kept for backward compat. */
 export class OpenRouterClient implements ProviderClient {
   readonly provider = "openrouter" as const;
   private apiKey: string;

@@ -96,7 +96,7 @@ function salvageValidItems<T extends z.ZodTypeAny>(items: unknown[], schema: T):
 function rethrowKnownErrors(e: unknown): void {
   const msg = e instanceof Error ? e.message : String(e);
   if (msg.includes("401") || msg.includes("403")) {
-    throw new Error("Gemini 3 Flash API authentication failed. Check OpenRouter API key configuration.");
+    throw new Error("Gemini 3 Flash API authentication failed. Check GOOGLE_AI_API_KEY or CF_AIG_TOKEN configuration.");
   }
   if (msg.includes("429") || msg.toLowerCase().includes("rate")) {
     throw new Error("Gemini 3 Flash rate limit exceeded. Please wait and try again.");

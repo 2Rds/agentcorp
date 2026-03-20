@@ -23,7 +23,6 @@ const runtime = new AgentRuntime({
     supabaseUrl: config.supabaseUrl,
     supabaseServiceRoleKey: config.supabaseServiceRoleKey,
     anthropicApiKey: config.anthropicApiKey,
-    openRouterApiKey: config.openRouterApiKey,
     redisUrl: config.redisUrl || undefined,
     cohereApiKey: config.cohereApiKey || undefined,
     googleAiApiKey: config.googleAiApiKey || undefined,

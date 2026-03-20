@@ -8,14 +8,14 @@ export type ModelAlias =
   | "gemini"
   | "grok-fast";
 
-/** Native provider model IDs (not OpenRouter format). */
+/** Native provider model IDs. */
 export const MODEL_IDS: Record<ModelAlias, string> = {
   gemini: "gemini-3-flash-preview",
   "grok-fast": "grok-4-1-fast-non-reasoning",
 };
 
 /** Which provider each alias routes to. */
-type Provider = "google" | "xai" | "openrouter";
+type Provider = "google" | "xai";
 
 const MODEL_PROVIDER: Record<ModelAlias, Provider> = {
   gemini: "google",
@@ -38,11 +38,6 @@ function gatewayBase(provider: string): string {
   return `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/${provider}`;
 }
 
-function getOpenRouterBaseURL(): string {
-  if (useGateway()) return gatewayBase("openrouter");
-  return "https://openrouter.ai/api/v1";
-}
-
 export function getGoogleBaseURL(): string {
   if (useGateway()) return gatewayBase("google-ai-studio");
   return "https://generativelanguage.googleapis.com";
@@ -59,27 +54,6 @@ export function getAnthropicBaseURL(): string {
 }
 
 // ─── Per-provider auth headers ──────────────────────────────────────────────
-
-/**
- * Build auth headers for OpenRouter calls.
- * With Provider Keys: gateway auth token only (gateway injects OpenRouter key).
- * Without: direct OpenRouter API key.
- */
-function getOpenRouterHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "HTTP-Referer": "https://corp.blockdrive.co",
-    "X-Title": "BlockDrive AgentCorp",
-  };
-
-  if (useProviderKeys()) {
-    headers["cf-aig-authorization"] = `Bearer ${config.cfAigToken}`;
-  } else {
-    headers["Authorization"] = `Bearer ${config.openRouterApiKey}`;
-  }
-
-  return headers;
-}
 
 /**
  * Build auth headers for Anthropic calls.
@@ -213,7 +187,7 @@ export interface ChatCompletionOpts {
  * Route a chat completion to its native provider via CF AI Gateway.
  * - "gemini" → Google AI Studio via @google/genai SDK
  * - "grok-fast" → xAI via OpenAI-compatible endpoint
- * - Unknown model IDs → OpenRouter fallback
+ * - Unknown model IDs → error
  */
 export async function chatCompletion(
   model: ModelAlias | string,
@@ -234,8 +208,11 @@ export async function chatCompletion(
     return chatCompletionGrok(alias, messages, opts, agentId);
   }
 
-  // Unknown models → OpenRouter fallback
-  return chatCompletionOpenRouter(model, messages, opts, agentId);
+  // Unknown models → error (OpenRouter removed — all models must route through native providers)
+  throw new Error(
+    `Unknown model "${model}". Available aliases: ${Object.keys(MODEL_IDS).join(", ")}. ` +
+    `All models route through CF AI Gateway with direct provider endpoints.`,
+  );
 }
 
 /**
@@ -249,8 +226,10 @@ async function chatCompletionGemini(
 ): Promise<string> {
   const ai = getGeminiAI();
   if (!ai) {
-    // No Google AI API key and no Provider Keys — fall back to OpenRouter
-    return chatCompletionOpenRouter(alias, messages, opts, agentId);
+    throw new Error(
+      "GOOGLE_AI_API_KEY (or CF_AIG_TOKEN for Provider Keys mode) is required for Gemini calls. " +
+      "OpenRouter fallback has been removed — configure direct provider access.",
+    );
   }
 
   const modelId = MODEL_IDS[alias];
@@ -351,56 +330,6 @@ async function chatCompletionGrok(
   if (!response.ok) {
     const errText = await response.text();
     throw new Error(`xAI ${modelId} error (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (content == null) {
-    throw new Error(
-      `${modelId} returned no content (finish_reason: ${data.choices?.[0]?.finish_reason ?? "no choices"})`,
-    );
-  }
-  return content;
-}
-
-/**
- * OpenRouter chat completion (fallback for unknown models).
- */
-async function chatCompletionOpenRouter(
-  model: ModelAlias | string,
-  messages: ChatMessage[],
-  opts: ChatCompletionOpts,
-  agentId: string,
-): Promise<string> {
-  const modelId = MODEL_IDS[model as ModelAlias] ?? model;
-
-  const body: Record<string, unknown> = {
-    model: modelId,
-    messages,
-    temperature: opts.temperature ?? 0.3,
-    max_tokens: opts.maxTokens ?? 8192,
-  };
-
-  if (opts.responseFormat) {
-    body.response_format = opts.responseFormat;
-  }
-
-  const headers = {
-    ...getOpenRouterHeaders(),
-    ...getCfAigHeaders(model, agentId),
-  };
-
-  const response = await fetch(`${getOpenRouterBaseURL()}/chat/completions`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(body),
-  });
-
-  logCfAigCorrelation(response, "openrouter");
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter ${modelId} error (${response.status}): ${errText}`);
   }
 
   const data = await response.json();

@@ -21,8 +21,6 @@ export const config = {
   port: parseInt(process.env.PORT || "3004", 10),
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:8080").split(",").map(s => s.trim()),
 
-  openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
-
   // Cloudflare AI Gateway (optional)
   cfAccountId: optional("CF_ACCOUNT_ID"),
   cfGatewayId: optional("CF_GATEWAY_ID"),
