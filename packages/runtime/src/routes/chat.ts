@@ -55,6 +55,10 @@ export interface ChatRouteDeps {
   telemetry?: TelemetryClient;
   /** Supabase service client (legacy — use telemetry instead) */
   supabase?: SupabaseClient;
+  /** CF AI Gateway config (routes Anthropic calls through gateway for observability) */
+  cfGateway?: { accountId: string; gatewayId: string };
+  /** CF AI Gateway token for Provider Keys mode (optional — gateway injects provider API keys at edge) */
+  cfAigToken?: string;
 }
 
 /** Allowed roles for history messages (whitelist to prevent injection) */
@@ -172,6 +176,20 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
       // Create MCP server with org-scoped tools
       const mcpServer = deps.createMcpServer(organizationId, userId);
 
+      // Build env overlay for CF AI Gateway routing (Anthropic calls through gateway)
+      let queryEnv: Record<string, string | undefined> | undefined;
+      if (deps.cfGateway) {
+        const baseUrl = `https://gateway.ai.cloudflare.com/v1/${deps.cfGateway.accountId}/${deps.cfGateway.gatewayId}/anthropic`;
+        queryEnv = {
+          ...process.env,
+          ANTHROPIC_BASE_URL: baseUrl,
+        };
+        // Provider Keys mode: gateway injects real API key at edge
+        if (deps.cfAigToken) {
+          queryEnv.ANTHROPIC_API_KEY = deps.cfAigToken;
+        }
+      }
+
       // Run the agent
       const agentQuery = query({
         prompt,
@@ -183,6 +201,7 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
           allowDangerouslySkipPermissions: true,
           model: "claude-opus-4-6",
           maxTurns: deps.maxTurns ?? 25,
+          ...(queryEnv ? { env: queryEnv } : {}),
         },
       });
 

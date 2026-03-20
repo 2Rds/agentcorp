@@ -84,8 +84,11 @@ export interface AgentRuntimeConfig {
     openRouterApiKey?: string;
     perplexityApiKey?: string;
     cohereApiKey?: string;
+    googleAiApiKey?: string;
     cfGatewayAccountId?: string;
     cfGatewayId?: string;
+    /** CF AI Gateway token for Provider Keys mode (gateway injects provider API keys at edge) */
+    cfAigToken?: string;
   };
 
   /** Telegram bot config for inter-agent messaging */
@@ -198,6 +201,7 @@ export class AgentRuntime {
       openRouterApiKey: rtConfig.env.openRouterApiKey ?? "",
       perplexityApiKey: rtConfig.env.perplexityApiKey ?? "",
       cohereApiKey: rtConfig.env.cohereApiKey ?? "",
+      googleAiApiKey: rtConfig.env.googleAiApiKey,
       cfGateway: rtConfig.env.cfGatewayAccountId && rtConfig.env.cfGatewayId
         ? { accountId: rtConfig.env.cfGatewayAccountId, gatewayId: rtConfig.env.cfGatewayId }
         : undefined,
@@ -542,6 +546,10 @@ export class AgentRuntime {
       governance: this.governance,
       telemetry: this.telemetry,
       supabase: this.supabaseAdmin,
+      cfGateway: rtConfig.env.cfGatewayAccountId && rtConfig.env.cfGatewayId
+        ? { accountId: rtConfig.env.cfGatewayAccountId, gatewayId: rtConfig.env.cfGatewayId }
+        : undefined,
+      cfAigToken: rtConfig.env.cfAigToken,
     }));
 
     // Webhook route (public — verified by X-Webhook-Secret header, not auth middleware)

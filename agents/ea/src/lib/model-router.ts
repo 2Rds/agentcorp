@@ -1,4 +1,9 @@
+import { GoogleGenAI } from "@google/genai";
 import { config } from "../config.js";
+
+const googleAi = config.googleAiApiKey
+  ? new GoogleGenAI({ apiKey: config.googleAiApiKey })
+  : null;
 
 // ─── Model aliases ───────────────────────────────────────────────────────────
 
@@ -54,6 +59,26 @@ export function getAnthropicHeaders(): Record<string, string> {
     headers["cf-aig-authorization"] = `Bearer ${config.cfAigToken}`;
   } else {
     headers["x-api-key"] = config.anthropicApiKey;
+  }
+
+  return headers;
+}
+
+/**
+ * Extra headers for the Anthropic SDK constructor (defaultHeaders).
+ * Unlike getAnthropicHeaders(), this excludes headers the SDK manages
+ * internally (x-api-key, Content-Type, anthropic-version) and only
+ * includes CF AI Gateway headers (auth + metadata).
+ */
+export function getAnthropicSdkHeaders(): Record<string, string> {
+  const headers: Record<string, string> = {};
+
+  if (useProviderKeys()) {
+    headers["cf-aig-authorization"] = `Bearer ${config.cfAigToken}`;
+  }
+
+  if (useGateway()) {
+    headers["cf-aig-metadata"] = JSON.stringify({ agentId: "blockdrive-ea" });
   }
 
   return headers;
@@ -126,41 +151,30 @@ export async function chatCompletion(
   return content;
 }
 
-// ─── Embeddings (Cohere embed-v4.0, 1536-dim) ───────────────────────────────
+// ─── Embeddings (Gemini Embedding 2, 1536-dim) ──────────────────────────────
 
 /**
- * Generate embeddings via Cohere embed-v4.0 (1536-dim).
+ * Generate embeddings via Gemini Embedding 2 (1536-dim).
  * Matches the dimension used by idx:memories and idx:plugins indexes.
+ * Task type: RETRIEVAL_QUERY (optimized for search queries).
  */
 export async function embed(text: string): Promise<number[]> {
-  if (!config.cohereApiKey) {
-    throw new Error("COHERE_API_KEY is required for embeddings");
+  if (!googleAi) {
+    throw new Error("GOOGLE_AI_API_KEY is required for embeddings");
   }
 
-  const resp = await fetch("https://api.cohere.com/v2/embed", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.cohereApiKey}`,
+  const result = await googleAi.models.embedContent({
+    model: "gemini-embedding-001",
+    contents: text,
+    config: {
+      taskType: "RETRIEVAL_QUERY",
+      outputDimensionality: 1536,
     },
-    body: JSON.stringify({
-      model: "embed-v4.0",
-      texts: [text],
-      input_type: "search_query",
-      embedding_types: ["float"],
-    }),
-    signal: AbortSignal.timeout(30_000),
   });
 
-  if (!resp.ok) {
-    const err = await resp.text();
-    throw new Error(`Cohere embed API error (${resp.status}): ${err}`);
-  }
-
-  const data = await resp.json() as { embeddings?: { float?: number[][] } };
-  const embedding = data.embeddings?.float?.[0];
+  const embedding = result.embeddings?.[0]?.values;
   if (!Array.isArray(embedding) || embedding.length === 0) {
-    throw new Error("Cohere embed returned empty embedding");
+    throw new Error("Gemini embed returned empty embedding");
   }
   return embedding;
 }

@@ -4,8 +4,13 @@ import { searchOrgMemories, getSessionMemories, searchCrossNamespaceMemories } f
 import { resolveSkillsForConversation } from "../lib/plugin-loader.js";
 import { createEaTools } from "../tools/bridge.js";
 import { config } from "../config.js";
+import { getAnthropicBaseURL, getAnthropicSdkHeaders } from "../lib/model-router.js";
 
-const anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
+const anthropic = new Anthropic({
+  apiKey: config.anthropicApiKey,
+  baseURL: getAnthropicBaseURL(),
+  defaultHeaders: getAnthropicSdkHeaders(),
+});
 
 export interface AgentCallOptions {
   messages: { role: string; content: string }[];
