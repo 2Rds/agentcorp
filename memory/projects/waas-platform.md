@@ -3,7 +3,7 @@
 **Full name:** Workforce-as-a-Service
 **Codename:** waas (formerly "cfo")
 **GitHub:** 2Rds/agentcorp (renamed from 2rds/waas on 2026-03-14)
-**Status:** Active — EA + CFA deployed, 5 agents planned
+**Status:** Active — EA + CFA deployed, 5 dept agents built (COA, CMA, Compliance, Legal, Sales), v3.2.0
 
 ## What It Is
 Cognitive agent orchestration platform. Builds namespace-isolated, memory-enriched, inter-communicating AI agents for enterprise operations. Think: AI C-Suite.
@@ -23,9 +23,12 @@ Cognitive agent orchestration platform. Builds namespace-isolated, memory-enrich
 
 ## Key Milestones
 - v1.0.0: Infrastructure + CFO Agent (complete)
-- Current: EA Agent deployed, orchestration system active (P0)
+- v2.x: EA deployed, Realtime, Vault, Governance, Webhooks, PostHog/Sentry
+- v3.0.0: Voice + Inter-Agent Messaging plan, AgentRuntime bug fixes
+- v3.1.x: Model stack collapse (10→6), Sales restructure (Sam→Manager, SDR Worker added)
+- v3.2.0: Cohere embed-v4.0 1536-dim migration, dark-only UI (current)
 - v4.0.0: On-Chain Delegate Authority — Phase 1 done (devnet), Phases 2-5 paused
-- Next: COA agent, n8n automation hub, voice integration
+- Next: CF AI Gateway integration, voice transport, NextGenSwitch SIP
 
 ## Current Priority: Orchestration System (P0)
 v4.0.0 paused to prioritize orchestration (accelerates fundraising). Components:

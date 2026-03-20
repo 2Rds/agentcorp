@@ -3,7 +3,7 @@
 **Agent ID:** blockdrive-coa
 **Department:** Operations
 **Reports to:** Sean Weiss (CEO)
-**Status:** Planned
+**Status:** Built (port 3003, 13 tools)
 **Mode:** Cognitive Only
 
 ## What Jordan Does

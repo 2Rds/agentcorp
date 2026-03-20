@@ -1,4 +1,7 @@
 {
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
   "permissions": {
     "allow": [
       "Bash(*)",
@@ -26,7 +29,10 @@
       "mcp__redis-memory__search-memories",
       "mcp__redis-memory__add-memory",
       "mcp__redis-memory__list-memories",
-      "mcp__redis-memory__search-cross-agent"
+      "mcp__redis-memory__search-cross-agent",
+      "Skill(update-config)",
+      "mcp__linear__save_issue",
+      "Skill(pr-review-toolkit:review-pr)"
     ],
     "deny": [
       "Bash(rm -rf /*)",
@@ -41,17 +47,6 @@
   ],
   "hooks": {
     "PreToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/hooks/block-protected.mjs",
-            "timeout": 10,
-            "statusMessage": "Checking protected files..."
-          }
-        ]
-      },
       {
         "matcher": "Bash",
         "hooks": [
@@ -77,5 +72,12 @@
         ]
       }
     ]
-  }
+  },
+  "enabledPlugins": {
+    "redis-memory-context@local": true
+  },
+  "enabledMcpJsonServers": [
+    "redis-memory"
+  ],
+  "teammateMode": "in-process"
 }

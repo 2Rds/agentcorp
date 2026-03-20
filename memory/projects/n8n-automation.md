@@ -6,39 +6,26 @@
 **Notion page:** BlockDrive HQ > Project Hub > n8n Automation Hub
 **Host:** DO droplet 134.209.67.70, n8n.blockdrive.co
 
-## Milestones
-- **M1:** Infrastructure — Domain, SSL, Firewall
-- **M2:** Credentials + API Access
-- **M3:** Investor Pipeline Workflows
-- **M4:** Product + Engineering Workflows
+## Active Workflows (6 of 8 planned)
 
-## Linear Issues (WAAS-22 to WAAS-37)
+| Workflow | Trigger | Destination | Status |
+|----------|---------|-------------|--------|
+| **WF2:** Daily follow-up reminder | Cron 9AM ET | Notion Pipeline DB → Slack | Active |
+| **WF3:** Term Sheet alert | Notion DB stage change | Slack urgent notification | Active |
+| **WF5:** Linear → Slack sprint updates | Linear webhook | Slack #engineering | Active |
+| **WF6:** Intercom → Slack + Notion | Webhook `/webhook/intercom` | Slack #support + Notion leads | Active |
+| **WF7:** Voice call completion → Slack + Notion | Webhook `/webhook/voice-call-completed` | Slack + Notion | Active |
+| **WF8:** Service health monitor | Cron every 5 min | HTTP checks → Slack alerts | Active |
 
-### Infrastructure (WAAS-22 to WAAS-28)
-| Issue | Title | Priority |
-|-------|-------|----------|
-| WAAS-22 | SSH to droplet — inspect n8n install type | P1 Urgent |
-| WAAS-23 | Configure domain + SSL (Let's Encrypt) | P1 Urgent |
-| WAAS-25 | Create n8n API key | P2 High |
-| WAAS-26 | Configure Slack credential | P2 High |
-| WAAS-27 | Configure Notion credential | P2 High |
-| WAAS-28 | Configure Supabase, Linear, ElevenLabs, Intercom credentials | P3 Medium |
+## Discontinued
+| Workflow | Reason |
+|----------|--------|
+| **WF1:** DocSend → Notion | DocSend has no API |
+| **WF4:** Supabase → Slack | Redundant — database webhooks already wired |
 
-### Workflows (WAAS-29 to WAAS-37)
-| Issue | Workflow | Trigger | Destination | Priority |
-|-------|----------|---------|-------------|----------|
-| WAAS-29 | **WF1:** DocSend → Notion Investor Pipeline | Webhook `/webhook/docsend` | Notion Pipeline DB + Slack | P2 |
-| WAAS-30 | **WF2:** Daily follow-up reminder | Cron 9AM ET | Notion Pipeline DB → Slack | P2 |
-| WAAS-31 | **WF3:** Term Sheet alert | Notion DB stage change | Slack urgent notification | P2 |
-| WAAS-32 | **WF4:** Supabase → Slack notifications | DB webhooks/polling | Slack #product | P3 |
-| WAAS-33 | **WF5:** Linear → Slack sprint updates | Linear webhook | Slack #engineering | P3 |
-| WAAS-34 | **WF6:** Intercom → Slack + Notion | Webhook `/webhook/intercom` | Slack #support + Notion leads | P3 |
-| WAAS-35 | **WF7:** Voice call completion → Slack + Notion | Webhook `/webhook/voice-call-completed` | Slack + Notion | P3 |
-| WAAS-36 | **WF8:** Service health monitor | Cron every 5 min | HTTP checks → Slack alerts | P3 |
-| WAAS-37 | End-to-end testing of all 8 workflows | After all WFs created | All endpoints | P2 |
+## Linear Issues: WAAS-22 to WAAS-37
 
 ## Health Check Targets (WF8)
-- Signing Service: `blockdrive-signing.fly.dev/health`
 - n8n: self-check
 - CFO Agent: `agentcorp-ghgvq.ondigitalocean.app/health`
 - EA Agent: `agentcorp-ghgvq.ondigitalocean.app/ea/health`

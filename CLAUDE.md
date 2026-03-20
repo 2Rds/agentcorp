@@ -54,7 +54,7 @@ When saving memories for this project, always tag with:
 | provider keys mode | CF AI Gateway injects API keys at edge |
 | data room | Public investor-facing document portal |
 
-### Active Model Stack (v3.2.0+)
+### Active Model Stack (v3.3.0+)
 | Model | Provider | Role |
 |-------|----------|------|
 | Opus 4.6 | Anthropic direct via CF AI Gateway | Primary reasoning, all customer-facing |
@@ -63,7 +63,7 @@ When saving memories for this project, always tag with:
 | Gemini Embedding | Google AI Studio via @google/genai SDK | 1536-dim vector embeddings |
 | Cohere rerank-v4.0 | Cohere direct | Search result reranking |
 
-### Current Version: v3.2.0
+### Current Version: v3.3.0
 Full detail: `memory/glossary.md`, `memory/people/`, `memory/projects/`, `memory/context/`
 
 ## Project Overview

@@ -3,7 +3,7 @@
 **Agent ID:** blockdrive-legal
 **Department:** Legal
 **Reports to:** Jordan (COA)
-**Status:** Planned
+**Status:** Built (port 3006, 11 tools)
 **Mode:** Cognitive Only
 
 ## What Casey Does

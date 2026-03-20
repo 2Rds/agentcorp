@@ -2,6 +2,67 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.3.0] - 2026-03-20
+
+Platform Migration v4.0 — CF AI Gateway BYOK, Gemini Stack Collapse, OpenRouter removal.
+
+### Added
+- Cloudflare AI Gateway BYOK routing for all 7 agents + SDR (gateway: `blockdrive-gateway`)
+- Per-provider direct routing: Anthropic, Google AI Studio, xAI, Cohere via CF AI Gateway
+- `cf-aig-metadata` headers with agentId on all model requests for per-agent cost tracking
+- `cf-aig-max-attempts`, `cf-aig-backoff`, `cf-aig-retry-delay` headers for automatic retries
+- `cf-aig-cache-ttl` / `cf-aig-skip-cache` headers for gateway-level caching
+- Gemini Search Grounding replaces Perplexity Sonar Pro in all 7 agents + SDR (`google_search` tool)
+- Gemini Embedding 2 (`gemini-embedding-001`, 1536-dim) replaces Cohere embed-v4.0 in all 5 embed implementations
+- `webSearch()` function in CFO and EA model-routers with structured citation parsing from `groundingMetadata`
+- `getGeminiAI()` lazy singleton with CF AI Gateway routing in all agents (CFO, EA, 5 dept agents, SDR)
+- Re-index script (`scripts/reindex-gemini-embeddings.ts`) for migrating Redis vectors to Gemini embeddings
+- `taskType` parameter on all `embed()` functions (`RETRIEVAL_QUERY` for search, `RETRIEVAL_DOCUMENT` for storage)
+- `_resetGeminiAI()` test helper in CFO model-router
+- `@google/genai` SDK (`gemini-client.ts`) with working File API upload, vision, document queries
+- Provider Keys mode: `CF_AIG_TOKEN` enables gateway key injection at edge (no provider API keys needed in .env)
+
+### Changed
+- All Gemini calls route through `@google/genai` SDK (replaces deprecated `@google/generative-ai`)
+- All Anthropic calls route through CF AI Gateway endpoint (runtime + EA + dept agents)
+- CFO model-router: per-provider `chatCompletionGemini()` and `chatCompletionGrok()` functions replace single `chatCompletionOpenRouter()`
+- EA model-router: Gemini chatCompletion routes through SDK, unknown models throw instead of OpenRouter fallback
+- Dept agent web search tools: lazy singleton, try/catch, 30s timeout, CF AIG routing, Provider Keys fallback
+- `@waas/shared` MODEL_REGISTRY: native provider model IDs (not OpenRouter format), `GEMINI_EMBED` replaces `COHERE_EMBED`
+- `@waas/shared` ModelRouter.embed(): uses Gemini Embedding 2 with taskType + timeout
+- All stacks updated: SONAR removed, COHERE_EMBED → GEMINI_EMBED
+- Board quorum reduced to 3 members / 2 quorum (Sonar removed)
+
+### Removed
+- **OpenRouter** — all active runtime references removed. `openRouterApiKey` deprecated in configs.
+- **Perplexity Sonar Pro** — replaced by Gemini Search Grounding. `PerplexityClient` deprecated in `@waas/shared`.
+- **Cohere embed-v4.0** — replaced by Gemini Embedding 2. `COHERE_EMBED` alias removed. Cohere rerank-v4.0 stays.
+- `OPENROUTER_API_KEY` no longer required in any .env file
+- `PERPLEXITY_API_KEY` removed from all agent configs
+- `chatCompletionOpenRouter()`, `getOpenRouterBaseURL()`, `getOpenRouterHeaders()` from CFO + EA model-routers
+
+### Fixed
+- CFO `memory-client.ts` was still using Cohere embeddings (vector incompatibility with shared idx:memories)
+- EA `GoogleGenAI` was bypassing CF AI Gateway (no observability/cost tracking)
+- EA Anthropic SDK crashed with empty API key in Provider Keys mode
+- `xaiApiKey` was `required()` causing startup crash without `XAI_API_KEY` env var
+- `embed()` functions missing 30s timeout (hung on Gemini API issues)
+- `cf-aig-metadata` used CF account ID as `orgId` (semantically wrong)
+- CMA Grok auth guard allowed unauthenticated requests when gateway not configured
+- Dead-code OpenRouter fallback paths in `gemini-client.ts`
+- Wrong feature gate in `document-rag.ts` (checked `openRouterApiKey` instead of `googleAiApiKey`)
+- File API upload not polling for PROCESSING state completion
+- Re-index script: wrong key prefix comment, missing idx:documents, fragile indexOf pattern
+
+### Documentation
+- CLAUDE.md: model stack, env vars, tool descriptions updated for CF AI Gateway + Gemini
+- ARCHITECTURE.md: provider routing, model assignments, env vars updated
+- SECURITY.md: API key table updated (OpenRouter/Perplexity → Google AI/xAI)
+- README.md: env var examples updated
+- memory/: glossary, deployment, company, people files updated
+- .claude/commands/release.md: model audit table updated
+- Strategy doc: `docs/waas/platform-migration-v4.md` — full migration plan with voice architecture, NextGenSwitch audit, CF Zero Trust
+
 ## [v3.2.0] - 2026-03-17
 
 Voice pipeline wiring, SemanticCache upgrades (exact-match fast-path + adaptive TTL), and cache extension to EA/SDR/CFO agents. 5 concurrent voice sales agents now operational within Sam's unified server.
