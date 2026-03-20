@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
 import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
+import { GoogleGenAI } from "@google/genai";
 import { safeFetch, safeFetchText, safeJsonParse, stripHtml } from "@waas/runtime";
 import { config } from "../config.js";
 import { getRuntime } from "../runtime-ref.js";
@@ -107,14 +108,14 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Search the web for marketing trends, competitor analysis, industry benchmarks, and content ideas.",
       { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          "https://openrouter.ai/api/v1/chat/completions",
-          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "user", content: args.query }] }) },
-          "Web search",
-        );
-        if (!result.ok) return err(result.error);
-        return text(result.data.choices?.[0]?.message?.content || "No results found for this query.");
+        if (!config.googleAiApiKey) return err("GOOGLE_AI_API_KEY required for web search");
+        const ai = new GoogleGenAI({ apiKey: config.googleAiApiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: args.query,
+          config: { maxOutputTokens: 2000, temperature: 0.1, tools: [{ googleSearch: {} }] },
+        });
+        return text(response.text || "No results found for this query.");
       },
     ),
 
@@ -261,14 +262,14 @@ export function createMcpServer(orgId: string, _userId: string) {
         const prompt = args.url
           ? `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Content gaps in top-ranking pages, 3) Recommended content structure. Also analyze this URL for on-page SEO: ${args.url}`
           : `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Top-ranking content analysis, 3) Content gaps and opportunities, 4) Recommended content structure and word count.`;
-        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          "https://openrouter.ai/api/v1/chat/completions",
-          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "user", content: prompt }] }) },
-          "SEO analysis",
-        );
-        if (!result.ok) return err(result.error);
-        return text(result.data.choices?.[0]?.message?.content || "No SEO analysis available");
+        if (!config.googleAiApiKey) return err("GOOGLE_AI_API_KEY required for SEO analysis");
+        const ai = new GoogleGenAI({ apiKey: config.googleAiApiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+          config: { maxOutputTokens: 4000, temperature: 0.1, tools: [{ googleSearch: {} }] },
+        });
+        return text(response.text || "No SEO analysis available");
       },
     ),
 

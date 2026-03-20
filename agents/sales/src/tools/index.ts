@@ -11,6 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Client as NotionClient } from "@notionhq/client";
 import type { PageObjectResponse, DatabaseObjectResponse } from "@notionhq/client/build/src/api-endpoints.js";
 import { z } from "zod";
+import { GoogleGenAI } from "@google/genai";
 import { safeFetch, safeFetchText, safeJsonParse, stripHtml, type FeatureStore } from "@waas/runtime";
 import { config } from "../config.js";
 import { getRuntime } from "../runtime-ref.js";
@@ -121,14 +122,14 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Search the web for prospect research, industry trends, competitive intelligence, and market data.",
       { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        const result = await safeFetch<{ choices?: Array<{ message: { content: string } }> }>(
-          "https://openrouter.ai/api/v1/chat/completions",
-          { method: "POST", headers: { "Authorization": `Bearer ${config.openRouterApiKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({ model: "google/gemini-3-flash-preview", messages: [{ role: "user", content: args.query }] }) },
-          "Web search",
-        );
-        if (!result.ok) return err(result.error);
-        return text(result.data.choices?.[0]?.message?.content || "No results found for this query.");
+        if (!config.googleAiApiKey) return err("GOOGLE_AI_API_KEY required for web search");
+        const ai = new GoogleGenAI({ apiKey: config.googleAiApiKey });
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: args.query,
+          config: { maxOutputTokens: 2000, temperature: 0.1, tools: [{ googleSearch: {} }] },
+        });
+        return text(response.text || "No results found for this query.");
       },
     ),
 

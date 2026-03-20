@@ -15,6 +15,7 @@
  */
 
 import type Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import {
   safeFetchText, stripHtml, isAllowedUrl,
@@ -41,9 +42,9 @@ async function withFeatureStore(fn: (fs: FeatureStore) => Promise<string>, conte
   }
 }
 
-/** Call Gemini via OpenRouter for web search/research (cache-wrapped) */
+/** Call Gemini Search Grounding for web search/research (cache-wrapped) */
 async function webSearchQuery(prompt: string): Promise<string> {
-  const cacheModel = "google/gemini-3-flash-preview";
+  const cacheModel = "gemini-3-flash-preview";
 
   // Check semantic cache first — same prospects/companies get researched repeatedly
   const cache = getRuntime()?.semanticCache;
@@ -59,25 +60,17 @@ async function webSearchQuery(prompt: string): Promise<string> {
     }
   }
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${config.openRouterApiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: cacheModel,
-      messages: [{ role: "user", content: prompt }],
-    }),
-    signal: AbortSignal.timeout(30_000),
+  if (!config.googleAiApiKey) {
+    throw new Error("GOOGLE_AI_API_KEY required for web search");
+  }
+  const ai = new GoogleGenAI({ apiKey: config.googleAiApiKey });
+  const response = await ai.models.generateContent({
+    model: cacheModel,
+    contents: prompt,
+    config: { maxOutputTokens: 2000, temperature: 0.1, tools: [{ googleSearch: {} }] },
   });
 
-  if (!response.ok) {
-    throw new Error(`Web search request failed: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json() as { choices?: Array<{ message: { content: string } }> };
-  const result = data.choices?.[0]?.message?.content || "No results found.";
+  const result = response.text || "No results found.";
 
   // Cache the result (fire-and-forget) — 1hr TTL
   if (cache) {
