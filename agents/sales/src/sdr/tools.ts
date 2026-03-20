@@ -24,6 +24,20 @@ import {
 import { config } from "../config.js";
 import { getRuntime } from "../runtime-ref.js";
 
+// ─── Gemini SDK singleton (lazy init, routes through CF AI Gateway) ──────────
+let _geminiAI: GoogleGenAI | null | undefined;
+function getGeminiAI(): GoogleGenAI | null {
+  if (_geminiAI !== undefined) return _geminiAI;
+  const apiKey = config.googleAiApiKey || (config.cfAigToken ? "provider-keys" : "");
+  if (!apiKey) { _geminiAI = null; return null; }
+  const opts: ConstructorParameters<typeof GoogleGenAI>[0] = { apiKey };
+  if (config.cfAccountId && config.cfGatewayId) {
+    opts.httpOptions = { baseUrl: `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/google-ai-studio` };
+  }
+  _geminiAI = new GoogleGenAI(opts);
+  return _geminiAI;
+}
+
 type ToolHandler = (args: Record<string, any>) => Promise<string>;
 
 interface ToolEntry {
@@ -60,15 +74,18 @@ async function webSearchQuery(prompt: string): Promise<string> {
     }
   }
 
-  if (!config.googleAiApiKey) {
-    throw new Error("GOOGLE_AI_API_KEY required for web search");
+  const ai = getGeminiAI();
+  if (!ai) {
+    throw new Error("GOOGLE_AI_API_KEY (or CF_AIG_TOKEN) required for web search");
   }
-  const ai = new GoogleGenAI({ apiKey: config.googleAiApiKey });
-  const response = await ai.models.generateContent({
-    model: cacheModel,
-    contents: prompt,
-    config: { maxOutputTokens: 2000, temperature: 0.1, tools: [{ googleSearch: {} }] },
-  });
+  const response = await Promise.race([
+    ai.models.generateContent({
+      model: cacheModel,
+      contents: prompt,
+      config: { maxOutputTokens: 2000, temperature: 0.1, tools: [{ googleSearch: {} }] },
+    }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Web search timed out")), 30_000)),
+  ]);
 
   const result = response.text || "No results found.";
 
@@ -289,7 +306,7 @@ function createTools(orgId: string): ToolEntry[] {
     {
       def: {
         name: "research_prospect",
-        description: "Deep prospect research via Sonar Pro. Returns company profile, key contacts, pain points, competitive landscape, and approach recommendations.",
+        description: "Deep prospect research via Gemini Search Grounding. Returns company profile, key contacts, pain points, competitive landscape, and approach recommendations.",
         input_schema: {
           type: "object" as const,
           properties: {

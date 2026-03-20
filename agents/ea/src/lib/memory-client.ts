@@ -118,7 +118,8 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
     }
 
     return embedding;
-  } catch {
+  } catch (err) {
+    console.warn("[EA Memory] Embedding generation failed (returning null):", err);
     return null;
   }
 }

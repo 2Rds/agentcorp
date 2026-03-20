@@ -19,6 +19,20 @@ import { getRuntime } from "../runtime-ref.js";
 const text = (t: string) => ({ content: [{ type: "text" as const, text: t }] });
 const err = (t: string) => ({ content: [{ type: "text" as const, text: t }], isError: true });
 
+// ─── Gemini SDK singleton (lazy init, routes through CF AI Gateway) ──────────
+let _geminiAI: GoogleGenAI | null | undefined;
+function getGeminiAI(): GoogleGenAI | null {
+  if (_geminiAI !== undefined) return _geminiAI;
+  const apiKey = config.googleAiApiKey || (config.cfAigToken ? "provider-keys" : "");
+  if (!apiKey) { _geminiAI = null; return null; }
+  const opts: ConstructorParameters<typeof GoogleGenAI>[0] = { apiKey };
+  if (config.cfAccountId && config.cfGatewayId) {
+    opts.httpOptions = { baseUrl: `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/google-ai-studio` };
+  }
+  _geminiAI = new GoogleGenAI(opts);
+  return _geminiAI;
+}
+
 export function createMcpServer(orgId: string, _userId: string) {
   const supabase = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
   const notion = config.notionEnabled ? new NotionClient({ auth: config.notionApiKey }) : null;
@@ -108,14 +122,21 @@ export function createMcpServer(orgId: string, _userId: string) {
       "Search the web for marketing trends, competitor analysis, industry benchmarks, and content ideas.",
       { query: z.string().max(500).describe("Search query") },
       async (args) => {
-        if (!config.googleAiApiKey) return err("GOOGLE_AI_API_KEY required for web search");
-        const ai = new GoogleGenAI({ apiKey: config.googleAiApiKey });
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: args.query,
-          config: { maxOutputTokens: 2000, temperature: 0.1, tools: [{ googleSearch: {} }] },
-        });
-        return text(response.text || "No results found for this query.");
+        const ai = getGeminiAI();
+        if (!ai) return err("GOOGLE_AI_API_KEY (or CF_AIG_TOKEN) required for web search");
+        try {
+          const response = await Promise.race([
+            ai.models.generateContent({
+              model: "gemini-3-flash-preview",
+              contents: args.query,
+              config: { maxOutputTokens: 2000, temperature: 0.1, tools: [{ googleSearch: {} }] },
+            }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Web search timed out")), 30_000)),
+          ]);
+          return text(response.text || "No results found for this query.");
+        } catch (e: any) {
+          return err(`Web search failed: ${e.message}`);
+        }
       },
     ),
 
@@ -262,14 +283,21 @@ export function createMcpServer(orgId: string, _userId: string) {
         const prompt = args.url
           ? `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Content gaps in top-ranking pages, 3) Recommended content structure. Also analyze this URL for on-page SEO: ${args.url}`
           : `Analyze the SEO potential for the topic "${args.topic}" and provide: 1) Related keywords with estimated search volume, 2) Top-ranking content analysis, 3) Content gaps and opportunities, 4) Recommended content structure and word count.`;
-        if (!config.googleAiApiKey) return err("GOOGLE_AI_API_KEY required for SEO analysis");
-        const ai = new GoogleGenAI({ apiKey: config.googleAiApiKey });
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: prompt,
-          config: { maxOutputTokens: 4000, temperature: 0.1, tools: [{ googleSearch: {} }] },
-        });
-        return text(response.text || "No SEO analysis available");
+        const ai = getGeminiAI();
+        if (!ai) return err("GOOGLE_AI_API_KEY (or CF_AIG_TOKEN) required for SEO analysis");
+        try {
+          const response = await Promise.race([
+            ai.models.generateContent({
+              model: "gemini-3-flash-preview",
+              contents: prompt,
+              config: { maxOutputTokens: 4000, temperature: 0.1, tools: [{ googleSearch: {} }] },
+            }),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error("SEO analysis timed out")), 30_000)),
+          ]);
+          return text(response.text || "No SEO analysis available");
+        } catch (e: any) {
+          return err(`SEO analysis failed: ${e.message}`);
+        }
       },
     ),
 

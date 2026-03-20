@@ -40,9 +40,9 @@ const runtime = new AgentRuntime({
   },
   featureStore: { enabled: true },
   semanticCache: {
-    // SDR researches the same companies/prospects repeatedly — Sonar results
-    // are semi-fresh and benefit from caching (1hr TTL). Override the default
-    // skip list to allow Sonar caching for the sales department.
+    // SDR researches the same companies/prospects repeatedly — Gemini Search
+    // Grounding results are semi-fresh and benefit from caching (1hr TTL).
+    // Override the default skip list to allow caching for the sales department.
     skipModels: new Set<string>(),
   },
   corsOrigins: config.corsOrigins,

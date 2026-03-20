@@ -100,7 +100,8 @@ async function ensureIndex(redis: RedisClientType): Promise<void> {
 async function generateEmbedding(text: string): Promise<number[] | null> {
   try {
     return await embed(text);
-  } catch {
+  } catch (err) {
+    console.warn("[CFA Memory] Embedding generation failed (returning null):", err);
     return null;
   }
 }
