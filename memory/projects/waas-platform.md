@@ -3,13 +3,13 @@
 **Full name:** Workforce-as-a-Service
 **Codename:** waas (formerly "cfo")
 **GitHub:** 2Rds/agentcorp (renamed from 2rds/waas on 2026-03-14)
-**Status:** Active — EA + CFA deployed, 5 dept agents built (COA, CMA, Compliance, Legal, Sales), v3.2.0
+**Status:** Active — EA + CFA deployed, 5 dept agents built (COA, CMA, Compliance, Legal, Sales), v3.3.1
 
 ## What It Is
 Cognitive agent orchestration platform. Builds namespace-isolated, memory-enriched, inter-communicating AI agents for enterprise operations. Think: AI C-Suite.
 
 ## Architecture
-- **Frontend:** React 18 + Vite + shadcn/ui + Tailwind → Vercel (corp.blockdrive.co)
+- **Frontend:** React 18 + Vite + shadcn/ui + Tailwind → Vercel (agentcorp.work, app.agentcorp.work, corp.blockdrive.co)
 - **CFO Agent:** Express + Claude Agent SDK, 31 MCP tools → DO App Platform (port 3001)
 - **EA Agent:** Express + Anthropic Messages API, 11 native tools → DO App Platform (port 3002)
 - **Backend:** Supabase (Postgres, Auth, RLS, Edge Functions)
@@ -26,9 +26,11 @@ Cognitive agent orchestration platform. Builds namespace-isolated, memory-enrich
 - v2.x: EA deployed, Realtime, Vault, Governance, Webhooks, PostHog/Sentry
 - v3.0.0: Voice + Inter-Agent Messaging plan, AgentRuntime bug fixes
 - v3.1.x: Model stack collapse (10→6), Sales restructure (Sam→Manager, SDR Worker added)
-- v3.2.0: Cohere embed-v4.0 1536-dim migration, dark-only UI (current)
+- v3.2.0: Cohere embed-v4.0 1536-dim migration, dark-only UI
+- v3.3.0: CF AI Gateway BYOK, OpenRouter removed, model stack 6→4, Gemini embed/search replaces Cohere/Perplexity
+- v3.3.1: ElevenLabs LLM proxy, embedding taskType fixes, agentcorp.work domain (current)
 - v4.0.0: On-Chain Delegate Authority — Phase 1 done (devnet), Phases 2-5 paused
-- Next: CF AI Gateway integration, voice transport, NextGenSwitch SIP
+- Next: Voice transport (ElevenLabs + Telnyx + NextGenSwitch), remaining Linear issues
 
 ## Current Priority: Orchestration System (P0)
 v4.0.0 paused to prioritize orchestration (accelerates fundraising). Components:

@@ -41,7 +41,7 @@ const ONLY_INDEX = indexArg >= 0 ? args[indexArg + 1] : null;
 const batchArg = args.indexOf("--batch-size");
 const BATCH_SIZE = batchArg >= 0 ? parseInt(args[batchArg + 1], 10) : 5;
 const EMBEDDING_DIM = 1536;
-const DELAY_BETWEEN_BATCHES_MS = 200;
+const DELAY_BETWEEN_BATCHES_MS = 700;
 
 const INDEXES = [
   { name: "idx:memories", textField: "text", embeddingField: "embedding" },
@@ -103,6 +103,9 @@ async function getIndexDocCount(redis: ReturnType<typeof createClient>, indexNam
   }
 }
 
+const MARKER_FIELD = "embedding_model";
+const MARKER_VALUE = "gemini-embedding-001";
+
 async function getAllDocs(
   redis: ReturnType<typeof createClient>,
   indexName: string,
@@ -111,11 +114,12 @@ async function getAllDocs(
   const docs: { key: string; text: string }[] = [];
   let offset = 0;
   const pageSize = 100;
+  let skipped = 0;
 
   while (true) {
     const result = await redis.sendCommand([
       "FT.SEARCH", indexName, "*",
-      "RETURN", "1", textField,
+      "RETURN", "2", textField, MARKER_FIELD,
       "LIMIT", String(offset), String(pageSize),
       "DIALECT", "2",
     ]) as unknown[];
@@ -127,10 +131,16 @@ async function getAllDocs(
       const key = result[i] as string;
       const fieldArray = result[i + 1] as string[];
       let text = "";
+      let alreadyMigrated = false;
       if (Array.isArray(fieldArray)) {
         for (let j = 0; j < fieldArray.length; j += 2) {
           if (fieldArray[j] === textField) text = fieldArray[j + 1];
+          if (fieldArray[j] === MARKER_FIELD && fieldArray[j + 1] === MARKER_VALUE) alreadyMigrated = true;
         }
+      }
+      if (alreadyMigrated) {
+        skipped++;
+        continue;
       }
       if (text) docs.push({ key, text });
     }
@@ -139,6 +149,7 @@ async function getAllDocs(
     if (offset >= total) break;
   }
 
+  if (skipped > 0) console.log(`  Skipped ${skipped} already-migrated docs`);
   return docs;
 }
 
@@ -161,6 +172,7 @@ async function reindexBatch(
           await redis.sendCommand([
             "HSET", doc.key,
             embeddingField, toBuffer(embedding),
+            MARKER_FIELD, MARKER_VALUE,
           ]);
         }
         return doc.key;

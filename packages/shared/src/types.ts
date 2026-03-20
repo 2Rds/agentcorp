@@ -338,7 +338,7 @@ export interface ConversationResult {
 
 /** NextGenSwitch PBX configuration for voice telephony */
 export interface NextGenSwitchConfig {
-  /** NextGenSwitch base URL (e.g., https://sales.blockdrive.co) */
+  /** NextGenSwitch base URL (e.g., https://sales.agentcorp.work) */
   baseUrl: string;
   /** API key for NextGenSwitch REST API authentication */
   apiKey: string;

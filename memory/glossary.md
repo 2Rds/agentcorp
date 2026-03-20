@@ -24,6 +24,8 @@ Workplace shorthand, acronyms, and internal language for the WaaS project.
 | CF | Cloudflare | AI Gateway, Workers, Queues |
 | AIG | AI Gateway | Cloudflare's API proxy for caching/analytics |
 | DO | DigitalOcean | Hosting platform for agent servers |
+| BYOK | Bring Your Own Key | CF AI Gateway mode — provider keys injected at edge |
+| NGS | NextGenSwitch | Self-hosted SIP PBX at sales.agentcorp.work |
 
 ## Internal Terms
 
@@ -47,6 +49,9 @@ Workplace shorthand, acronyms, and internal language for the WaaS project.
 | provider keys mode | CF AI Gateway injects API keys at edge |
 | sales swarm | 10 conversational sales reps making batch calls |
 | custom_llm | ElevenLabs endpoint routing voice to our cognitive /chat |
+| three-layer voice | Opus (brain/reasoning) + Gemini Flash (senses/vision) + ElevenLabs (voice/emotion) |
+| word buffer | LLM proxy buffers ~3 words before flushing to ElevenLabs TTS |
+| Telnyx | Telephony carrier — SIP trunking + phone numbers (pipes, NOT voice quality) |
 
 ## Agent Names
 
@@ -70,7 +75,7 @@ Workplace shorthand, acronyms, and internal language for the WaaS project.
 | block-drive-vault | Separate project — Web3 encrypted file storage |
 | the migration | Moving CFO agent to WaaS runtime |
 | sales swarm | 10 sales rep calling agents under Sam |
-| Phase 2 | Voice integration phase (ElevenLabs + Twilio) |
+| Phase 2 | Voice integration phase (ElevenLabs + Telnyx + NextGenSwitch) |
 | orchestration system | P0 project: agents + Redis memory + n8n + Notion + Slack |
 | seed round data room | DocSend Advanced data room for fundraising |
 | n8n hub | Self-hosted n8n automation workflows (8 WFs planned) |

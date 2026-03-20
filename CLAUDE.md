@@ -63,7 +63,7 @@ When saving memories for this project, always tag with:
 | Gemini Embedding | Google AI Studio via @google/genai SDK | 1536-dim vector embeddings |
 | Cohere rerank-v4.0 | Cohere direct | Search result reranking |
 
-### Current Version: v3.3.0
+### Current Version: v3.3.1
 Full detail: `memory/glossary.md`, `memory/people/`, `memory/projects/`, `memory/context/`
 
 ## Project Overview

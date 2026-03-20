@@ -18,17 +18,22 @@ Sean Weiss's company. Builds WaaS (cognitive agent platform) and Block Drive Vau
 | Upstash | Serverless Redis (TLS) | Cache, vectors, message bus |
 | n8n | Workflow automation | Self-hosted, n8n.blockdrive.co |
 | Telegram | Agent messaging + EA bot | grammy framework |
-| ElevenLabs | Voice AI (planned) | TTS/STT, Conversational AI |
-| Twilio | Phone numbers (planned) | For voice agents |
-| Cloudflare | AI Gateway (BYOK routing to Anthropic, Google, xAI), Workers, Queues | CF, CF AIG, provider keys mode |
+| ElevenLabs | Voice AI (TTS/STT, Conversational AI, custom_llm) | Three-layer voice: brain + senses + voice |
+| Telnyx | Telephony carrier (SIP trunking, phone numbers) | Pipes layer, NOT voice quality |
+| NextGenSwitch | Self-hosted SIP PBX (EasyPBX) | sales.agentcorp.work, routes calls |
+| Cloudflare | AI Gateway (BYOK routing to Anthropic, Google, xAI), Workers, Tunnels | CF, CF AIG, provider keys mode |
 
 ## Domains
 
 | Domain | URL | Purpose |
 |--------|-----|---------|
-| corp.blockdrive.co | Vercel | WaaS frontend |
+| agentcorp.work | Vercel | WaaS frontend (product domain) |
+| app.agentcorp.work | Vercel | WaaS frontend (app subdomain) |
+| api.agentcorp.work | DO App Platform | Agent API servers |
+| sales.agentcorp.work | DO droplet | NextGenSwitch PBX |
+| corp.blockdrive.co | Vercel | WaaS frontend (legacy, still active) |
 | n8n.blockdrive.co | DO droplet | Automation hub |
-| agentcorp-ghgvq.ondigitalocean.app | DO App Platform | Agent servers |
+| agentcorp-ghgvq.ondigitalocean.app | DO App Platform | Agent servers (raw) |
 
 ## Key Architecture Patterns
 
