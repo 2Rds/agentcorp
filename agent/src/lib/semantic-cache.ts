@@ -11,7 +11,9 @@ const CACHEABLE_MODELS = new Set([
   "grok-4-1-fast-non-reasoning",
 ]);
 
-// Don't cache conversational/reasoning models — responses vary too much
+// Don't cache conversational/reasoning models — responses vary too much.
+// Note: Web search (Gemini Search Grounding) doesn't go through chatCompletion()
+// so doesn't need cache exclusion here.
 const SKIP_CACHE_MODELS = new Set([
   "claude-opus-4-6",
 ]);

@@ -5,7 +5,7 @@
  *
  * Targets all 3 vector indexes:
  *   - idx:memories  (memory:* keys)    — agent persistent memory
- *   - idx:llm_cache (llmcache:* keys)  — semantic LLM response cache
+ *   - idx:llm_cache (cache:* keys)      — semantic LLM response cache
  *   - idx:plugins   (plugin:* keys)    — knowledge plugin vectors
  *
  * Usage:
@@ -45,8 +45,12 @@ const DELAY_BETWEEN_BATCHES_MS = 200;
 
 const INDEXES = [
   { name: "idx:memories", textField: "text", embeddingField: "embedding" },
+  // Note: prompt_embedding was originally embedded from the prompt text, but the prompt
+  // is not stored as a hash field. "response" is used as a fallback for re-embedding.
+  // Future: store prompt text alongside response for accurate re-indexing.
   { name: "idx:llm_cache", textField: "response", embeddingField: "prompt_embedding" },
   { name: "idx:plugins", textField: "text", embeddingField: "embedding" },
+  { name: "idx:documents", textField: "content", embeddingField: "embedding" },
 ];
 
 // Also check idx:llm_cache_v2 (the v2 version used by some agents)
@@ -163,12 +167,13 @@ async function reindexBatch(
       }),
     );
 
-    for (const r of results) {
+    for (let j = 0; j < results.length; j++) {
+      const r = results[j];
       if (r.status === "fulfilled") {
         success++;
       } else {
         failed++;
-        failedKeys.push(batch[results.indexOf(r)]?.key ?? "unknown");
+        failedKeys.push(batch[j]?.key ?? "unknown");
         console.error(`  Failed: ${r.reason}`);
       }
     }

@@ -183,6 +183,11 @@ export function getGeminiAI(): GoogleGenAI | null {
   return _geminiAI;
 }
 
+/** Reset the cached Gemini SDK client (for testing). */
+export function _resetGeminiAI(): void {
+  _geminiAI = null;
+}
+
 // ─── Chat completion ─────────────────────────────────────────────────────────
 
 export type ContentPart =
@@ -479,9 +484,9 @@ export async function webSearch(
 /**
  * Generate embeddings via Gemini Embedding 2 (1536-dim).
  * All Redis vector indexes (idx:memories, idx:llm_cache, idx:plugins) use 1536-dim.
- * Task type: RETRIEVAL_QUERY (optimized for search queries).
+ * @param taskType - RETRIEVAL_QUERY for search queries (default), RETRIEVAL_DOCUMENT for storage/indexing
  */
-export async function embed(text: string): Promise<number[]> {
+export async function embed(text: string, taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" = "RETRIEVAL_QUERY"): Promise<number[]> {
   const ai = getGeminiAI();
   if (!ai) {
     throw new Error("GOOGLE_AI_API_KEY is required for embeddings (all indexes use 1536-dim Gemini Embedding 2)");
@@ -491,7 +496,7 @@ export async function embed(text: string): Promise<number[]> {
     model: "gemini-embedding-001",
     contents: text,
     config: {
-      taskType: "RETRIEVAL_QUERY",
+      taskType,
       outputDimensionality: 1536,
     },
   });

@@ -176,7 +176,8 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
       // Create MCP server with org-scoped tools
       const mcpServer = deps.createMcpServer(organizationId, userId);
 
-      // Build env overlay for CF AI Gateway routing (Anthropic calls through gateway)
+      // Build env overlay for CF AI Gateway routing (Anthropic calls through gateway).
+      // Spread process.env so subprocess inherits all vars (NODE_PATH, PATH, etc.); override only CF-specific vars
       let queryEnv: Record<string, string | undefined> | undefined;
       if (deps.cfGateway) {
         const baseUrl = `https://gateway.ai.cloudflare.com/v1/${deps.cfGateway.accountId}/${deps.cfGateway.gatewayId}/anthropic`;
@@ -184,7 +185,8 @@ export function createChatRouter(deps: ChatRouteDeps): Router {
           ...process.env,
           ANTHROPIC_BASE_URL: baseUrl,
         };
-        // Provider Keys mode: gateway injects real API key at edge
+        // Agent SDK subprocess receives cfAigToken as ANTHROPIC_API_KEY — the gateway
+        // accepts this in the standard auth header position and injects the real provider key
         if (deps.cfAigToken) {
           queryEnv.ANTHROPIC_API_KEY = deps.cfAigToken;
         }

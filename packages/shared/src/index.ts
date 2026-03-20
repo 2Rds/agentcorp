@@ -34,7 +34,7 @@ export type {
 // Model registry and stacks
 export {
   MODEL_REGISTRY, OPUS, GEMINI, SONAR, GROK_FAST,
-  COHERE_EMBED, COHERE_RERANK,
+  GEMINI_EMBED, COHERE_RERANK,
   AGENT_STACKS,
   ModelRouter, AnthropicClient, OpenRouterClient, CohereDirectClient,
   DEFAULT_BOARD, HIGH_STAKES_BOARD, BoardSession,

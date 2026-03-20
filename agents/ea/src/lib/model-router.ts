@@ -23,7 +23,13 @@ export function getGeminiAI(): GoogleGenAI | null {
     };
   }
 
-  _geminiAI = new GoogleGenAI(opts);
+  try {
+    _geminiAI = new GoogleGenAI(opts);
+  } catch (err) {
+    console.error("Failed to initialize GoogleGenAI:", err);
+    _geminiAI = null;
+    return null;
+  }
   return _geminiAI;
 }
 
@@ -99,6 +105,10 @@ export function getAnthropicSdkHeaders(): Record<string, string> {
 
   if (useGateway()) {
     headers["cf-aig-metadata"] = JSON.stringify({ agentId: "blockdrive-ea" });
+    headers["cf-aig-max-attempts"] = "3";
+    headers["cf-aig-backoff"] = "exponential";
+    headers["cf-aig-retry-delay"] = "1000";
+    headers["cf-aig-skip-cache"] = "true";
   }
 
   return headers;
@@ -284,22 +294,29 @@ export async function webSearch(
 /**
  * Generate embeddings via Gemini Embedding 2 (1536-dim).
  * Matches the dimension used by idx:memories and idx:plugins indexes.
- * Task type: RETRIEVAL_QUERY (optimized for search queries).
+ * @param taskType - RETRIEVAL_QUERY for search queries (default), RETRIEVAL_DOCUMENT for storage/indexing
  */
-export async function embed(text: string): Promise<number[]> {
+export async function embed(text: string, taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" = "RETRIEVAL_QUERY"): Promise<number[]> {
   const ai = getGeminiAI();
   if (!ai) {
     throw new Error("GOOGLE_AI_API_KEY is required for embeddings");
   }
 
-  const result = await ai.models.embedContent({
+  const embedPromise = ai.models.embedContent({
     model: "gemini-embedding-001",
     contents: text,
     config: {
-      taskType: "RETRIEVAL_QUERY",
+      taskType,
       outputDimensionality: 1536,
     },
   });
+
+  const result = await Promise.race([
+    embedPromise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Gemini embed timed out after 30s")), 30_000),
+    ),
+  ]);
 
   const embedding = result.embeddings?.[0]?.values;
   if (!Array.isArray(embedding) || embedding.length === 0) {

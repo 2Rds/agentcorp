@@ -9,6 +9,7 @@
  * based on the model's provider field and tracks usage for cost analysis.
  */
 
+// TODO(WAAS-74): Move GoogleGenAI to @waas/runtime, inject embed function into ModelRouter
 import { GoogleGenAI } from "@google/genai";
 import type {
   ModelConfig,
@@ -344,7 +345,12 @@ export class ModelRouter {
 
     this.cohereApiKey = creds.cohereApiKey;
     if (creds.googleAiApiKey) {
-      this.googleAi = new GoogleGenAI({ apiKey: creds.googleAiApiKey });
+      try {
+        this.googleAi = new GoogleGenAI({ apiKey: creds.googleAiApiKey });
+      } catch (err) {
+        console.error("Failed to initialize GoogleGenAI:", err);
+        this.googleAi = undefined;
+      }
     }
 
     if (creds.anthropicApiKey) {
@@ -407,21 +413,28 @@ export class ModelRouter {
    * Uses Gemini Embedding 2 (gemini-embedding-001) at 1536 dimensions.
    * Task type: RETRIEVAL_QUERY (optimized for search queries).
    */
-  async embed(text: string): Promise<EmbeddingResult> {
+  async embed(text: string, taskType: "RETRIEVAL_QUERY" | "RETRIEVAL_DOCUMENT" = "RETRIEVAL_QUERY"): Promise<EmbeddingResult> {
     if (!this.googleAi) {
       throw new Error("Google AI API key required for embeddings (GOOGLE_AI_API_KEY)");
     }
 
     const modelId = this.stack?.embedding?.id ?? "gemini-embedding-001";
 
-    const result = await this.googleAi.models.embedContent({
+    const embedPromise = this.googleAi.models.embedContent({
       model: modelId,
       contents: text,
       config: {
-        taskType: "RETRIEVAL_QUERY",
+        taskType,
         outputDimensionality: 1536,
       },
     });
+
+    const result = await Promise.race([
+      embedPromise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Gemini embed timed out after 30s")), 30_000),
+      ),
+    ]);
 
     const embedding = result.embeddings?.[0]?.values;
     if (!embedding || embedding.length === 0) {

@@ -64,11 +64,8 @@ export const GEMINI_EMBED: ModelConfig = {
   alias: "embed",
   capabilities: ["embedding"],
   pricing: { inputPerMillion: 0.1, outputPerMillion: 0 },
-  contextWindow: 8_192,
+  contextWindow: 8_192, // Max input tokens for embedding (not conversational context window)
 };
-
-/** @deprecated Use GEMINI_EMBED — Cohere embed replaced by Gemini Embedding 2 (2026-03-20) */
-export const COHERE_EMBED = GEMINI_EMBED;
 
 export const COHERE_RERANK: ModelConfig = {
   id: "rerank-v4.0",
