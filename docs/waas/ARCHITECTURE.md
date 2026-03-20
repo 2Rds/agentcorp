@@ -135,10 +135,10 @@ The ModelRouter routes requests to the optimal provider based on model configura
 
 | Provider | Models | Timeout | Use Case |
 |----------|--------|---------|----------|
-| Anthropic (direct) | Claude Opus 4.6 | 60s | Primary brain, complex reasoning |
-| OpenRouter | Kimi K2.5, Gemini 3 Pro/Flash, DeepSeek V3.2, Granite 4.0, Grok 4.1 | 60s | Specialized tasks via router |
-| Perplexity | Sonar Pro, Sonar Deep Research | 60s | Real-time web search |
-| Cohere | Embed English v4, Rerank v3.5 | 30s | Embeddings + reranking |
+| Anthropic (via CF AI Gateway) | Claude Opus 4.6 | 60s | Primary brain, complex reasoning |
+| Google AI Studio (via CF AI Gateway) | Gemini 3 Flash | 60s | Vision/OCR, search grounding, structured gen |
+| xAI (via CF AI Gateway) | Grok 4.1 Fast | 60s | X/Twitter data, classification |
+| Cohere (direct) | Embed v4.0, Rerank v4.0 | 30s | Embeddings + reranking |
 
 Cost tracking is per-request with cache adjustment (cached tokens at 10% of input cost).
 

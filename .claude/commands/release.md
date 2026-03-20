@@ -36,10 +36,9 @@ Run a model usage audit before proceeding. This catches misassigned models befor
 
 | Model | Approved Use Cases |
 |-------|-------------------|
-| `claude-opus-4-6` (Anthropic direct) | All reasoning, analysis, writing, customer-facing output |
-| `google/gemini-3-flash-preview` (OpenRouter) | Multimodal vision/OCR, internal orchestration, knowledge extraction, structured data |
-| `x-ai/grok-4-1-fast` (OpenRouter) | X/Twitter data access, classification, routing, tagging |
-| `perplexity/sonar-pro` (OpenRouter/Perplexity) | Live web search |
+| `claude-opus-4-6` (Anthropic direct via CF AI Gateway) | All reasoning, analysis, writing, customer-facing output |
+| `gemini-3-flash-preview` (Google AI Studio via CF AI Gateway) | Multimodal vision/OCR, internal orchestration, knowledge extraction, structured data |
+| `grok-4-1-fast` (xAI direct via CF AI Gateway) | X/Twitter data access, classification, routing, tagging |
 | `cohere/embed-v4.0` | Vector embeddings (utility) |
 | `cohere/rerank-v4.0` | Search result reranking (utility) |
 | `eleven_flash_v2_5` / `scribe_v2_realtime` | Voice TTS/STT (ElevenLabs) |
@@ -58,7 +57,7 @@ Run a model usage audit before proceeding. This catches misassigned models befor
 
 3. **Flag any customer-facing tool using a non-Opus model** unless it falls into an approved exception:
    - Vision/OCR → Gemini 3 Flash (multimodal-optimized)
-   - Live web search → Sonar Pro (unique capability)
+   - Live web search → Gemini Search Grounding (unique capability)
    - X/Twitter data → Grok 4.1 Fast (unique capability)
 
 4. **Report findings** to the user:
@@ -83,7 +82,7 @@ For each of these files, read the current content (if it exists), then rewrite/u
 ### `README.md`
 - Project name, version badge, one-line description
 - Quick start / setup instructions (frontend + agent server)
-- Tech stack summary (React, Vite, Supabase, Claude Agent SDK, Redis, OpenRouter)
+- Tech stack summary (React, Vite, Supabase, Claude Agent SDK, Redis, CF AI Gateway)
 - Key features: AI chat, financial modeling, cap table, investor portal, knowledge base
 - Link to other docs
 - Keep it concise (under 150 lines)
@@ -96,7 +95,7 @@ For each of these files, read the current content (if it exists), then rewrite/u
 ### `ARCHITECTURE.md`
 - High-level system architecture: React frontend, Express agent server, Supabase backend
 - Key components: auth flow, financial engine, agent orchestration, knowledge system
-- Multi-model strategy: Opus (reasoning), Gemini 3 Flash (vision/orchestration), Grok 4.1 Fast (classification/X-Twitter), Sonar Pro (web search)
+- Multi-model strategy: Opus (reasoning), Gemini 3 Flash (vision/orchestration), Grok 4.1 Fast (classification/X-Twitter) — all via CF AI Gateway
 - Infrastructure: Redis (RediSearch vector search + Cohere embeddings), Cloudflare AI Gateway
 - Data flow for chat, financial model, and investor data room
 - Update based on actual current codebase structure

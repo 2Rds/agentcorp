@@ -55,10 +55,9 @@ VITE_AGENT_URL=http://localhost:3001
 ANTHROPIC_API_KEY=...              # Claude Opus 4.6
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
-OPENROUTER_API_KEY=...             # Non-Claude models
 REDIS_URL=...                      # Persistent memory + vector search
 COHERE_API_KEY=...                 # Embeddings + reranking
-# Optional: PORT, CORS_ORIGINS, CF_*, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, GOOGLE_SERVICE_ACCOUNT_KEY_JSON, NOTION_API_KEY, SENTRY_DSN, POSTHOG_API_KEY, POSTHOG_HOST
+# Optional: PORT, CORS_ORIGINS, CF_*, GOOGLE_AI_API_KEY, XAI_API_KEY, GOOGLE_SERVICE_ACCOUNT_KEY_FILE, GOOGLE_SERVICE_ACCOUNT_KEY_JSON, NOTION_API_KEY, SENTRY_DSN, POSTHOG_API_KEY, POSTHOG_HOST
 ```
 
 **EA Agent (`agents/ea/.env`):**
@@ -66,10 +65,9 @@ COHERE_API_KEY=...                 # Embeddings + reranking
 ANTHROPIC_API_KEY=...              # Claude Opus 4.6
 SUPABASE_URL=...
 SUPABASE_SERVICE_ROLE_KEY=...
-OPENROUTER_API_KEY=...
 REDIS_URL=...                      # Persistent memory + vector search
 COHERE_API_KEY=...                 # Embeddings + reranking
-# Optional: PORT (3002), TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN, AGENT_MESSAGE_SECRET, NOTION_API_KEY
+# Optional: PORT (3002), GOOGLE_AI_API_KEY, TELEGRAM_BOT_TOKEN, SLACK_BOT_TOKEN, AGENT_MESSAGE_SECRET, NOTION_API_KEY
 ```
 
 ## Architecture
@@ -118,7 +116,7 @@ waas/
 - **Notion Integration** — Read/write access to Notion databases (Decision Log, Project Hub, Investor Pipeline) with scope enforcement
 - **PDF Generation** — Branded investor documents (exec summaries, metrics one-pagers) via Playwright HTML→PDF
 - **Google Sheets** — Model sync via service account with domain-wide delegation
-- **Multi-Model Orchestration** — 4 LLMs with role-based routing (Opus reasoning, Gemini vision, Grok classification, Sonar web) + semantic caching
+- **Multi-Model Orchestration** — 3 LLMs with role-based routing (Opus reasoning, Gemini vision + search grounding, Grok classification) via CF AI Gateway + semantic caching
 - **7-Agent Network** — EA, CFA, COA, CMA, Compliance, Legal, Sales with specialized model stacks
 - **Governance System** — Dual-mode (startup/enterprise) with daily spend tracking, C-Suite Telegram approval flow, and per-agent budget enforcement
 - **Supabase Realtime** — Live frontend updates via postgres_changes subscriptions on 17 department tables with TanStack Query cache invalidation
@@ -139,7 +137,7 @@ waas/
 | EA Agent | Express, Anthropic Messages API, 7-14 native tools, grammy (Telegram), Slack (Socket Mode) |
 | Dept Agents | Express, Agent SDK + @waas/runtime, org-scoped MCP tools |
 | Platform | @waas/shared (types), @waas/runtime (execution engine + tool-helpers) |
-| Models | Claude Opus 4.6, Gemini 3 Flash, Grok 4.1 Fast, Sonar Pro |
+| Models | Claude Opus 4.6, Gemini 3 Flash, Grok 4.1 Fast (all via CF AI Gateway) |
 | Search | Redis 8.6.1 (RediSearch vector indexes, semantic cache, feature store) |
 | Memory | Redis (persistent memory + Agent Memory Server, org-scoped) |
 | Voice | ElevenLabs (TTS/STT), VoicePipeline (WebSocket bridge), VoiceTransport |

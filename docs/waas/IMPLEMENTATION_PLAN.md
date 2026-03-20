@@ -6,7 +6,7 @@
 
 - [x] `@waas/shared` — Core types, model router, namespace isolation, messaging bus
 - [x] `@waas/runtime` — AgentRuntime, auth middleware, SSE chat, Redis memory, Redis, Telegram transport
-- [x] ModelRouter with 4 providers (Anthropic, OpenRouter, Perplexity, Cohere)
+- [x] ModelRouter with 3 providers via CF AI Gateway (Anthropic, Google AI Studio, xAI) + Cohere direct
 - [x] BoardSession for multi-agent deliberation with quorum voting
 - [x] MessageBus with atomic Redis inbox and thread tracking
 - [x] ScopedRedisClient and ScopedMemoryClient for namespace isolation
@@ -18,7 +18,7 @@
 ### CFO Agent (v1.0.0 — `2rds/cfo`)
 
 - [x] Claude Agent SDK with 26 MCP tools across 9 domains
-- [x] Multi-model orchestration via OpenRouter (9 models)
+- [x] Multi-model orchestration via CF AI Gateway (3 models)
 - [x] Redis-backed persistent memory with vector search
 - [x] Redis 8.4 vector search (3 indexes)
 - [x] Financial model, cap table, investor data rooms

@@ -11,7 +11,7 @@ WaaS deploys 7 autonomous AI agents with real capabilities: database writes, ext
 - Unauthorized financial commitments (Sam commits to pricing, Morgan sends wrong investor metrics)
 - External communications the company can't stand behind (Taylor posts on X, Casey gives legal advice)
 - Data leaks across department namespaces
-- Uncontrolled API spend across 7 agents burning Anthropic/OpenRouter credits
+- Uncontrolled API spend across 7 agents burning Anthropic/Google/xAI credits
 
 The challenge: **too much governance kills startup velocity; too little risks catastrophic agent failures.** The solution must scale from a pre-revenue "move fast" posture to enterprise compliance (SOX, GDPR, ISO 42001) without a rewrite.
 

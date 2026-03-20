@@ -15,10 +15,10 @@
 
 ## Technical Details
 - **Runtime:** Express + Claude Agent SDK with MCP tools
-- **Model:** Claude Opus 4.6 (primary), 9+ models via OpenRouter
+- **Model:** Claude Opus 4.6 (primary), multi-model via CF AI Gateway (Gemini 3 Flash, Grok 4.1 Fast)
 - **Tools:** 31 MCP tools across 11 domains
 - **Memory:** Redis with vector search, 6 custom categories (financial_metrics, fundraising, company_operations, strategic_decisions, investor_relations, financial_model)
-- **Multi-model attribution:** opus-brain, k2-builder, gemini-docs
+- **Multi-model attribution:** opus-brain, gemini-builder, gemini-docs
 
 ## Tool Domains (31 tools)
 | Domain | Count | Key Tools |

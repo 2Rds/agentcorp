@@ -182,10 +182,10 @@ EA agent's Slack integration (`@slack/bolt` Socket Mode):
 |-----|-------|---------|
 | `ANTHROPIC_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
 | `SUPABASE_SERVICE_ROLE_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
-| `OPENROUTER_API_KEY` | All agent servers | `agent/.env`, `agents/*/.env` |
+| `GOOGLE_AI_API_KEY` | All agent servers (Gemini via CF AI Gateway) | `agent/.env`, `agents/*/.env` |
+| `XAI_API_KEY` | All agent servers (Grok via CF AI Gateway) | `agent/.env`, `agents/*/.env` |
 | `COHERE_API_KEY` | All agent servers (embeddings + reranking) | `agent/.env`, `agents/*/.env` |
 | `NOTION_API_KEY` | All agent servers (optional) | `agent/.env`, `agents/*/.env` |
-| `PERPLEXITY_API_KEY` | Dept agents (optional, fallback to OpenRouter) | `agents/*/.env` |
 | `SENTRY_DSN` | All agent servers (error tracking) | `agent/.env`, `agents/*/.env` |
 | `POSTHOG_API_KEY` | All agent servers (analytics, write-only) | `agent/.env`, `agents/*/.env` |
 | `VITE_SENTRY_DSN` | Frontend (error tracking) | `.env` |

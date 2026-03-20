@@ -75,14 +75,13 @@ Express server using the Claude Agent SDK. Claude Opus 4.6 as the primary reason
 
 | Model | Alias | Role | Routing Rule |
 |-------|-------|------|-------------|
-| Claude Opus 4.6 | (direct API) | Reasoning, analysis, customer-facing output | Default for all agent chat + customer-facing tools |
-| Gemini 3 Flash | `gemini` | Vision/OCR, internal orchestration, structured data | Multimodal tasks, knowledge extraction, structured generation |
-| Grok 4.1 Fast | `grok-fast` | X/Twitter data, classification, routing | CMA X/Twitter search, internal classification |
-| Sonar Pro | `sonar` | Live web search | All web_search tools across agents |
-| Cohere embed-v4.0 | (utility) | Vector embeddings | Memory search, plugin matching, feature store |
-| Cohere rerank-v4.0 | (utility) | Search result reranking | Memory retrieval quality |
+| Claude Opus 4.6 | Anthropic direct via CF AIG | Reasoning, analysis, customer-facing output | Default for all agent chat + customer-facing tools |
+| Gemini 3 Flash | Google AI Studio via CF AIG | Vision/OCR, internal orchestration, structured data, web search (Search Grounding) | Multimodal tasks, knowledge extraction, structured generation |
+| Grok 4.1 Fast | xAI direct via CF AIG | X/Twitter data, classification, routing | CMA X/Twitter search, internal classification |
+| Cohere embed-v4.0 | Cohere direct | Vector embeddings | Memory search, plugin matching, feature store |
+| Cohere rerank-v4.0 | Cohere direct | Search result reranking | Memory retrieval quality |
 
-Non-Claude models route through OpenRouter via `model-router.ts` using native `fetch`. Optional Cloudflare AI Gateway proxy when `CF_ACCOUNT_ID` + `CF_GATEWAY_ID` are set. Compliance `scan_compliance` and Legal `analyze_contract` call Opus via Anthropic direct API (customer-facing, high-stakes).
+All models route through Cloudflare AI Gateway (BYOK mode) via `model-router.ts`. Each provider (Anthropic, Google AI Studio, xAI) has a dedicated CF AIG endpoint. Compliance `scan_compliance` and Legal `analyze_contract` call Opus via Anthropic direct API (customer-facing, high-stakes).
 
 ### Tools (31 total across 11 domains)
 
@@ -136,12 +135,12 @@ Five department head agents built on `@waas/runtime` with the Claude Agent SDK (
 
 | Agent | Primary | Support Models | Embed | Rerank | Port |
 |-------|---------|---------------|-------|--------|------|
-| COA (Jordan) | Opus 4.6 | Gemini 3.1 Pro, Grok Reasoning | Cohere v4.0 | Cohere v4.0 | 3003 |
-| CMA (Taylor) | Opus 4.6 | Gemini 3.1 Pro, Sonar Pro, Grok Fast | Cohere v4.0 | — | 3004 |
-| CCA (Parker) | Opus 4.6 | Granite 4.0, Command A | Cohere v4.0 | Cohere v4.0 | 3005 |
-| Legal (Casey) | Opus 4.6 | Command A, Grok Reasoning (2M ctx) | Cohere v4.0 | Cohere v4.0 | 3006 |
-| Sales Manager (Sam) | Opus 4.6 | Sonar Pro, Gemini 3 Flash Preview | Cohere v4.0 | — | 3007 |
-| SDR Worker (internal) | Opus 4.6 | Sonar Pro, Gemini 3 Flash Preview | Cohere v4.0 | Cohere v4.0 | (inside 3007) |
+| COA (Jordan) | Opus 4.6 | Gemini 3 Flash, Grok 4.1 Fast | Cohere v4.0 | Cohere v4.0 | 3003 |
+| CMA (Taylor) | Opus 4.6 | Gemini 3 Flash, Grok 4.1 Fast | Cohere v4.0 | — | 3004 |
+| CCA (Parker) | Opus 4.6 | Gemini 3 Flash | Cohere v4.0 | Cohere v4.0 | 3005 |
+| Legal (Casey) | Opus 4.6 | Gemini 3 Flash, Grok 4.1 Fast | Cohere v4.0 | Cohere v4.0 | 3006 |
+| Sales Manager (Sam) | Opus 4.6 | Gemini 3 Flash | Cohere v4.0 | — | 3007 |
+| SDR Worker (internal) | Opus 4.6 | Gemini 3 Flash | Cohere v4.0 | Cohere v4.0 | (inside 3007) |
 
 ### Tool Summary
 
@@ -207,7 +206,7 @@ Express server using the Anthropic Messages API directly (not Claude Agent SDK).
 | Tasks | 2 | create_task, list_tasks | Always |
 | Meeting Notes | 1 | save_meeting_notes | Always |
 | Communications | 1 | draft_email | Always |
-| Web Search | 1 | web_search (Perplexity Sonar) | Always |
+| Web Search | 1 | web_search (Gemini Search Grounding) | Always |
 | Slack | 3 | send_slack_message, read_slack_channel, list_slack_channels | `SLACK_BOT_TOKEN` |
 | Notion | 4 | search_notion, read_notion_page, create_notion_page, update_notion_page | `NOTION_API_KEY` |
 

@@ -54,11 +54,13 @@ Workplace shorthand, acronyms, and internal language for the WaaS project.
 |------|----------|------|
 | **Alex** | blockdrive-ea | Executive Assistant (deployed, port 3002) |
 | **Morgan** | blockdrive-cfa | Chief Financial Agent (deployed, port 3001) |
-| **Jordan** | blockdrive-coa | Chief Operating Agent (planned) |
-| **Taylor** | blockdrive-cma | Chief Marketing Agent (planned) |
+| **Jordan** | blockdrive-coa | Chief Operating Agent (built, port 3003) |
+| **Taylor** | blockdrive-cma | Chief Marketing Agent (built, port 3004) |
+| **Parker** | blockdrive-compliance | Chief Compliance Agent (built, port 3005) |
+| **Casey** | blockdrive-legal | Legal Counsel (built, port 3006) |
+| **Sam** | blockdrive-sales | Sales Manager (built, port 3007) |
+| **SDR Worker** | blockdrive-sdr | Sales SDR (internal, port 3007) |
 | **Riley** | blockdrive-ir | Investor Relations (planned) |
-| **Casey** | blockdrive-legal | Legal & Compliance (planned) |
-| **Sam** | blockdrive-sales | Sales Lead (planned) |
 
 ## Project Codenames / Shorthand
 
@@ -98,24 +100,27 @@ Workplace shorthand, acronyms, and internal language for the WaaS project.
 
 | Shorthand | Full Model |
 |-----------|------------|
-| Opus | Claude Opus 4.6 (primary brain) |
-| Sonnet | Claude Sonnet 4.6 (testing alias) |
-| K2 / K2.5 | Kimi K2.5 — **DISQUALIFIED** (trust + 64% hallucination) |
-| Gemini Flash | Gemini 3 Flash / 2.5 Flash Lite |
-| Gemini Pro | Gemini 3 Pro |
-| DeepSeek | DeepSeek V3.2/Speciale — **DISQUALIFIED** (data sovereignty) |
-| Sonar | Sonar Pro (Perplexity web search) |
-| Granite | IBM Granite 4.0 Micro |
-| Flash v2.5 | ElevenLabs Flash v2.5 (voice model) |
-| Turbo v2 | ElevenLabs Turbo v2 (TTS only) |
+| Opus | Claude Opus 4.6 (primary reasoning, all customer-facing) |
+| Gemini Flash | Gemini 3 Flash (vision/OCR, internal orchestration) |
+| Grok Fast | Grok 4.1 Fast (X-Twitter data, classification, routing) |
+| ~~Sonar~~ | Removed — replaced by Gemini Search Grounding |
+| Cohere embed | Cohere embed-v4.0 (1536-dim embeddings) |
+| Cohere rerank | Cohere rerank-v4.0 (search result reranking) |
+| Flash v2.5 | ElevenLabs Flash v2.5 (TTS voice) |
+| Scribe v2 | ElevenLabs Scribe v2 (STT transcription) |
+| ~~K2 / K2.5~~ | **DISQUALIFIED** (trust + 64% hallucination) |
+| ~~DeepSeek~~ | **DISQUALIFIED** (data sovereignty) |
+| ~~Gemini Pro~~ | Removed in v3.1.0 model collapse |
+| ~~Granite~~ | Removed in v3.1.0 model collapse |
+| ~~Sonnet~~ | Eliminated — Opus for all agents |
 
 ## Infrastructure Shorthand
 
 | Term | Meaning |
 |------|---------|
 | Supabase | Backend: Postgres, Auth, RLS, Edge Functions |
-| Upstash | Serverless Redis (TLS) — cache, vectors, message bus |
-| Redis Memory | Persistent memory with vector search (RediSearch + Cohere embeddings) |
+| Redis | Self-hosted on DO droplet 159.223.179.119 (Redis 8.6.1 + RediSearch + RedisJSON) |
+| Redis Memory | Persistent memory with vector search (RediSearch + Cohere embed-v4.0, 1536-dim) |
 | n8n | Self-hosted workflow automation (DO droplet) |
 | grammy | Telegram bot framework (used by EA) |
 | doctl | DigitalOcean CLI (installed locally) |

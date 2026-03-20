@@ -103,9 +103,9 @@ All external API calls use AbortController with enforced timeouts:
 
 | Target | Timeout | Rationale |
 |--------|---------|-----------|
-| Anthropic API | 60s | Complex reasoning can be slow |
-| OpenRouter API | 60s | Proxied model calls |
-| Perplexity API | 60s | Deep research queries |
+| Anthropic API (via CF AIG) | 60s | Complex reasoning can be slow |
+| Google AI Studio (via CF AIG) | 60s | Vision, search grounding |
+| xAI API (via CF AIG) | 60s | Classification, X/Twitter data |
 | Cohere API | 30s | Embed/rerank are fast operations |
 | Redis memory API | 15s | Memory operations are simple |
 
@@ -155,7 +155,8 @@ All external API calls use AbortController with enforced timeouts:
 |--------|-------|-------|
 | `SUPABASE_SERVICE_ROLE_KEY` | Per deployment | Token verification, org membership lookup |
 | `ANTHROPIC_API_KEY` | Per deployment | Claude Opus API calls |
-| `OPENROUTER_API_KEY` | Per deployment | Secondary model routing |
+| `GOOGLE_AI_API_KEY` | Per deployment | Gemini models via CF AI Gateway |
+| `XAI_API_KEY` | Per deployment | Grok models via CF AI Gateway |
 | `COHERE_API_KEY` | Per deployment | Embeddings for persistent memory |
 | `REDIS_URL` | Per deployment | Cache + vector search |
 | `TELEGRAM_BOT_TOKEN` | Per agent | Inter-agent messaging |

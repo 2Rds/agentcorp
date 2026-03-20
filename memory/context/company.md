@@ -21,7 +21,7 @@ Sean Weiss's company. Builds WaaS (cognitive agent platform) and Block Drive Vau
 | ElevenLabs | Voice AI (planned) | TTS/STT, Conversational AI |
 | Twilio | Phone numbers (planned) | For voice agents |
 | Cloudflare | AI Gateway, Workers, Queues | CF, provider keys mode |
-| OpenRouter | Multi-model routing | 9+ models |
+| Cloudflare AI Gateway | API routing to providers (Anthropic, Google, xAI) | CF AIG, BYOK mode |
 
 ## Domains
 

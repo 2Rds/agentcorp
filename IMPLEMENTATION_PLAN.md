@@ -341,7 +341,7 @@
 - [x] Financial model with SaaS template, scenario modeling, derived metrics
 - [x] Google Sheets integration (service account with domain-wide delegation)
 - [x] Cap table, investor portal (DocSend-style), knowledge base with Gemini vision
-- [x] Multi-model orchestration (9 models via OpenRouter), semantic caching, Cohere rerank
+- [x] Multi-model orchestration (3 models via CF AI Gateway), semantic caching, Cohere rerank
 
 ### Completed — WaaS Platform (2026-03-04 → 2026-03-09)
 
