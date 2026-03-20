@@ -3,12 +3,13 @@
  *
  * Routes model calls to the correct provider based on ModelConfig.provider.
  * Handles: Anthropic (direct), OpenRouter (aggregator for Gemini, Grok),
- * Perplexity (direct), Cohere (direct).
+ * Perplexity (direct), Google (Gemini Embedding), Cohere (rerank).
  *
  * Each provider client implements the same interface. The router dispatches
  * based on the model's provider field and tracks usage for cost analysis.
  */
 
+import { GoogleGenAI } from "@google/genai";
 import type {
   ModelConfig,
   ModelStack,
@@ -402,6 +403,7 @@ export class ModelRouter {
   private usageLog: UsageEvent[] = [];
   private stack?: ModelStack;
   private cohereApiKey?: string;
+  private googleAi?: GoogleGenAI;
 
   constructor(creds: ProviderCredentials);
   constructor(stack: ModelStack, creds: ProviderCredentials);
@@ -417,6 +419,9 @@ export class ModelRouter {
     }
 
     this.cohereApiKey = creds.cohereApiKey;
+    if (creds.googleAiApiKey) {
+      this.googleAi = new GoogleGenAI({ apiKey: creds.googleAiApiKey });
+    }
 
     if (creds.anthropicApiKey) {
       this.providers.set("anthropic", new AnthropicClient(creds.anthropicApiKey));
@@ -478,51 +483,31 @@ export class ModelRouter {
 
   /**
    * Generate an embedding vector for text.
-   * Uses the stack's embedding model if set, otherwise falls back to
-   * Cohere embed-v4.0 via direct API call.
+   * Uses Gemini Embedding 2 (gemini-embedding-001) at 1536 dimensions.
+   * Task type: RETRIEVAL_QUERY (optimized for search queries).
    */
   async embed(text: string): Promise<EmbeddingResult> {
-    if (!this.cohereApiKey) {
-      throw new Error("Cohere API key required for embeddings");
+    if (!this.googleAi) {
+      throw new Error("Google AI API key required for embeddings (GOOGLE_AI_API_KEY)");
     }
 
-    const embeddingModelId = this.stack?.embedding?.id ?? "embed-v4.0";
-    const { signal, cleanup } = createTimeoutSignal(30_000);
+    const modelId = this.stack?.embedding?.id ?? "gemini-embedding-001";
 
-    try {
-      const res = await fetch("https://api.cohere.com/v2/embed", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${this.cohereApiKey}`,
-        },
-        body: JSON.stringify({
-          model: embeddingModelId,
-          texts: [text],
-          input_type: "search_query",
-          embedding_types: ["float"],
-        }),
-        signal,
-      });
+    const result = await this.googleAi.models.embedContent({
+      model: modelId,
+      contents: text,
+      config: {
+        taskType: "RETRIEVAL_QUERY",
+        outputDimensionality: 1536,
+      },
+    });
 
-      if (!res.ok) {
-        const err = await res.text();
-        throw new Error(`Cohere embed API error (${res.status}): ${err}`);
-      }
-
-      const data = await res.json() as {
-        embeddings?: { float?: number[][] };
-      };
-
-      const embedding = data.embeddings?.float?.[0];
-      if (!embedding || embedding.length === 0) {
-        throw new Error("Cohere embed returned empty embedding");
-      }
-
-      return { embedding, model: embeddingModelId, provider: "cohere" };
-    } finally {
-      cleanup();
+    const embedding = result.embeddings?.[0]?.values;
+    if (!embedding || embedding.length === 0) {
+      throw new Error("Gemini embed returned empty embedding");
     }
+
+    return { embedding, model: modelId, provider: "google" };
   }
 
   /**

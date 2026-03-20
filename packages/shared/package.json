@@ -28,7 +28,9 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@google/genai": "^1.46.0"
+  },
   "devDependencies": {
     "@types/node": "^22.19.5",
     "typescript": "^5.9.3"

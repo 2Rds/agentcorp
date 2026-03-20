@@ -6,16 +6,17 @@
  * 2. Gemini 3 Flash Preview — Fast multimodal + Google Search grounding
  * 3. Sonar Pro — Web research + citations (direct Perplexity)
  * 4. Grok 4.1 Fast Non-Reasoning — 2M context, ultra-fast processing
- * 5. Cohere embed-v4.0 — Embedding (1536-dim vectors)
+ * 5. Gemini Embedding 2 — Embedding (1536-dim vectors, MTEB 68.17)
  * 6. Cohere rerank-v4.0 — Reranking
  *
  * Removed: Sonar Deep Research (redundant with Sonar Pro), Command A
  * (free tier exhaustion risk), Granite (compliance handled by Opus),
  * Grok Fast Reasoning (non-reasoning variant sufficient).
+ * Cohere embed-v4.0 replaced by Gemini Embedding 2 (2026-03-20).
  *
  * Board of Directors (LLM Council): Opus (dual-role: participant + chairman),
  * Gemini, Grok, Sonar (members). Cohere excluded from board — free tier
- * reserved for RAG/rerank ops. Gemini serves as governance advisor.
+ * reserved for rerank ops. Gemini serves as governance advisor.
  *
  * No Sonnet (token inefficiency negates cost savings with memory compounding).
  * No Chinese models (trust non-negotiable in blockchain/fintech).
@@ -66,14 +67,17 @@ export const GROK_FAST: ModelConfig = {
 
 // ─── Utility Models ─────────────────────────────────────────────────────────
 
-export const COHERE_EMBED: ModelConfig = {
-  id: "embed-v4.0",
-  provider: "cohere",
+export const GEMINI_EMBED: ModelConfig = {
+  id: "gemini-embedding-001",
+  provider: "google",
   alias: "embed",
   capabilities: ["embedding"],
   pricing: { inputPerMillion: 0.1, outputPerMillion: 0 },
-  contextWindow: 128_000,
+  contextWindow: 8_192,
 };
+
+/** @deprecated Use GEMINI_EMBED — Cohere embed replaced by Gemini Embedding 2 (2026-03-20) */
+export const COHERE_EMBED = GEMINI_EMBED;
 
 export const COHERE_RERANK: ModelConfig = {
   id: "rerank-v4.0",
@@ -90,7 +94,7 @@ export const MODEL_REGISTRY = {
   gemini: GEMINI,
   sonar: SONAR,
   "grok-fast": GROK_FAST,
-  embed: COHERE_EMBED,
+  embed: GEMINI_EMBED,
   rerank: COHERE_RERANK,
 } as const;
 

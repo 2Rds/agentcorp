@@ -7,8 +7,13 @@
  */
 
 import { randomUUID } from "crypto";
+import { GoogleGenAI } from "@google/genai";
 import { getRedis, type RedisClientType } from "./redis-client.js";
 import { config } from "../config.js";
+
+const googleAi = config.googleAiApiKey
+  ? new GoogleGenAI({ apiKey: config.googleAiApiKey })
+  : null;
 
 // ─── Types (compatible with @waas/runtime MemoryClient) ─────────────────────
 
@@ -51,7 +56,7 @@ export interface GraphMemoryResponse {
 const INDEX_NAME = "idx:memories";
 const KEY_PREFIX = "memory:";
 const EMBEDDING_DIM = 1536;
-const EMBEDDING_MODEL = "embed-v4.0";
+const EMBEDDING_MODEL = "gemini-embedding-001";
 
 // ─── Index Management ───────────────────────────────────────────────────────
 
@@ -95,35 +100,23 @@ async function ensureIndex(redis: RedisClientType): Promise<void> {
   }
 }
 
-// ─── Embedding Generation (Cohere direct) ───────────────────────────────────
+// ─── Embedding Generation (Gemini Embedding 2) ──────────────────────────────
 
 async function generateEmbedding(text: string): Promise<number[] | null> {
-  if (!config.cohereApiKey) return null;
+  if (!googleAi) return null;
 
-  const res = await fetch("https://api.cohere.com/v2/embed", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.cohereApiKey}`,
+  const result = await googleAi.models.embedContent({
+    model: EMBEDDING_MODEL,
+    contents: text,
+    config: {
+      taskType: "RETRIEVAL_QUERY",
+      outputDimensionality: EMBEDDING_DIM,
     },
-    body: JSON.stringify({
-      model: EMBEDDING_MODEL,
-      texts: [text],
-      input_type: "search_query",
-      embedding_types: ["float"],
-    }),
-    signal: AbortSignal.timeout(30_000),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Cohere embed API error (${res.status}): ${err}`);
-  }
-
-  const data = await res.json() as { embeddings?: { float?: number[][] } };
-  const embedding = data.embeddings?.float?.[0];
+  const embedding = result.embeddings?.[0]?.values;
   if (!embedding || embedding.length === 0) {
-    throw new Error("Cohere embed returned empty embedding");
+    throw new Error("Gemini embed returned empty embedding");
   }
 
   return embedding;

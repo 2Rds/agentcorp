@@ -15,7 +15,8 @@ export type ModelProvider =
   | "anthropic"     // Claude models via direct Anthropic API
   | "openrouter"    // Aggregator (Gemini, Grok) via OpenRouter
   | "perplexity"    // Sonar models via direct Perplexity API
-  | "cohere";       // Rerank + Embed via direct Cohere API
+  | "google"        // Gemini Embedding via direct Google AI API
+  | "cohere";       // Rerank via direct Cohere API
 
 /** What a model is good at — used for capability-based routing */
 export type ModelCapability =
@@ -358,6 +359,8 @@ export interface ProviderCredentials {
   openRouterApiKey: string;
   perplexityApiKey: string;
   cohereApiKey: string;
+  /** Google AI API key for Gemini Embedding */
+  googleAiApiKey?: string;
   /** ElevenLabs API key for voice transport (TTS, STT, Conversational AI) */
   elevenlabsApiKey?: string;
   /** Optional Cloudflare AI Gateway for caching/logging/rate-limiting */

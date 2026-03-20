@@ -2,12 +2,12 @@
  * Semantic Cache — Standalone LLM response cache for EA Agent
  *
  * The EA runs in a standalone Docker build (no @waas/runtime access), so this
- * is a self-contained semantic cache using the EA's own Redis client and Cohere
+ * is a self-contained semantic cache using the EA's own Redis client and Gemini
  * embeddings. Writes to the same idx:llm_cache_v2 index shared by all agents.
  *
  * Architecture:
  *   - Uses EA's redis-client.ts for Redis connection
- *   - Uses EA's model-router.ts embed() for Cohere embed-v4.0 (1536-dim)
+ *   - Uses EA's model-router.ts embed() for Gemini Embedding 2 (1536-dim)
  *   - Same index schema as @waas/runtime SemanticCache (cross-agent compatible)
  *   - Fire-and-forget writes (never slows down the response)
  *   - Graceful degradation (returns null on any failure)

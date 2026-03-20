@@ -7,7 +7,7 @@
  * response is returned — skipping the LLM call entirely.
  *
  * Key architecture decisions:
- *   - Uses Cohere embed-v4.0 (1536-dim) via ModelRouter — consistent with
+ *   - Uses Gemini Embedding 2 (1536-dim) via ModelRouter — consistent with
  *     all other vector indexes in the platform
  *   - Namespace-isolated: agents can share cache (cross-agent hits) or
  *     scope to their own namespace via TAG filters
@@ -36,7 +36,7 @@ import { Sentry } from "./observability.js";
 export interface SemanticCacheConfig {
   /** Redis client (already connected) */
   redis: RedisClientType;
-  /** ModelRouter for embedding generation (Cohere embed-v4.0) */
+  /** ModelRouter for embedding generation (Gemini Embedding 2) */
   router: ModelRouter;
   /** Agent ID — used for namespace isolation */
   agentId: string;

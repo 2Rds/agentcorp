@@ -2,7 +2,7 @@
  * Redis Memory Client — Persistent memory for cognitive agents
  *
  * Stores agent memories in Redis HASHes with RediSearch vector index
- * for semantic search. Uses Cohere embeddings via ModelRouter.embed().
+ * for semantic search. Uses Gemini Embedding 2 via ModelRouter.embed().
  *
  * Key schema:  memory:{memoryId}
  * Index name:  idx:memories (shared across all orgs — org isolation

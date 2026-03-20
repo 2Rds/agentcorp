@@ -13,7 +13,7 @@
 import type { ModelStack } from "../types.js";
 import {
   OPUS, GEMINI, SONAR, GROK_FAST,
-  COHERE_EMBED, COHERE_RERANK,
+  GEMINI_EMBED, COHERE_RERANK,
 } from "./registry.js";
 
 // ─── Executive Tier ─────────────────────────────────────────────────────────
@@ -22,7 +22,7 @@ import {
 export const EA_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI, SONAR],       // Google Search for scheduling + web research for briefings
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,
 };
 
@@ -30,7 +30,7 @@ export const EA_STACK: ModelStack = {
 export const COA_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI],                       // Multimodal reports
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,
 };
 
@@ -40,7 +40,7 @@ export const COA_STACK: ModelStack = {
 export const CFA_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI],                       // Fast multimodal processing
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,
 };
 
@@ -48,7 +48,7 @@ export const CFA_STACK: ModelStack = {
 export const IR_STACK: ModelStack = {
   primary: OPUS,
   support: [SONAR],                        // Web research + citations
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,
 };
 
@@ -56,14 +56,14 @@ export const IR_STACK: ModelStack = {
 export const CMA_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI, SONAR, GROK_FAST],    // Content + trend research + X/Twitter via Grok
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
 };
 
 /** Chief Compliance Agent — regulatory analysis, governance, audit */
 export const COMPLIANCE_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI],                       // Fast processing for compliance analysis
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,                 // Audit-read-all generates noisy cross-namespace results
 };
 
@@ -71,7 +71,7 @@ export const COMPLIANCE_STACK: ModelStack = {
 export const LEGAL_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI],                       // Fast processing for legal analysis
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,
 };
 
@@ -79,7 +79,7 @@ export const LEGAL_STACK: ModelStack = {
 export const SALES_MANAGER_STACK: ModelStack = {
   primary: OPUS,
   support: [SONAR, GEMINI],               // Prospect research + proposals
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
 };
 /** @deprecated Use SALES_MANAGER_STACK */
 export const SALES_STACK = SALES_MANAGER_STACK;
@@ -88,7 +88,7 @@ export const SALES_STACK = SALES_MANAGER_STACK;
 export const SDR_STACK: ModelStack = {
   primary: OPUS,
   support: [SONAR, GEMINI],               // Web research + fast processing
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
   reranker: COHERE_RERANK,                 // Rerank prospect search results
 };
 
@@ -98,21 +98,21 @@ export const SDR_STACK: ModelStack = {
 export const RESEARCH_JUNIOR_STACK: ModelStack = {
   primary: OPUS,
   support: [SONAR],                        // Web research + citations
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
 };
 
 /** Data/Analyst junior — internal data analysis, report generation */
 export const DATA_JUNIOR_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI],                       // Fast processing for data analysis
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
 };
 
 /** Compliance/Audit junior — policy checking, audit trail review */
 export const COMPLIANCE_JUNIOR_STACK: ModelStack = {
   primary: OPUS,
   support: [GEMINI],                       // Fast processing for compliance checks
-  embedding: COHERE_EMBED,
+  embedding: GEMINI_EMBED,
 };
 
 // ─── Stack Registry ─────────────────────────────────────────────────────────

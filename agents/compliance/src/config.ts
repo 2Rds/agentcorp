@@ -29,6 +29,7 @@ export const config = {
 
   redisUrl: optional("REDIS_URL"),
   cohereApiKey: optional("COHERE_API_KEY"),
+  googleAiApiKey: optional("GOOGLE_AI_API_KEY"),
 
   notionApiKey: optional("NOTION_API_KEY"),
   notionEnabled: !!process.env.NOTION_API_KEY,

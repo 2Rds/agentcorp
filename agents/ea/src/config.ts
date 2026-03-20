@@ -37,6 +37,9 @@ export const config = {
   // Cohere (Rerank for plugin resolution)
   cohereApiKey: optional("COHERE_API_KEY"),
 
+  // Google AI Studio (Gemini Embedding 2 for vector search)
+  googleAiApiKey: optional("GOOGLE_AI_API_KEY"),
+
   // Slack integration (optional)
   slackBotToken: optional("SLACK_BOT_TOKEN"),
   slackAppToken: optional("SLACK_APP_TOKEN"),

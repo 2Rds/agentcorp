@@ -35,6 +35,9 @@ export const config = {
   // Cohere (Rerank for plugin resolution)
   cohereApiKey: optional("COHERE_API_KEY"),
 
+  // Google AI Studio (Gemini Embedding 2 for vector search)
+  googleAiApiKey: optional("GOOGLE_AI_API_KEY"),
+
   // Notion integration (optional)
   notionApiKey: optional("NOTION_API_KEY"),
   notionEnabled: !!process.env.NOTION_API_KEY,
