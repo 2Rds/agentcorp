@@ -104,7 +104,7 @@ Workplace shorthand, acronyms, and internal language for the WaaS project.
 | Gemini Flash | Gemini 3 Flash (vision/OCR, internal orchestration) |
 | Grok Fast | Grok 4.1 Fast (X-Twitter data, classification, routing) |
 | ~~Sonar~~ | Removed — replaced by Gemini Search Grounding |
-| Cohere embed | Cohere embed-v4.0 (1536-dim embeddings) |
+| Gemini Embed | Gemini Embedding gemini-embedding-001 (1536-dim, replaced Cohere embed-v4.0) |
 | Cohere rerank | Cohere rerank-v4.0 (search result reranking) |
 | Flash v2.5 | ElevenLabs Flash v2.5 (TTS voice) |
 | Scribe v2 | ElevenLabs Scribe v2 (STT transcription) |
@@ -120,7 +120,7 @@ Workplace shorthand, acronyms, and internal language for the WaaS project.
 |------|---------|
 | Supabase | Backend: Postgres, Auth, RLS, Edge Functions |
 | Redis | Self-hosted on DO droplet 159.223.179.119 (Redis 8.6.1 + RediSearch + RedisJSON) |
-| Redis Memory | Persistent memory with vector search (RediSearch + Cohere embed-v4.0, 1536-dim) |
+| Redis Memory | Persistent memory with vector search (RediSearch + Gemini Embedding, 1536-dim) |
 | n8n | Self-hosted workflow automation (DO droplet) |
 | grammy | Telegram bot framework (used by EA) |
 | doctl | DigitalOcean CLI (installed locally) |

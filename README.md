@@ -105,7 +105,7 @@ waas/
 - **AgentCorp Workspace UI** — 7 department workspaces with agent chat, task management, and department-specific dashboards
 - **AI Agent Chat** — Streaming SSE chat with Markdown rendering, conversation persistence, per-agent URL routing
 - **Agent Health Monitoring** — Real-time agent status dashboard with online/offline/unknown tracking
-- **Semantic Cache** — LLM response caching via Redis vector search (Cohere embed-v4.0, 1536-dim HNSW). Cross-agent sharing, 95% similarity threshold, configurable TTL
+- **Semantic Cache** — LLM response caching via Redis vector search (Gemini Embedding, 1536-dim HNSW). Cross-agent sharing, 95% similarity threshold, configurable TTL
 - **Agent Memory Server** — Two-tier cognitive memory (working memory + long-term semantic search) via Redis AMS HTTP client
 - **Feature Store** — Sub-millisecond Redis HASH-based feature retrieval for Sales (prospect, industry, agent performance, call brief features with 4 RediSearch indexes)
 - **Voice Pipeline** — ElevenLabs TTS/STT + VoiceTransport WebSocket bridge for NextGenSwitch telephony integration (foundation)

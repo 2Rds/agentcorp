@@ -60,7 +60,7 @@ When saving memories for this project, always tag with:
 | Opus 4.6 | Anthropic direct via CF AI Gateway | Primary reasoning, all customer-facing |
 | Gemini 3 Flash | Google AI Studio via CF AI Gateway | Vision/OCR, internal orchestration |
 | Grok 4.1 Fast | xAI direct via CF AI Gateway | X-Twitter, classification, routing |
-| Cohere embed-v4.0 | Cohere direct | 1536-dim vector embeddings |
+| Gemini Embedding | Google AI Studio via @google/genai SDK | 1536-dim vector embeddings |
 | Cohere rerank-v4.0 | Cohere direct | Search result reranking |
 
 ### Current Version: v3.2.0

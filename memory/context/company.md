@@ -14,7 +14,7 @@ Sean Weiss's company. Builds WaaS (cognitive agent platform) and Block Drive Vau
 | DigitalOcean | Agent server hosting (App Platform) | DO, doctl CLI |
 | GitHub | Source control | 2Rds/agentcorp, 2rds/block-drive-vault |
 | Linear | Project tracking | BlockDrive project |
-| Redis Memory | Persistent memory (RediSearch + Cohere embeddings) | Vector search, org-scoped |
+| Redis Memory | Persistent memory (RediSearch + Gemini Embedding) | Vector search, org-scoped |
 | Upstash | Serverless Redis (TLS) | Cache, vectors, message bus |
 | n8n | Workflow automation | Self-hosted, n8n.blockdrive.co |
 | Telegram | Agent messaging + EA bot | grammy framework |

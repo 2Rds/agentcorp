@@ -78,7 +78,7 @@ Express server using the Claude Agent SDK. Claude Opus 4.6 as the primary reason
 | Claude Opus 4.6 | Anthropic direct via CF AIG | Reasoning, analysis, customer-facing output | Default for all agent chat + customer-facing tools |
 | Gemini 3 Flash | Google AI Studio via CF AIG | Vision/OCR, internal orchestration, structured data, web search (Search Grounding) | Multimodal tasks, knowledge extraction, structured generation |
 | Grok 4.1 Fast | xAI direct via CF AIG | X/Twitter data, classification, routing | CMA X/Twitter search, internal classification |
-| Cohere embed-v4.0 | Cohere direct | Vector embeddings | Memory search, plugin matching, feature store |
+| Gemini Embedding | Google AI Studio via @google/genai SDK | Vector embeddings (1536-dim) | Memory search, plugin matching, feature store |
 | Cohere rerank-v4.0 | Cohere direct | Search result reranking | Memory retrieval quality |
 
 All models route through Cloudflare AI Gateway (BYOK mode) via `model-router.ts`. Each provider (Anthropic, Google AI Studio, xAI) has a dedicated CF AIG endpoint. Compliance `scan_compliance` and Legal `analyze_contract` call Opus via Anthropic direct API (customer-facing, high-stakes).
@@ -135,12 +135,12 @@ Five department head agents built on `@waas/runtime` with the Claude Agent SDK (
 
 | Agent | Primary | Support Models | Embed | Rerank | Port |
 |-------|---------|---------------|-------|--------|------|
-| COA (Jordan) | Opus 4.6 | Gemini 3 Flash, Grok 4.1 Fast | Cohere v4.0 | Cohere v4.0 | 3003 |
-| CMA (Taylor) | Opus 4.6 | Gemini 3 Flash, Grok 4.1 Fast | Cohere v4.0 | — | 3004 |
-| CCA (Parker) | Opus 4.6 | Gemini 3 Flash | Cohere v4.0 | Cohere v4.0 | 3005 |
-| Legal (Casey) | Opus 4.6 | Gemini 3 Flash, Grok 4.1 Fast | Cohere v4.0 | Cohere v4.0 | 3006 |
-| Sales Manager (Sam) | Opus 4.6 | Gemini 3 Flash | Cohere v4.0 | — | 3007 |
-| SDR Worker (internal) | Opus 4.6 | Gemini 3 Flash | Cohere v4.0 | Cohere v4.0 | (inside 3007) |
+| COA (Jordan) | Opus 4.6 | Gemini 3 Flash | Gemini Embed | Cohere v4.0 | 3003 |
+| CMA (Taylor) | Opus 4.6 | Gemini 3 Flash, Grok 4.1 Fast | Gemini Embed | — | 3004 |
+| CCA (Parker) | Opus 4.6 | Gemini 3 Flash | Gemini Embed | Cohere v4.0 | 3005 |
+| Legal (Casey) | Opus 4.6 | Gemini 3 Flash | Gemini Embed | Cohere v4.0 | 3006 |
+| Sales Manager (Sam) | Opus 4.6 | Gemini 3 Flash | Gemini Embed | — | 3007 |
+| SDR Worker (internal) | Opus 4.6 | Gemini 3 Flash | Gemini Embed | Cohere v4.0 | (inside 3007) |
 
 ### Tool Summary
 
