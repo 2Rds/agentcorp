@@ -1,10 +1,9 @@
-import { chatCompletion, embed, getGeminiAI } from "./model-router.js";
+import { chatCompletion, embed, getGeminiAI, MODEL_IDS } from "./model-router.js";
+import type { Part } from "@google/genai";
 import { writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-
-const GEMINI_MODEL = "gemini-3-flash-preview";
 
 // ─── Vision / Document parsing ───────────────────────────────────────────────
 
@@ -35,23 +34,28 @@ export async function parseDocumentWithVision(
     ], { maxTokens: 8192, temperature: 0.1 });
   }
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: [
-      { inlineData: { data: buffer.toString("base64"), mimeType } },
-      prompt,
-    ],
-    config: {
-      maxOutputTokens: 8192,
-      temperature: 0.1,
-    },
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_IDS.gemini,
+      contents: [
+        { inlineData: { data: buffer.toString("base64"), mimeType } },
+        prompt,
+      ],
+      config: {
+        maxOutputTokens: 8192,
+        temperature: 0.1,
+      },
+    });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini vision returned no content");
+    const text = response.text;
+    if (!text) {
+      throw new Error("Gemini vision returned no content");
+    }
+    return text;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Gemini vision failed: ${msg}`);
   }
-  return text;
 }
 
 // ─── File API ────────────────────────────────────────────────────────────────
@@ -75,18 +79,37 @@ export async function uploadToGeminiFiles(
   // SDK expects a file path — write buffer to temp file, upload, then clean up
   const tempPath = join(tmpdir(), `gemini-upload-${randomUUID()}`);
   try {
-    await writeFile(tempPath, buffer);
+    await writeFile(tempPath, buffer, { mode: 0o600 });
 
-    const file = await ai.files.upload({
+    const uploaded = await ai.files.upload({
       file: tempPath,
       config: { mimeType, displayName },
     });
 
-    if (!file.uri || !file.name) {
-      throw new Error("Gemini Files API returned incomplete response (missing uri or name)");
+    if (!uploaded.name) {
+      throw new Error("Gemini Files API returned incomplete response (missing name)");
     }
 
-    return { uri: file.uri, name: file.name };
+    // Poll until file processing completes (large files may take time)
+    let file = uploaded;
+    const maxWait = 60_000;
+    const start = Date.now();
+    while (file.state === "PROCESSING" && Date.now() - start < maxWait) {
+      await new Promise(r => setTimeout(r, 2000));
+      file = await ai.files.get({ name: file.name! });
+    }
+    if (file.state === "FAILED") {
+      throw new Error("Gemini file processing failed");
+    }
+    if (file.state !== "ACTIVE") {
+      throw new Error("Gemini file processing timed out");
+    }
+
+    if (!file.uri) {
+      throw new Error("Gemini Files API returned no URI after processing");
+    }
+
+    return { uri: file.uri, name: file.name! };
   } finally {
     // Clean up temp file (fire-and-forget)
     unlink(tempPath).catch(() => {});
@@ -116,26 +139,35 @@ export async function queryDocumentsWithGemini(
     ], { maxTokens: 4096, temperature: 0.2 });
   }
 
+  if (fileUris.length === 0) {
+    throw new Error("queryDocumentsWithGemini requires at least one file URI");
+  }
+
   // Build content parts: file references + question
-  const parts: Array<Record<string, unknown> | string> = fileUris.map(f => ({
+  const parts: Array<Part | string> = fileUris.map(f => ({
     fileData: { fileUri: f.uri, mimeType: f.mimeType },
   }));
   parts.push(question);
 
-  const response = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: parts,
-    config: {
-      maxOutputTokens: 4096,
-      temperature: 0.2,
-    },
-  });
+  try {
+    const response = await ai.models.generateContent({
+      model: MODEL_IDS.gemini,
+      contents: parts,
+      config: {
+        maxOutputTokens: 4096,
+        temperature: 0.2,
+      },
+    });
 
-  const text = response.text;
-  if (!text) {
-    throw new Error("Gemini returned no content for document query");
+    const text = response.text;
+    if (!text) {
+      throw new Error("Gemini returned no content for document query");
+    }
+    return text;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Gemini document query failed: ${msg}`);
   }
-  return text;
 }
 
 // ─── Embeddings (delegates to model-router — migration is Task #4) ──────────
