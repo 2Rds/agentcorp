@@ -2,6 +2,22 @@
 
 All notable changes to the WaaS platform.
 
+## [v3.3.1] - 2026-03-20
+
+Post-release fixes: ElevenLabs voice proxy, embedding task types, voice architecture documentation.
+
+### Added
+- OpenAI-compatible streaming proxy for ElevenLabs custom_llm integration (`agents/sales/src/voice/llm-proxy.ts`)
+  - Translates OpenAI ↔ Anthropic Messages API with word buffering for TTS latency
+  - Routes through CF AI Gateway, shared secret auth, max token clamp, voiceEnabled gate
+  - `publicRoutes` config in `@waas/runtime` for unauthenticated voice endpoints
+- Voice architecture v4.0 design document (`docs/waas/voice-architecture-v4.md`, 729 lines)
+
+### Fixed
+- Embedding task types: all storage paths now use `RETRIEVAL_DOCUMENT`, search paths use `RETRIEVAL_QUERY`
+  - Fixed 13 total call sites across CFO, EA, runtime, semantic cache, memory clients, document indexer, build-registry scripts, feature store, Redis MCP server
+- LLM proxy security hardening: shared secret auth, 4096 token clamp, generic error messages, per-request response IDs, voiceEnabled gate
+
 ## [v3.3.0] - 2026-03-20
 
 Platform Migration v4.0 — CF AI Gateway BYOK, Gemini Stack Collapse, OpenRouter removal.

@@ -32,7 +32,8 @@
       "mcp__redis-memory__search-cross-agent",
       "Skill(update-config)",
       "mcp__linear__save_issue",
-      "Skill(pr-review-toolkit:review-pr)"
+      "Skill(pr-review-toolkit:review-pr)",
+      "mcp__claude_ai_Notion__notion-create-pages"
     ],
     "deny": [
       "Bash(rm -rf /*)",
