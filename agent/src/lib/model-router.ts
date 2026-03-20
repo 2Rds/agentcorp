@@ -208,7 +208,6 @@ export interface ChatCompletionOpts {
  * Route a chat completion to its native provider via CF AI Gateway.
  * - "gemini" → Google AI Studio via @google/genai SDK
  * - "grok-fast" → xAI via OpenAI-compatible endpoint
- * - "sonar" → OpenRouter (until replaced by Gemini Search Grounding)
  * - Unknown model IDs → OpenRouter fallback
  */
 export async function chatCompletion(
@@ -230,7 +229,7 @@ export async function chatCompletion(
     return chatCompletionGrok(alias, messages, opts, agentId);
   }
 
-  // Sonar and unknown models → OpenRouter
+  // Unknown models → OpenRouter fallback
   return chatCompletionOpenRouter(model, messages, opts, agentId);
 }
 
@@ -360,7 +359,7 @@ async function chatCompletionGrok(
 }
 
 /**
- * OpenRouter chat completion (Sonar + fallback for unknown models).
+ * OpenRouter chat completion (fallback for unknown models).
  */
 async function chatCompletionOpenRouter(
   model: ModelAlias | string,
