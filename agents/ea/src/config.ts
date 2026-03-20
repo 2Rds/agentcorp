@@ -22,8 +22,8 @@ export const config = {
   port: parseInt(process.env.PORT || "3002", 10),
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:8080").split(",").map(s => s.trim()),
 
-  // Multi-model via OpenRouter (single key for all models)
-  openRouterApiKey: providerKey("OPENROUTER_API_KEY"),
+  // @deprecated OpenRouter replaced by CF AI Gateway BYOK (v4.0). Kept for backward compat during migration.
+  openRouterApiKey: optional("OPENROUTER_API_KEY"),
 
   // Cloudflare AI Gateway + Workers AI (optional — falls back to direct URLs)
   cfAccountId: optional("CF_ACCOUNT_ID"),

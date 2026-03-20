@@ -52,29 +52,6 @@ function useProviderKeys(): boolean {
   return useGateway() && !!config.cfAigToken;
 }
 
-function getOpenRouterBaseURL(): string {
-  if (useGateway()) {
-    return `https://gateway.ai.cloudflare.com/v1/${config.cfAccountId}/${config.cfGatewayId}/openrouter`;
-  }
-  return "https://openrouter.ai/api/v1";
-}
-
-function getOpenRouterHeaders(): Record<string, string> {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "HTTP-Referer": "https://ea.blockdrive.co",
-    "X-Title": "BlockDrive EA",
-  };
-
-  if (useProviderKeys()) {
-    headers["cf-aig-authorization"] = `Bearer ${config.cfAigToken}`;
-  } else {
-    headers["Authorization"] = `Bearer ${config.openRouterApiKey}`;
-  }
-
-  return headers;
-}
-
 export function getAnthropicHeaders(): Record<string, string> {
   const headers: Record<string, string> = {
     "anthropic-version": "2023-06-01",
@@ -140,9 +117,9 @@ export interface ChatCompletionOpts {
 }
 
 /**
- * Route a chat completion to its native provider.
- * - "gemini" → Google AI Studio via @google/genai SDK (through CF AIG when configured)
- * - Unknown models → OpenRouter fallback
+ * Route a chat completion to its native provider via CF AI Gateway.
+ * - "gemini" → Google AI Studio via @google/genai SDK
+ * - Unknown model IDs → error
  */
 export async function chatCompletion(
   model: ModelAlias | string,
@@ -152,91 +129,67 @@ export async function chatCompletion(
   // Route Gemini through @google/genai SDK
   if (model === "gemini") {
     const ai = getGeminiAI();
-    if (ai) {
-      const modelId = MODEL_IDS.gemini;
-      const systemInstruction = messages
-        .filter(m => m.role === "system")
-        .map(m => typeof m.content === "string" ? m.content : JSON.stringify(m.content))
-        .join("\n");
-
-      const contents = messages
-        .filter(m => m.role !== "system")
-        .map(m => ({
-          role: m.role === "assistant" ? "model" as const : "user" as const,
-          parts: typeof m.content === "string"
-            ? [{ text: m.content }]
-            : m.content.map(part => {
-                if (part.type === "text") return { text: part.text };
-                if (part.type === "image_url") {
-                  const match = part.image_url.url.match(/^data:(.+);base64,(.+)$/);
-                  if (match) return { inlineData: { mimeType: match[1], data: match[2] } };
-                  return { text: `[image: ${part.image_url.url}]` };
-                }
-                return { text: JSON.stringify(part) };
-              }),
-        }));
-
-      const geminiConfig: Record<string, unknown> = {
-        maxOutputTokens: opts.maxTokens ?? 8192,
-        temperature: opts.temperature ?? 0.3,
-      };
-      if (opts.responseFormat?.type === "json_object") {
-        geminiConfig.responseMimeType = "application/json";
-      }
-
-      try {
-        const response = await ai.models.generateContent({
-          model: modelId,
-          contents,
-          config: {
-            ...geminiConfig,
-            ...(systemInstruction ? { systemInstruction } : {}),
-          },
-        });
-        const text = response.text;
-        if (!text) throw new Error(`${modelId} returned no content`);
-        return text;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        throw new Error(`Gemini ${modelId} error: ${msg}`);
-      }
+    if (!ai) {
+      throw new Error(
+        "GOOGLE_AI_API_KEY (or CF_AIG_TOKEN for Provider Keys mode) is required for Gemini calls. " +
+        "OpenRouter fallback has been removed — configure direct provider access.",
+      );
     }
-    // No Gemini SDK available — fall through to OpenRouter
+
+    const modelId = MODEL_IDS.gemini;
+    const systemInstruction = messages
+      .filter(m => m.role === "system")
+      .map(m => typeof m.content === "string" ? m.content : JSON.stringify(m.content))
+      .join("\n");
+
+    const contents = messages
+      .filter(m => m.role !== "system")
+      .map(m => ({
+        role: m.role === "assistant" ? "model" as const : "user" as const,
+        parts: typeof m.content === "string"
+          ? [{ text: m.content }]
+          : m.content.map(part => {
+              if (part.type === "text") return { text: part.text };
+              if (part.type === "image_url") {
+                const match = part.image_url.url.match(/^data:(.+);base64,(.+)$/);
+                if (match) return { inlineData: { mimeType: match[1], data: match[2] } };
+                return { text: `[image: ${part.image_url.url}]` };
+              }
+              return { text: JSON.stringify(part) };
+            }),
+      }));
+
+    const geminiConfig: Record<string, unknown> = {
+      maxOutputTokens: opts.maxTokens ?? 8192,
+      temperature: opts.temperature ?? 0.3,
+    };
+    if (opts.responseFormat?.type === "json_object") {
+      geminiConfig.responseMimeType = "application/json";
+    }
+
+    try {
+      const response = await ai.models.generateContent({
+        model: modelId,
+        contents,
+        config: {
+          ...geminiConfig,
+          ...(systemInstruction ? { systemInstruction } : {}),
+        },
+      });
+      const text = response.text;
+      if (!text) throw new Error(`${modelId} returned no content`);
+      return text;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Gemini ${modelId} error: ${msg}`);
+    }
   }
 
-  // OpenRouter fallback for non-Gemini models or when Gemini SDK unavailable
-  const modelId = MODEL_IDS[model as ModelAlias] ?? model;
-
-  const body: Record<string, unknown> = {
-    model: modelId,
-    messages,
-    temperature: opts.temperature ?? 0.3,
-    max_tokens: opts.maxTokens ?? 8192,
-  };
-
-  if (opts.responseFormat) {
-    body.response_format = opts.responseFormat;
-  }
-
-  const response = await fetch(`${getOpenRouterBaseURL()}/chat/completions`, {
-    method: "POST",
-    headers: getOpenRouterHeaders(),
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`OpenRouter ${modelId} error (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content;
-  if (content == null) {
-    throw new Error(
-      `${modelId} returned no content (finish_reason: ${data.choices?.[0]?.finish_reason ?? "no choices"})`,
-    );
-  }
-  return content;
+  // Unknown models → error (OpenRouter removed — all models must route through native providers)
+  throw new Error(
+    `Unknown model "${model}". Available aliases: ${Object.keys(MODEL_IDS).join(", ")}. ` +
+    `All models route through CF AI Gateway with direct provider endpoints.`,
+  );
 }
 
 // ─── Web Search (Gemini Search Grounding) ───────────────────────────────────
